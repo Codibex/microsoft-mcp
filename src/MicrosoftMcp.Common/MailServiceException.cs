@@ -40,10 +40,10 @@ public sealed class MailServiceException : Exception
         detail,
         "set Graph__TenantId and Graph__ClientId (delegated) or additionally Graph__UserIdOrUpn and Graph__ClientSecret (app-only)");
 
-    public static MailServiceException AuthFailed(string detail, Exception? inner = null) => Create(
+    public static MailServiceException AuthFailed(string detail, string? hint = null, Exception? inner = null) => Create(
         "auth-failed",
         detail,
-        "re-authenticate (delete the token cache), verify TenantId/ClientId, and for headless hosts use DelegatedFlow=DeviceCode",
+        hint ?? "re-authenticate (delete the token cache), verify TenantId/ClientId, and for headless hosts use DelegatedFlow=DeviceCode",
         inner);
 
     public static MailServiceException AccessDenied(int status, string? graphCode, string? detail) => Create(

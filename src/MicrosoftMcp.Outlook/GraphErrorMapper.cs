@@ -37,6 +37,18 @@ internal static partial class GraphErrorMapper
                     "free mailbox space or narrow the operation before retrying"),
         };
 
+    /// <summary>Known AADSTS codes with specific recovery hints (MSAL buries
+    /// them behind generic sentences, so we promote code + hint).</summary>
+    private static readonly Dictionary<string, string> AadStsHints =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["AADSTS700016"] = "the app is not visible in this directory yet: verify signInAudience covers this account type, wait a few minutes for propagation, then re-authenticate with the right account",
+            ["AADSTS7000218"] = "enable 'Allow public client flows' in the app registration (Authentication page)",
+            ["AADSTS65001"] = "consent is required: sign in with an account that can consent, or ask an admin to grant the Graph mail permissions",
+            ["AADSTS50020"] = "this account does not exist in the target tenant: use the matching account, or switch TenantId to common/consumers",
+            ["AADSTS90002"] = "TenantId is wrong: verify the directory ID, or use common/consumers",
+        };
+
     internal static MailServiceException ToMailServiceException(Exception ex, string operation) =>
         ex switch
         {
@@ -50,10 +62,18 @@ internal static partial class GraphErrorMapper
             ArgumentException arg => MailServiceException.InvalidRequest(
                 Truncate(arg.Message, 300) ?? "Invalid argument.",
                 "check ids, folder names and enum values (low|normal|high), then retry"),
-            { } other when IsAuthNamespace(other) => MailServiceException.AuthFailed(
-                AuthDetail(other), other),
+            { } other when IsAuthNamespace(other) => MapAuthFailure(AuthDetail(other), other),
             _ => MailServiceException.GraphError(0, ex.GetType().Name, Truncate(ex.Message, 300))
         };
+
+    private static MailServiceException MapAuthFailure(string detail, Exception? ex)
+    {
+        string? hint = ExtractAadStsCode(detail) is { } code
+            && AadStsHints.TryGetValue(code, out var specific)
+            ? specific
+            : null;
+        return MailServiceException.AuthFailed(detail, hint, ex);
+    }
 
     internal static MailServiceException FromStatus(
         int status, string? graphCode, string? detail, string operation)
@@ -68,8 +88,9 @@ internal static partial class GraphErrorMapper
             400 => MailServiceException.InvalidRequest(
                 $"Graph rejected the request (400{(graphCode is null ? string.Empty : $", {graphCode}")}). {detail ?? string.Empty}".Trim(),
                 "check ids, folder names and parameters, then retry with a narrower request"),
-            401 => MailServiceException.AuthFailed(
-                $"Graph authentication failed (401{(graphCode is null ? string.Empty : $", {graphCode}")}). {detail ?? string.Empty}".Trim()),
+            401 => MapAuthFailure(
+                $"Graph authentication failed (401{(graphCode is null ? string.Empty : $", {graphCode}")}). {detail ?? string.Empty}".Trim(),
+                null),
             403 => MailServiceException.AccessDenied(status, graphCode, detail),
             404 => MailServiceException.MessageNotFound("<unknown>", operation),
             409 => MailServiceException.Conflict(operation, detail),

@@ -87,7 +87,20 @@ public sealed class GraphErrorMapperTests
 
         mapped.Code.Should().Be("auth-failed");
         mapped.Message.Should().Contain("AADSTS7000218");
+        mapped.Message.Should().Contain("public client flows");
         mapped.Message.Should().Contain("Next:");
+    }
+
+    [Fact]
+    public void Unknown_app_in_directory_hint_for_700016()
+    {
+        var ex = new AuthenticationFailedException(
+            "AADSTS700016: Application was not found in the directory '9188040d'.");
+
+        var mapped = GraphErrorMapper.ToMailServiceException(ex, "search_emails");
+
+        mapped.Code.Should().Be("auth-failed");
+        mapped.Message.Should().Contain("propagation");
     }
 
     [Fact]
