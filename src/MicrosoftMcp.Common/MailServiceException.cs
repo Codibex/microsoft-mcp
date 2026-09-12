@@ -27,6 +27,16 @@ public sealed class MailServiceException : Exception
         $"Folder '{destination}' was not found.",
         "call list_folders and use id, displayName or a well-known name (inbox, archive, deleteditems, drafts)");
 
+    public static MailServiceException DriveItemNotFound(string itemRef, string operation) => Create(
+        "item-not-found",
+        $"Drive item '{itemRef}' was not found during {operation}.",
+        "call list_children or search_files to get a valid id or /path (ids change on move)");
+
+    public static MailServiceException MissingRef(string what = "itemRef") => Create(
+        "invalid-request",
+        $"{what} must not be empty.",
+        "use \"root\", an item id, or a /path/from/root");
+
     public static MailServiceException InvalidRequest(string detail, string hint) => Create(
         "invalid-request", detail, hint);
 

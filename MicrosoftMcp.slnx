@@ -1,11 +1,14 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/MicrosoftMcp.Common/MicrosoftMcp.Common.csproj" />
+    <Project Path="src/MicrosoftMcp.OneDrive.Host/MicrosoftMcp.OneDrive.Host.csproj" />
+    <Project Path="src/MicrosoftMcp.OneDrive/MicrosoftMcp.OneDrive.csproj" />
     <Project Path="src/MicrosoftMcp.Outlook.Host/MicrosoftMcp.Outlook.Host.csproj" />
     <Project Path="src/MicrosoftMcp.Outlook/MicrosoftMcp.Outlook.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MicrosoftMcp.Common.Tests/MicrosoftMcp.Common.Tests.csproj" />
+    <Project Path="tests/MicrosoftMcp.OneDrive.Tests/MicrosoftMcp.OneDrive.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Outlook.Tests/MicrosoftMcp.Outlook.Tests.csproj" />
   </Folder>
 </Solution>

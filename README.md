@@ -157,6 +157,43 @@ Search/read: `search_emails`, `read_email`, `list_folders`,
 `create_draft`, `create_reply_draft`, `create_forward_draft`,
 `update_draft`.
 
+## OneDrive host (second MCP server)
+
+`microsoft-mcp-onedrive` (project `src/MicrosoftMcp.OneDrive.Host`)
+follows the same pattern: Stdio, `isError` results with `[code]` hints,
+delegated auth via the shared `Common` library. Read, create and move
+only – **no delete**.
+
+Extra Entra setup: add the delegated permissions `Files.Read` and
+`Files.ReadWrite` to the same app registration (consent again if needed).
+Config reuses `Graph:TenantId` + `Graph:ClientId` (user-secrets or
+`Graph__*` env). The host template defaults `DelegatedScopes` to the
+Files scopes. App-Only is not supported by this host (OneDrive via
+`/me/drive` needs a signed-in user).
+
+Items are addressed by `"root"`, item id, or `/path/from/root`.
+
+Tools (9): `get_drive`, `list_drives`, `get_item`, `list_children`,
+`search_files`, `download_file`, `create_folder`, `upload_file`,
+`move_item`.
+
+Limits: `download_file` like `read_attachment` (text decoded, binary as
+base64, 768 KB default / 2097152 max → `attachment-too-large`);
+`upload_file` simple upload up to 4194304 bytes (text or base64);
+`create_folder` renames on conflict instead of failing; `move_item`
+renames and/or reparents (move back to undo).
+
+```json
+{
+  "servers": {
+    "onedrive": {
+      "command": "/path/to/microsoft-mcp-onedrive",
+      "env": { "Graph__TenantId": "<id>", "Graph__ClientId": "<id>" }
+    }
+  }
+}
+```
+
 `read_attachment` returns text files decoded (truncated at 20000 chars)
 and binary files as base64; downloads above `maxBytes` (default 768 KB,
 max 2097152) are rejected with `attachment-too-large`. Nested messages
@@ -164,7 +201,7 @@ and OneDrive links are reported, not downloaded.
 
 ## 8. Error codes (returned as `isError` results with a `Next:` hint)
 
-`message-not-found`, `folder-not-found`, `mailbox-unavailable`, `invalid-request`,
+`message-not-found`, `folder-not-found`, `item-not-found`, `mailbox-unavailable`, `invalid-request`,
 `attachment-too-large`,
 `auth-misconfigured`, `auth-failed`, `access-denied`, `throttled`,
 `conflict`, `service-unavailable`, `graph-error`.
