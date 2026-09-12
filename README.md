@@ -12,7 +12,7 @@ priorisieren. Löschen ist immer reversibel (Papierkorb, kein Hard-Delete).
 | Konto | Modus | Config | Stand |
 |---|---|---|---|
 | Firma (Org-Tenant) | Delegiert | `TenantId` = Tenant-GUID | Implementiert, Live-Test offen (bisher nur Konto ohne Postfach getestet) |
-| Privat (`outlook.com` & Co.) | Delegiert | `TenantId` = `common`, App: Org + persönlich, Token v2 | Implementiert, Live-Test läuft |
+| Privat (`outlook.com` & Co.) | Delegiert | `TenantId` = `common`, App: Org + persönlich, Token v2 | ✅ Live-verifiziert (echte Mails gelesen) |
 | Dienst / fremde Postfächer | App-Only | + `UserIdOrUpn`, `ClientSecret`, Admin-Consent | Implementiert, ungetestet |
 
 ## 0. Welcher Modus? (zuerst entscheiden, dann nur ein Rezept befolgen)
