@@ -1,5 +1,7 @@
 using AwesomeAssertions;
 using Azure.Identity;
+using Microsoft.Graph.Models.ODataErrors;
+using Microsoft.Kiota.Abstractions;
 using MicrosoftMcp.Common;
 
 namespace MicrosoftMcp.Outlook.Tests;
@@ -48,8 +50,31 @@ public sealed class GraphErrorMapperTests
     }
 
     [Fact]
-    public void ExtractAadStsCode_returns_null_without_code() =>
+    public void ExtractGraphCode_returns_null_without_code() =>
         GraphErrorMapper.ExtractGraphCode("plain failure").Should().BeNull();
+
+    [Fact]
+    public void Structured_odata_code_wins_over_message_text()
+    {
+        var api = new ODataError
+        {
+            ResponseStatusCode = 404,
+            Error = new MainError { Code = "MailboxNotEnabledForRESTAPI", Message = "Inactive." }
+        };
+
+        GraphErrorMapper.ResolveGraphCode(api).Should().Be("MailboxNotEnabledForRESTAPI");
+        GraphErrorMapper.ToMailServiceException(api, "search_emails").Code.Should().Be("mailbox-unavailable");
+    }
+
+    [Theory]
+    [InlineData("ErrorMailboxNotAssociated")]
+    [InlineData("ErrorNonExistentMailbox")]
+    public void Mailbox_codes_map_to_mailbox_unavailable(string code)
+    {
+        var mapped = GraphErrorMapper.FromStatus(404, code, "inactive", "search_emails");
+        mapped.Code.Should().Be("mailbox-unavailable");
+        mapped.Message.Should().Contain("Next:");
+    }
 
     [Fact]
     public void AuthDetail_promotes_aadsts_code_to_front()

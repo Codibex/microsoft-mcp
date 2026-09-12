@@ -151,7 +151,7 @@ Suchen/Lesen: `search_emails`, `read_email`, `list_folders`,
 
 ## 8. Fehlercodes (kommen als `isError`-Resultat mit `Next:`-Hinweis)
 
-`message-not-found`, `folder-not-found`, `invalid-request`,
+`message-not-found`, `folder-not-found`, `mailbox-unavailable`, `invalid-request`,
 `auth-misconfigured`, `auth-failed`, `access-denied`, `throttled`,
 `conflict`, `service-unavailable`, `graph-error`.
 Details + Stacktrace landen nur im Server-Log (stderr), nie beim Client.

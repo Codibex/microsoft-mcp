@@ -51,6 +51,11 @@ public sealed class MailServiceException : Exception
         $"Graph denied access (HTTP {status}{(graphCode is null ? string.Empty : $", {graphCode}")}). {detail ?? "No detail."}",
         "verify Entra consent and scopes (delegated: Mail.Read/Mail.ReadWrite; app-only: Mail.ReadWrite + admin consent)");
 
+    public static MailServiceException MailboxUnavailable(string? graphCode, string? detail) => Create(
+        "mailbox-unavailable",
+        $"The mailbox is not usable via Graph{(graphCode is null ? string.Empty : $" ({graphCode})")}. {detail ?? "No detail."}",
+        "sign in with the account that owns an active Exchange Online mailbox (check license, no soft-delete/on-prem); delegated users must not use an admin-only account without mailbox");
+
     public static MailServiceException Throttled(string? detail) => Create(
         "throttled",
         $"Graph rate-limited the request (429). {detail ?? string.Empty}".Trim(),

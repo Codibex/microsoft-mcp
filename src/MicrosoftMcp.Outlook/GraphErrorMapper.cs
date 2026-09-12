@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.Graph.Models.ODataErrors;
 using Microsoft.Kiota.Abstractions;
 using MicrosoftMcp.Common;
 
@@ -22,6 +23,14 @@ internal static partial class GraphErrorMapper
                 MailServiceException.InvalidRequest(
                     "Malformed Graph id.",
                     "use the 'id' field from search_emails, not internetMessageId or webLink"),
+            ["MailboxNotEnabledForRESTAPI"] = static (_, c, d) =>
+                MailServiceException.MailboxUnavailable(c, d),
+            ["ErrorMailboxNotAssociated"] = static (_, c, d) =>
+                MailServiceException.MailboxUnavailable(c, d),
+            ["ErrorMailboxStoreUnknown"] = static (_, c, d) =>
+                MailServiceException.MailboxUnavailable(c, d),
+            ["ErrorNonExistentMailbox"] = static (_, c, d) =>
+                MailServiceException.MailboxUnavailable(c, d),
             ["ErrorQuotaExceeded"] = static (_, _, _) =>
                 MailServiceException.InvalidRequest(
                     "Mailbox quota exceeded.",
@@ -33,7 +42,7 @@ internal static partial class GraphErrorMapper
         {
             MailServiceException already => already,
             ApiException api => FromStatus(
-                api.ResponseStatusCode, ExtractGraphCode(api.Message), Truncate(api.Message, 300), operation),
+                api.ResponseStatusCode, ResolveGraphCode(api), Truncate(api.Message, 300), operation),
             HttpRequestException http => MailServiceException.ServiceUnavailable(
                 Truncate(http.Message, 200), http),
             TimeoutException timeout => MailServiceException.ServiceUnavailable(
@@ -70,6 +79,13 @@ internal static partial class GraphErrorMapper
             _ => MailServiceException.GraphError(status, graphCode, detail)
         };
     }
+
+    /// <summary>Prefers the structured ODataError code; falls back to regex
+    /// over the message text (Kiota puts the Graph body there).</summary>
+    internal static string? ResolveGraphCode(ApiException api) =>
+        api is ODataError odata && !string.IsNullOrWhiteSpace(odata.Error?.Code)
+            ? odata.Error.Code
+            : ExtractGraphCode(api.Message);
 
     internal static string? ExtractGraphCode(string? message)
     {
