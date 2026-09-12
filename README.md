@@ -158,6 +158,16 @@ Details + Stacktrace landen nur im Server-Log (stderr), nie beim Client.
 
 ## 9. Troubleshooting
 
+- Kontotyp lässt sich nicht umstellen
+  (`api.requestedAccessTokenVersion is invalid`) → **Manifest** der App
+  öffnen, `"requestedAccessTokenVersion"` von `2` auf `null` setzen,
+  speichern, danach Kontotyp wechseln. Empfohlen:
+  **Organisationsverzeichnis + persönliche Konten** (nicht „nur persönlich“,
+  bleibt flexibel).
+- Persönliches Konto (`outlook.com` & Co.): `Graph:TenantId` auf `common`
+  (oder `consumers`) statt Tenant-GUID setzen und Device-Flow mit dem
+  Postfach-Konto bestätigen.
+
 - `[auth-failed]` headless → `Graph__DelegatedFlow=DeviceCode`
 - `AADSTS7000218` (client_assertion/client_secret verlangt) → in der
   App-Registrierung **Authentifizierung → Öffentliche Clientflows
