@@ -158,12 +158,12 @@ Details + Stacktrace landen nur im Server-Log (stderr), nie beim Client.
 
 ## 9. Troubleshooting
 
-- Kontotyp lässt sich nicht umstellen
-  (`api.requestedAccessTokenVersion is invalid`) → **Manifest** der App
-  öffnen, `"requestedAccessTokenVersion"` von `2` auf `null` setzen,
-  speichern, danach Kontotyp wechseln. Empfohlen:
-  **Organisationsverzeichnis + persönliche Konten** (nicht „nur persönlich“,
-  bleibt flexibel).
+- Kontotyp lässt sich nicht umstellen: **Manifest** der App öffnen und
+  **zuerst** `"requestedAccessTokenVersion"` auf `2` setzen, speichern,
+  **danach** `"signInAudience"` auf `"AzureADandPersonalMicrosoftAccount"`
+  setzen und speichern. (Hintergrund: Multitenant-/Personal-Audience
+  verlangt Access-Token-Version 2; die neue Authentication-UI meldet das
+  nur kryptisch.) Empfohlen: Org + persönlich, nicht „nur persönlich“.
 - Persönliches Konto (`outlook.com` & Co.): `Graph:TenantId` auf `common`
   (oder `consumers`) statt Tenant-GUID setzen und Device-Flow mit dem
   Postfach-Konto bestätigen.
