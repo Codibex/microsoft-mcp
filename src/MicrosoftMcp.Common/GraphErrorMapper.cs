@@ -1,12 +1,11 @@
 using System.Text.RegularExpressions;
 using Microsoft.Graph.Models.ODataErrors;
 using Microsoft.Kiota.Abstractions;
-using MicrosoftMcp.Common;
 
-namespace MicrosoftMcp.Outlook;
+namespace MicrosoftMcp.Common;
 
 /// <summary>Translates Graph/Kiota/transport exceptions into agent-actionable errors.</summary>
-internal static partial class GraphErrorMapper
+public static partial class GraphErrorMapper
 {
     private static readonly Dictionary<string, Func<int, string?, string, MailServiceException>> GraphCodeOverrides =
         new(StringComparer.OrdinalIgnoreCase)
@@ -49,7 +48,7 @@ internal static partial class GraphErrorMapper
             ["AADSTS90002"] = "TenantId is wrong: verify the directory ID, or use common/consumers",
         };
 
-    internal static MailServiceException ToMailServiceException(Exception ex, string operation) =>
+    public static MailServiceException ToMailServiceException(Exception ex, string operation) =>
         ex switch
         {
             MailServiceException already => already,
@@ -75,7 +74,7 @@ internal static partial class GraphErrorMapper
         return MailServiceException.AuthFailed(detail, hint, ex);
     }
 
-    internal static MailServiceException FromStatus(
+    public static MailServiceException FromStatus(
         int status, string? graphCode, string? detail, string operation)
     {
         if (graphCode is not null && GraphCodeOverrides.TryGetValue(graphCode, out var map))
@@ -103,12 +102,12 @@ internal static partial class GraphErrorMapper
 
     /// <summary>Prefers the structured ODataError code; falls back to regex
     /// over the message text (Kiota puts the Graph body there).</summary>
-    internal static string? ResolveGraphCode(ApiException api) =>
+    public static string? ResolveGraphCode(ApiException api) =>
         api is ODataError odata && !string.IsNullOrWhiteSpace(odata.Error?.Code)
             ? odata.Error.Code
             : ExtractGraphCode(api.Message);
 
-    internal static string? ExtractGraphCode(string? message)
+    public static string? ExtractGraphCode(string? message)
     {
         if (string.IsNullOrEmpty(message))
         {
@@ -125,7 +124,7 @@ internal static partial class GraphErrorMapper
 
     /// <summary>Builds auth detail from the chained messages, promoting any
     /// AADSTS code to the front (MSAL hides it behind generic sentences).</summary>
-    internal static string AuthDetail(Exception ex)
+    public static string AuthDetail(Exception ex)
     {
         var lines = new List<string>();
         for (Exception? current = ex; current is not null; current = current.InnerException)
@@ -143,7 +142,7 @@ internal static partial class GraphErrorMapper
         return string.IsNullOrWhiteSpace(detail) ? "Authentication failed." : Truncate(detail, 300)!;
     }
 
-    internal static string? ExtractAadStsCode(string? text)
+    public static string? ExtractAadStsCode(string? text)
     {
         if (string.IsNullOrEmpty(text))
         {

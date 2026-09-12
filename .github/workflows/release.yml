@@ -59,19 +59,24 @@ jobs:
 
       - name: Publish binaries (framework-dependent, single file)
         run: |
-          for rid in linux-x64 win-x64 osx-arm64; do
-            dotnet publish src/MicrosoftMcp.Outlook.Host -c Release -r "$rid" \
-              --self-contained false -p:PublishSingleFile=true \
-              -p:VersionPrefix=${{ steps.version.outputs.prefix }} \
-              -p:VersionSuffix='${{ steps.version.outputs.suffix }}' \
-              -o "dist/$rid"
+          for spec in "MicrosoftMcp.Outlook.Host:microsoft-mcp-outlook" "MicrosoftMcp.OneDrive.Host:microsoft-mcp-onedrive"; do
+            proj="${spec%%:*}"; bin="${spec##*:}"
+            for rid in linux-x64 win-x64 osx-arm64; do
+              dotnet publish "src/$proj" -c Release -r "$rid" \
+                --self-contained false -p:PublishSingleFile=true \
+                -p:VersionPrefix=${{ steps.version.outputs.prefix }} \
+                -p:VersionSuffix='${{ steps.version.outputs.suffix }}' \
+                -o "dist/$bin/$rid"
+            done
           done
 
       - name: Pack assets + checksums
         run: |
           mkdir -p assets
-          for rid in linux-x64 win-x64 osx-arm64; do
-            (cd "dist/$rid" && zip -q "$GITHUB_WORKSPACE/assets/microsoft-mcp-outlook-${{ steps.version.outputs.tag }}-$rid.zip" microsoft-mcp-outlook microsoft-mcp-outlook.exe appsettings.json)
+          for bin in microsoft-mcp-outlook microsoft-mcp-onedrive; do
+            for rid in linux-x64 win-x64 osx-arm64; do
+              (cd "dist/$bin/$rid" && zip -q "$GITHUB_WORKSPACE/assets/$bin-${{ steps.version.outputs.tag }}-$rid.zip" "$bin" "$bin.exe" appsettings.json)
+            done
           done
           (cd assets && sha256sum *.zip > checksums.txt)
 
@@ -83,9 +88,11 @@ jobs:
           prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
           files: assets/*
           body: |
-            ## Outlook Triage MCP ${{ steps.version.outputs.tag }}
+            ## MicrosoftMcp ${{ steps.version.outputs.tag }}
 
-            Local MCP server (Stdio) for Outlook email triage via Microsoft Graph.
+            Local MCP servers (Stdio) for Outlook email triage and OneDrive
+            files via Microsoft Graph. Each ZIP holds one server binary plus
+            its `appsettings.json` template.
             Requires the **.NET 10 runtime** (included in the SDK).
 
             ### Quickstart
