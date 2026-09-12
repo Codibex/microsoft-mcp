@@ -18,5 +18,7 @@
     <!-- Stricter NuGet audit for security -->
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>direct</NuGetAuditMode>
+    <!-- SPDX license for future NuGet packages -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 </Project>

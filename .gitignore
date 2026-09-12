@@ -1,11 +1,44 @@
+## .NET build outputs
 bin/
 obj/
 out/
 publish/
-.vs/
-.idea/
-*.user
-*.suo
 TestResults/
 coverage*/
+*.trx
+*.coverage
+*.coveragexml
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## User-specific IDE / editor files
+.vs/
+.idea/
+.vscode/*
+!.vscode/mcp.json
+!.vscode/extensions.json
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+.DS_Store
+Thumbs.db
+
+## Secrets / local config (never commit)
 secrets.json
+appsettings.Development.json
+appsettings.Local.json
+*.pfx
+*.private.key
+.env
+.env.*
+
+## Publish profiles with credentials
+**/Properties/PublishProfiles/*.pubxml.user
