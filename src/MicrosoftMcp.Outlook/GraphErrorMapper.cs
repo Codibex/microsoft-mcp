@@ -42,7 +42,7 @@ internal static partial class GraphErrorMapper
                 Truncate(arg.Message, 300) ?? "Invalid argument.",
                 "check ids, folder names and enum values (low|normal|high), then retry"),
             { } other when IsAuthNamespace(other) => MailServiceException.AuthFailed(
-                Truncate(other.Message, 300) ?? "Authentication failed.", other),
+                AuthDetail(other), other),
             _ => MailServiceException.GraphError(0, ex.GetType().Name, Truncate(ex.Message, 300))
         };
 
@@ -86,9 +86,49 @@ internal static partial class GraphErrorMapper
         ex.GetType().FullName?.StartsWith("Azure.Identity.", StringComparison.Ordinal) == true
         || ex.GetType().FullName?.StartsWith("Microsoft.Identity.", StringComparison.Ordinal) == true;
 
+    /// <summary>Builds auth detail from the chained messages, promoting any
+    /// AADSTS code to the front (MSAL hides it behind generic sentences).</summary>
+    internal static string AuthDetail(Exception ex)
+    {
+        var lines = new List<string>();
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            string first = FirstLine(current.Message);
+            if (!string.IsNullOrWhiteSpace(first) && !lines.Contains(first))
+            {
+                lines.Add(first);
+            }
+        }
+
+        string chain = string.Join(" | ", lines);
+        var code = ExtractAadStsCode(chain);
+        string detail = code is null ? chain : $"{code}: {chain}";
+        return string.IsNullOrWhiteSpace(detail) ? "Authentication failed." : Truncate(detail, 300)!;
+    }
+
+    internal static string? ExtractAadStsCode(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        var match = AadStsRegex().Match(text);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    private static string FirstLine(string s)
+    {
+        int cut = s.IndexOfAny(['\r', '\n']);
+        return cut < 0 ? s.Trim() : s[..cut].Trim();
+    }
+
     private static string? Truncate(string? s, int max) =>
         s is null || s.Length <= max ? s : s[..max] + "…[truncated]";
 
     [GeneratedRegex("\"code\"\\s*:\\s*\"([^\"]+)\"", RegexOptions.IgnoreCase)]
     private static partial Regex GraphCodeRegex();
+
+    [GeneratedRegex("(AADSTS\\d+)", RegexOptions.IgnoreCase)]
+    private static partial Regex AadStsRegex();
 }

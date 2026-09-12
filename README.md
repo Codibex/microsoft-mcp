@@ -159,6 +159,9 @@ Details + Stacktrace landen nur im Server-Log (stderr), nie beim Client.
 ## 9. Troubleshooting
 
 - `[auth-failed]` headless → `Graph__DelegatedFlow=DeviceCode`
+- `AADSTS7000218` (client_assertion/client_secret verlangt) → in der
+  App-Registrierung **Authentifizierung → Öffentliche Clientflows
+  zulassen → Ja** (DeviceCode/Browser sind Public-Client-Flows)
 - Token-Cache-Fehler (Linux ohne Keyring) →
   `Graph__EnableTokenCache=false`
 - `[access-denied]` → Consent/Scopes aus Schritt 2 prüfen

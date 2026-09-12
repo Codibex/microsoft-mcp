@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Azure.Identity;
 using MicrosoftMcp.Common;
 
 namespace MicrosoftMcp.Outlook.Tests;
@@ -47,8 +48,22 @@ public sealed class GraphErrorMapperTests
     }
 
     [Fact]
-    public void ExtractGraphCode_returns_null_without_code() =>
+    public void ExtractAadStsCode_returns_null_without_code() =>
         GraphErrorMapper.ExtractGraphCode("plain failure").Should().BeNull();
+
+    [Fact]
+    public void AuthDetail_promotes_aadsts_code_to_front()
+    {
+        var inner = new InvalidOperationException(
+            "A configuration issue. Original exception: AADSTS7000218: missing client_assertion.");
+        var ex = new AuthenticationFailedException("DeviceCodeCredential authentication failed: ", inner);
+
+        var mapped = GraphErrorMapper.ToMailServiceException(ex, "search_emails");
+
+        mapped.Code.Should().Be("auth-failed");
+        mapped.Message.Should().Contain("AADSTS7000218");
+        mapped.Message.Should().Contain("Next:");
+    }
 
     [Fact]
     public void MailServiceException_passes_through_untouched()
