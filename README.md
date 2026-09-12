@@ -167,6 +167,19 @@ Details + Stacktrace landen nur im Server-Log (stderr), nie beim Client.
 - Leere Tool-Liste im Client → `dotnet build` prüfen, dann Server-Stderr
   (im Client-Log) auf `OptionsValidationException` kontrollieren
 
+## Versionierung (SemVer)
+
+`MAJOR.MINOR.PATCH`, zentral in `Directory.Build.props` (`VersionPrefix`).
+Solange `MAJOR = 0` darf `MINOR` Breaking Changes enthalten.
+
+- Neues Tool / neues Feature → `MINOR` hoch (`0.1.0` → `0.2.0`)
+- Fix ohne API-Änderung → `PATCH` hoch
+- Breaking Change ab `1.0.0` → `MAJOR` hoch
+- Release: Tag `vX.Y.Z` pushen → GitHub Action baut, testet und
+  erstellt das Release automatisch (`vX.Y.Z-rc.1` wird als Prerelease
+  markiert)
+- Prerelease lokal bauen: `dotnet build -p:VersionSuffix=rc.1`
+
 ## Anhang: Referenz aller Einstellungen
 
 Rangfolge: User-Secrets / Env schlagen `appsettings.json`.

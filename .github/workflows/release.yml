@@ -1,0 +1,28 @@
+name: Release
+
+# Semantic release: push a tag like v0.2.0 and this builds, tests,
+# and publishes a GitHub Release with generated notes.
+# Prereleases: tag v0.2.0-rc.1 (contains a hyphen -> marked as prerelease).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build MicrosoftMcp.slnx --nologo -c Release
+      - run: dotnet test MicrosoftMcp.slnx --no-build --nologo -c Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
