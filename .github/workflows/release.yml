@@ -71,7 +71,7 @@ jobs:
         run: |
           mkdir -p assets
           for rid in linux-x64 win-x64 osx-arm64; do
-            (cd "dist/$rid" && zip -q "../assets/microsoft-mcp-outlook-${{ steps.version.outputs.tag }}-$rid.zip" microsoft-mcp-outlook microsoft-mcp-outlook.exe appsettings.json)
+            (cd "dist/$rid" && zip -q "$GITHUB_WORKSPACE/assets/microsoft-mcp-outlook-${{ steps.version.outputs.tag }}-$rid.zip" microsoft-mcp-outlook microsoft-mcp-outlook.exe appsettings.json)
           done
           (cd assets && sha256sum *.zip > checksums.txt)
 
@@ -83,23 +83,23 @@ jobs:
           prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
           files: assets/*
           body: |
-            ## Outlook-Triage MCP ${{ steps.version.outputs.tag }}
+            ## Outlook Triage MCP ${{ steps.version.outputs.tag }}
 
-            Lokaler MCP-Server (Stdio) für Outlook-Email-Triage über Microsoft Graph.
-            Benötigt die **.NET 10 Runtime** (im SDK enthalten).
+            Local MCP server (Stdio) for Outlook email triage via Microsoft Graph.
+            Requires the **.NET 10 runtime** (included in the SDK).
 
-            ### Schnellstart
-            1. ZIP für dein OS unten herunterladen und entpacken.
-            2. Konfigurieren (mindestens Tenant + Client aus der Entra-App):
+            ### Quickstart
+            1. Download the ZIP for your OS below and extract it.
+            2. Configure (at minimum tenant + client from your Entra app):
                ```bash
-               ./microsoft-mcp-outlook  # einmal starten, [startup]-Zeile prüft die Config
+               ./microsoft-mcp-outlook  # single start, the [startup] line validates the config
                ```
-               Secrets via User-Secrets oder Env (`Graph__TenantId`, `Graph__ClientId`), Details im README.
-            3. In `mcp.json` einbinden:
+               Secrets via user-secrets or env (`Graph__TenantId`, `Graph__ClientId`), see README.
+            3. Wire up `mcp.json`:
                ```json
-               { "command": "/pfad/zu/microsoft-mcp-outlook", "env": { "Graph__TenantId": "<id>", "Graph__ClientId": "<id>" } }
+               { "command": "/path/to/microsoft-mcp-outlook", "env": { "Graph__TenantId": "<id>", "Graph__ClientId": "<id>" } }
                ```
-            4. Ausführliche Anleitung (Entra-App, Rezepte, Troubleshooting): siehe README im Repo.
+            4. Full guide (Entra app, recipes, troubleshooting): see README in the repo.
 
-            ### Prüfsummen
-            `checksums.txt` enthält die SHA256-Hashes aller ZIPs.
+            ### Checksums
+            `checksums.txt` holds the SHA256 hashes of all ZIPs.
