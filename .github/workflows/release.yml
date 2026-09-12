@@ -1,12 +1,18 @@
 name: Release
 
 # Semantic release: push a tag like v0.2.0 and this builds, tests,
-# and publishes a GitHub Release with generated notes.
+# publishes binaries per OS and creates the GitHub Release.
 # Prereleases: tag v0.2.0-rc.1 (contains a hyphen -> marked as prerelease).
+# Rebuild assets for an existing tag: run manually (workflow_dispatch).
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build the release for, e.g. v0.2.0"
+        required: true
 
 permissions:
   contents: write
@@ -16,13 +22,84 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - run: dotnet build MicrosoftMcp.slnx --nologo -c Release
-      - run: dotnet test MicrosoftMcp.slnx --no-build --nologo -c Release
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prefix=${VERSION%%-*}" >> "$GITHUB_OUTPUT"
+            echo "suffix=${VERSION#*-}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prefix=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "suffix=" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: >
+          dotnet build MicrosoftMcp.slnx --nologo -c Release
+          -p:VersionPrefix=${{ steps.version.outputs.prefix }}
+          -p:VersionSuffix='${{ steps.version.outputs.suffix }}'
+
+      - name: Test
+        run: >
+          dotnet test MicrosoftMcp.slnx --no-build --nologo -c Release
+          -p:VersionPrefix=${{ steps.version.outputs.prefix }}
+          -p:VersionSuffix='${{ steps.version.outputs.suffix }}'
+
+      - name: Publish binaries (framework-dependent, single file)
+        run: |
+          for rid in linux-x64 win-x64 osx-arm64; do
+            dotnet publish src/MicrosoftMcp.Outlook.Host -c Release -r "$rid" \
+              --self-contained false -p:PublishSingleFile=true \
+              -p:VersionPrefix=${{ steps.version.outputs.prefix }} \
+              -p:VersionSuffix='${{ steps.version.outputs.suffix }}' \
+              -o "dist/$rid"
+          done
+
+      - name: Pack assets + checksums
+        run: |
+          mkdir -p assets
+          for rid in linux-x64 win-x64 osx-arm64; do
+            (cd "dist/$rid" && zip -q "../assets/microsoft-mcp-outlook-${{ steps.version.outputs.tag }}-$rid.zip" microsoft-mcp-outlook microsoft-mcp-outlook.exe appsettings.json)
+          done
+          (cd assets && sha256sum *.zip > checksums.txt)
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          files: assets/*
+          body: |
+            ## Outlook-Triage MCP ${{ steps.version.outputs.tag }}
+
+            Lokaler MCP-Server (Stdio) für Outlook-Email-Triage über Microsoft Graph.
+            Benötigt die **.NET 10 Runtime** (im SDK enthalten).
+
+            ### Schnellstart
+            1. ZIP für dein OS unten herunterladen und entpacken.
+            2. Konfigurieren (mindestens Tenant + Client aus der Entra-App):
+               ```bash
+               ./microsoft-mcp-outlook  # einmal starten, [startup]-Zeile prüft die Config
+               ```
+               Secrets via User-Secrets oder Env (`Graph__TenantId`, `Graph__ClientId`), Details im README.
+            3. In `mcp.json` einbinden:
+               ```json
+               { "command": "/pfad/zu/microsoft-mcp-outlook", "env": { "Graph__TenantId": "<id>", "Graph__ClientId": "<id>" } }
+               ```
+            4. Ausführliche Anleitung (Entra-App, Rezepte, Troubleshooting): siehe README im Repo.
+
+            ### Prüfsummen
+            `checksums.txt` enthält die SHA256-Hashes aller ZIPs.

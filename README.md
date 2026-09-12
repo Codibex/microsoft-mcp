@@ -198,7 +198,8 @@ Solange `MAJOR = 0` darf `MINOR` Breaking Changes enthalten.
 - Breaking Change ab `1.0.0` → `MAJOR` hoch
 - Release: Tag `vX.Y.Z` pushen → GitHub Action baut, testet und
   erstellt das Release automatisch (`vX.Y.Z-rc.1` wird als Prerelease
-  markiert)
+  markiert) – inkl. fertiger Binaries (linux-x64, win-x64, osx-arm64)
+  und SHA256-Prüfsummen als Assets
 - Prerelease lokal bauen: `dotnet build -p:VersionSuffix=rc.1`
 
 ## Anhang: Referenz aller Einstellungen
