@@ -1,0 +1,44 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using MicrosoftMcp.Common;
+using ModelContextProtocol.Protocol;
+
+namespace MicrosoftMcp.Outlook;
+
+/// <summary>
+/// Builds tool results. Success serializes the payload as JSON text;
+/// failures return the coded MailServiceException message with IsError=true,
+/// so the agent always receives code + Next-hint (thrown exceptions are
+/// reduced to "An error occurred invoking ..." by the SDK and lose detail).
+/// </summary>
+internal static class ToolResult
+{
+    internal static readonly JsonSerializerOptions Json = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    internal static CallToolResult Ok<T>(T payload) => new()
+    {
+        Content = [new TextContentBlock
+        {
+            Text = System.Text.Json.JsonSerializer.Serialize(payload, Json)
+        }]
+    };
+
+    internal static CallToolResult Fail(MailServiceException error) => new()
+    {
+        Content = [new TextContentBlock { Text = error.Message }],
+        IsError = true
+    };
+
+    internal static string ReadText(CallToolResult result) =>
+        result.Content.Count == 1 && result.Content[0] is TextContentBlock text
+            ? text.Text
+            : throw new InvalidOperationException("Unexpected tool result shape.");
+
+    internal static T ReadJson<T>(CallToolResult result) =>
+        System.Text.Json.JsonSerializer.Deserialize<T>(ReadText(result), Json)
+            ?? throw new InvalidOperationException("Tool result was null JSON.");
+}

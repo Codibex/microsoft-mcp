@@ -1,0 +1,51 @@
+namespace MicrosoftMcp.Outlook;
+
+public sealed record EmailAddressDto(string Name, string Address);
+
+public sealed record EmailSummary(
+    string Id,
+    string Subject,
+    EmailAddressDto? From,
+    IReadOnlyList<EmailAddressDto> ToRecipients,
+    DateTimeOffset? Received,
+    bool IsRead,
+    bool HasAttachments,
+    IReadOnlyList<string> Categories,
+    string? Importance,
+    string? Preview);
+
+public sealed record EmailDetail(
+    string Id,
+    string Subject,
+    EmailAddressDto? From,
+    IReadOnlyList<EmailAddressDto> ToRecipients,
+    DateTimeOffset? Received,
+    bool IsRead,
+    IReadOnlyList<string> Categories,
+    string? BodyPreview,
+    string? Body,
+    string? WebLink);
+
+public sealed record FolderInfo(
+    string Id,
+    string DisplayName,
+    int TotalCount,
+    int UnreadCount);
+
+public sealed record AttachmentInfo(
+    string Id,
+    string Name,
+    string? ContentType,
+    int Size,
+    bool IsInline);
+
+public sealed record CategoryInfo(
+    string Id,
+    string DisplayName,
+    string? Color);
+
+public sealed record EmailQuery(
+    string? Query,
+    string? Folder,
+    string? From,
+    int Top = 25);
