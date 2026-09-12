@@ -131,6 +131,14 @@ public sealed class OutlookTools(IGraphMailService mail, ILogger<OutlookTools> l
         CancellationToken ct = default) =>
         InvokeAsync("list_attachments", () => mail.ListAttachmentsAsync(messageId, ct));
 
+    [McpServerTool, Description("Read an attachment. Text files come back decoded (truncated at 20000 chars), binary files as base64. Attachments above maxBytes are rejected with attachment-too-large. Nested messages and OneDrive links are reported, not downloaded.")]
+    public Task<CallToolResult> read_attachment(
+        [Description("Graph message id")] string messageId,
+        [Description("Attachment id from list_attachments")] string attachmentId,
+        [Description("Max bytes to download, up to 2097152")] int maxBytes = 786432,
+        CancellationToken ct = default) =>
+        InvokeAsync("read_attachment", () => mail.ReadAttachmentAsync(messageId, attachmentId, maxBytes, ct));
+
     [McpServerTool, Description("List available Outlook categories (master list) for labeling.")]
     public Task<CallToolResult> list_categories(CancellationToken ct = default) =>
         InvokeAsync("list_categories", () => mail.ListCategoriesAsync(ct));

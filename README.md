@@ -145,21 +145,27 @@ Example prompt for the agent:
 > – send nothing, delete nothing permanently.”
 
 The server deliberately **cannot**: send (no tool, no `Mail.Send`
-permission needed), hard-delete, or download attachments
-(metadata only via `list_attachments`).
+permission needed), hard-delete, or download attachments larger than
+2 MB and nested items (see `read_attachment` limits).
 
-## 7. Tools (16)
+## 7. Tools (17)
 
 Search/read: `search_emails`, `read_email`, `list_folders`,
-`list_attachments`, `list_categories` · Organize: `move_email`,
+`list_attachments`, `read_attachment`, `list_categories` · Organize: `move_email`,
 `archive_email`, `delete_email` (trash), `create_folder`,
 `set_categories`, `mark_read`, `set_importance` · Draft:
 `create_draft`, `create_reply_draft`, `create_forward_draft`,
 `update_draft`.
 
+`read_attachment` returns text files decoded (truncated at 20000 chars)
+and binary files as base64; downloads above `maxBytes` (default 768 KB,
+max 2097152) are rejected with `attachment-too-large`. Nested messages
+and OneDrive links are reported, not downloaded.
+
 ## 8. Error codes (returned as `isError` results with a `Next:` hint)
 
 `message-not-found`, `folder-not-found`, `mailbox-unavailable`, `invalid-request`,
+`attachment-too-large`,
 `auth-misconfigured`, `auth-failed`, `access-denied`, `throttled`,
 `conflict`, `service-unavailable`, `graph-error`.
 Details + stack traces go to the server log (stderr) only, never to the client.

@@ -270,6 +270,89 @@ public sealed class GraphMailService(
         return [.. (userPage?.Value ?? []).Select(EmailMapper.MapAttachment)];
     }
 
+    public async Task<AttachmentContent> ReadAttachmentAsync(
+        string messageId, string attachmentId, int maxBytes = 786432, CancellationToken ct = default)
+    {
+        RequireId(messageId);
+        if (string.IsNullOrWhiteSpace(attachmentId))
+        {
+            throw MailServiceException.MissingId("attachmentId");
+        }
+
+        int cap = Math.Clamp(maxBytes, 1, 2097152);
+
+        Attachment? att = IsMe
+            ? await client.Me.Messages[messageId].Attachments[attachmentId].GetAsync(c =>
+                c.QueryParameters.Select = ["id", "name", "contentType", "size", "isInline", "contentBytes"],
+                ct).ConfigureAwait(false)
+            : await client.Users[_options.UserIdOrUpn].Messages[messageId].Attachments[attachmentId].GetAsync(c =>
+                c.QueryParameters.Select = ["id", "name", "contentType", "size", "isInline", "contentBytes"],
+                ct).ConfigureAwait(false);
+
+        if (att is null)
+        {
+            throw MailServiceException.InvalidRequest(
+                $"Attachment '{attachmentId}' was not found on message '{messageId}'.",
+                "call list_attachments to get valid attachment ids");
+        }
+
+        return att switch
+        {
+            FileAttachment file => MapFileAttachment(file, cap),
+            ItemAttachment item => new AttachmentContent(
+                item.Id ?? string.Empty, item.Name ?? string.Empty, item.ContentType,
+                item.Size ?? 0, "nested", null, null, null, false),
+            ReferenceAttachment reference => new AttachmentContent(
+                reference.Id ?? string.Empty, reference.Name ?? string.Empty, reference.ContentType,
+                reference.Size ?? 0, "reference", null, null, ReferenceUrl(reference), false),
+            _ => new AttachmentContent(
+                att.Id ?? string.Empty, att.Name ?? string.Empty, att.ContentType,
+                att.Size ?? 0, "unknown", null, null, null, false)
+        };
+    }
+
+    private static AttachmentContent MapFileAttachment(FileAttachment file, int cap)
+    {
+        byte[] bytes = file.ContentBytes ?? [];
+        if (bytes.Length > cap)
+        {
+            throw MailServiceException.AttachmentTooLarge(file.Name ?? "?", bytes.Length, cap);
+        }
+
+        if (IsTextContent(file.ContentType))
+        {
+            string text = System.Text.Encoding.UTF8.GetString(bytes);
+            bool truncated = text.Length > 20000;
+            return new AttachmentContent(
+                file.Id ?? string.Empty, file.Name ?? string.Empty, file.ContentType,
+                bytes.Length, "text",
+                truncated ? EmailMapper.Truncate(text, 20000) : text,
+                null, null, truncated);
+        }
+
+        return new AttachmentContent(
+            file.Id ?? string.Empty, file.Name ?? string.Empty, file.ContentType,
+            bytes.Length, "base64", null, Convert.ToBase64String(bytes), null, false);
+    }
+
+    private static string? ReferenceUrl(ReferenceAttachment reference) =>
+        reference.AdditionalData.TryGetValue("sourceUrl", out var url) ? url?.ToString() : null;
+
+    private static bool IsTextContent(string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType))
+        {
+            return false;
+        }
+
+        string type = contentType.Split(';')[0].Trim().ToLowerInvariant();
+        return type.StartsWith("text/", StringComparison.Ordinal)
+            || type is "application/json" or "application/xml"
+                or "application/javascript" or "application/csv"
+            || type.EndsWith("+json", StringComparison.Ordinal)
+            || type.EndsWith("+xml", StringComparison.Ordinal);
+    }
+
     public async Task<IReadOnlyList<CategoryInfo>> ListCategoriesAsync(CancellationToken ct = default)
     {
         if (IsMe)

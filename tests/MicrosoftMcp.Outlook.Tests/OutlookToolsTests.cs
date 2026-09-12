@@ -104,12 +104,44 @@ public sealed class OutlookToolsTests
         labeled.Categories.Should().Contain("Blue category");
 
         ToolResults.Ok<List<CategoryInfo>>(await tools.list_categories()).Should().HaveCount(2);
-        ToolResults.Ok<List<AttachmentInfo>>(await tools.list_attachments("m1")).Should().HaveCount(1);
+        ToolResults.Ok<List<AttachmentInfo>>(await tools.list_attachments("m1")).Should().HaveCount(5);
         ToolResults.Ok<List<AttachmentInfo>>(await tools.list_attachments("m2")).Should().BeEmpty();
 
         ToolResults.Ok<string>(await tools.mark_read("m1", true)).Should().Contain("read");
         ToolResults.Ok<string>(await tools.set_importance("m1", "high")).Should().Contain("high");
         ToolResults.Fail(await tools.set_importance("m1", "urgent")).Should().Contain("[invalid-request]");
+    }
+
+    [Fact]
+    public async Task Read_attachment_text_base64_nested_reference_with_fake()
+    {
+        var tools = Create(new FakeGraphMailService());
+
+        var text = ToolResults.Ok<AttachmentContent>(await tools.read_attachment("m1", "a1"));
+        text.Encoding.Should().Be("text");
+        text.Text.Should().Contain("42,00");
+        text.Truncated.Should().BeFalse();
+
+        var binary = ToolResults.Ok<AttachmentContent>(await tools.read_attachment("m1", "a2"));
+        binary.Encoding.Should().Be("base64");
+        binary.DataBase64.Should().NotBeNullOrEmpty();
+
+        var nested = ToolResults.Ok<AttachmentContent>(await tools.read_attachment("m1", "a4"));
+        nested.Encoding.Should().Be("nested");
+
+        var reference = ToolResults.Ok<AttachmentContent>(await tools.read_attachment("m1", "a5"));
+        reference.Encoding.Should().Be("reference");
+        reference.SourceUrl.Should().Contain("sharepoint");
+    }
+
+    [Fact]
+    public async Task Read_attachment_errors_carry_codes()
+    {
+        var tools = Create(new FakeGraphMailService());
+
+        ToolResults.Fail(await tools.read_attachment("m1", "a3")).Should().Contain("[attachment-too-large]");
+        ToolResults.Fail(await tools.read_attachment("m1", "nope")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.read_attachment("m1", "  ")).Should().Contain("[invalid-request]");
     }
 
     [Fact]

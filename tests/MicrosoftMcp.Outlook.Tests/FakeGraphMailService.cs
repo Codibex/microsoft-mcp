@@ -20,10 +20,20 @@ internal sealed class FakeGraphMailService : IGraphMailService
 
     private readonly Dictionary<string, Stored> _messages = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, FolderInfo> _folders = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<AttachmentInfo> _attachments =
-    [
-        new("a1", "rechnung.pdf", "application/pdf", 1234, false)
-    ];
+
+    private sealed class StoredAttachment
+    {
+        public required string Id { get; init; }
+        public required string MessageId { get; init; }
+        public required string Name { get; init; }
+        public string? ContentType { get; init; }
+        /// <summary>file, nested or reference (mirrors Graph attachment types).</summary>
+        public required string Kind { get; init; }
+        public byte[] Content { get; init; } = [];
+        public string? Url { get; init; }
+    }
+
+    private readonly List<StoredAttachment> _contents = [];
 
     private readonly List<CategoryInfo> _categories =
     [
@@ -46,6 +56,32 @@ internal sealed class FakeGraphMailService : IGraphMailService
         Seed(new Stored { Id = "m1", Subject = "Rechnung Januar", IsRead = false, HasAttachments = true });
         Seed(new Stored { Id = "m2", Subject = "Hallo", IsRead = true, Categories = ["Red category"] });
         Seed(new Stored { Id = "m3", Subject = "Alt", Folder = "archive", IsRead = true });
+
+        _contents.Add(new StoredAttachment
+        {
+            Id = "a1", MessageId = "m1", Name = "notes.txt",
+            ContentType = "text/plain", Kind = "file",
+            Content = "Rechnungsbetrag: 42,00 EUR\nFaellig: morgen"u8.ToArray()
+        });
+        _contents.Add(new StoredAttachment
+        {
+            Id = "a2", MessageId = "m1", Name = "bild.png",
+            ContentType = "image/png", Kind = "file", Content = new byte[100]
+        });
+        _contents.Add(new StoredAttachment
+        {
+            Id = "a3", MessageId = "m1", Name = "big.bin",
+            ContentType = "application/octet-stream", Kind = "file", Content = new byte[3_000_000]
+        });
+        _contents.Add(new StoredAttachment
+        {
+            Id = "a4", MessageId = "m1", Name = "Weitergeleitet", Kind = "nested"
+        });
+        _contents.Add(new StoredAttachment
+        {
+            Id = "a5", MessageId = "m1", Name = "Budget.xlsx",
+            Kind = "reference", Url = "https://example.sharepoint.com/budget"
+        });
     }
 
     private void Seed(Stored s)
@@ -218,8 +254,75 @@ internal sealed class FakeGraphMailService : IGraphMailService
     public Task<IReadOnlyList<AttachmentInfo>> ListAttachmentsAsync(string messageId, CancellationToken ct = default)
     {
         var msg = Get(messageId);
-        IReadOnlyList<AttachmentInfo> result = msg.HasAttachments ? _attachments : [];
+        IReadOnlyList<AttachmentInfo> result =
+        [
+            .. _contents
+                .Where(a => a.MessageId == msg.Id)
+                .Select(a => new AttachmentInfo(a.Id, a.Name, a.ContentType, a.Content.Length, false))
+        ];
         return Task.FromResult(result);
+    }
+
+    public Task<AttachmentContent> ReadAttachmentAsync(
+        string messageId, string attachmentId, int maxBytes = 786432, CancellationToken ct = default)
+    {
+        var msg = Get(messageId);
+        if (string.IsNullOrWhiteSpace(attachmentId))
+        {
+            throw MailServiceException.MissingId("attachmentId");
+        }
+
+        int cap = Math.Clamp(maxBytes, 1, 2097152);
+        var att = _contents.FirstOrDefault(a => a.MessageId == msg.Id && a.Id == attachmentId)
+            ?? throw MailServiceException.InvalidRequest(
+                $"Attachment '{attachmentId}' was not found on message '{messageId}'.",
+                "call list_attachments to get valid attachment ids");
+
+        if (att.Kind == "nested")
+        {
+            return Task.FromResult(new AttachmentContent(
+                att.Id, att.Name, att.ContentType, 0, "nested", null, null, null, false));
+        }
+
+        if (att.Kind == "reference")
+        {
+            return Task.FromResult(new AttachmentContent(
+                att.Id, att.Name, att.ContentType, 0, "reference", null, null, att.Url, false));
+        }
+
+        if (att.Content.Length > cap)
+        {
+            throw MailServiceException.AttachmentTooLarge(att.Name, att.Content.Length, cap);
+        }
+
+        if (IsText(att.ContentType))
+        {
+            string text = System.Text.Encoding.UTF8.GetString(att.Content);
+            bool truncated = text.Length > 20000;
+            return Task.FromResult(new AttachmentContent(
+                att.Id, att.Name, att.ContentType, att.Content.Length, "text",
+                truncated ? text[..20000] + "…[truncated]" : text, null, null, truncated));
+        }
+
+        return Task.FromResult(new AttachmentContent(
+            att.Id, att.Name, att.ContentType, att.Content.Length, "base64",
+            null, Convert.ToBase64String(att.Content), null, false));
+    }
+
+    // Mirrors GraphMailService.IsTextContent rules so the fake behaves alike.
+    private static bool IsText(string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType))
+        {
+            return false;
+        }
+
+        string type = contentType.Split(';')[0].Trim().ToLowerInvariant();
+        return type.StartsWith("text/", StringComparison.Ordinal)
+            || type is "application/json" or "application/xml"
+                or "application/javascript" or "application/csv"
+            || type.EndsWith("+json", StringComparison.Ordinal)
+            || type.EndsWith("+xml", StringComparison.Ordinal);
     }
 
     public Task<IReadOnlyList<CategoryInfo>> ListCategoriesAsync(CancellationToken ct = default) =>

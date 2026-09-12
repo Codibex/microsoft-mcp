@@ -61,6 +61,11 @@ public sealed class MailServiceException : Exception
         $"Graph rate-limited the request (429). {detail ?? string.Empty}".Trim(),
         "wait ~60s, then retry with a smaller 'top' value");
 
+    public static MailServiceException AttachmentTooLarge(string name, int size, int maxBytes) => Create(
+        "attachment-too-large",
+        $"Attachment '{name}' is {size} bytes, above the {maxBytes} byte limit.",
+        "pick a smaller attachment (see size in list_attachments), or raise maxBytes up to 2097152");
+
     public static MailServiceException Conflict(string operation, string? detail) => Create(
         "conflict",
         $"Concurrent change during {operation} (409). {detail ?? string.Empty}".Trim(),

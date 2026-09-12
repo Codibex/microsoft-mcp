@@ -32,6 +32,11 @@ public interface IGraphMailService
         IReadOnlyList<string>? to = null,
         CancellationToken ct = default);
     Task<IReadOnlyList<AttachmentInfo>> ListAttachmentsAsync(string messageId, CancellationToken ct = default);
+    Task<AttachmentContent> ReadAttachmentAsync(
+        string messageId,
+        string attachmentId,
+        int maxBytes = 786432,
+        CancellationToken ct = default);
     Task<IReadOnlyList<CategoryInfo>> ListCategoriesAsync(CancellationToken ct = default);
     Task<EmailDetail> SetCategoriesAsync(string messageId, string[] add, string[] remove, CancellationToken ct = default);
     Task MarkReadAsync(string messageId, bool isRead, CancellationToken ct = default);

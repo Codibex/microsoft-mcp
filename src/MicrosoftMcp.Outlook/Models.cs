@@ -44,6 +44,19 @@ public sealed record CategoryInfo(
     string DisplayName,
     string? Color);
 
+/// <summary>Attachment content. Encoding is text, base64, reference (OneDrive
+/// link, not downloaded) or nested (message/event attachment, not downloaded).</summary>
+public sealed record AttachmentContent(
+    string Id,
+    string Name,
+    string? ContentType,
+    int Size,
+    string Encoding,
+    string? Text,
+    string? DataBase64,
+    string? SourceUrl,
+    bool Truncated);
+
 public sealed record EmailQuery(
     string? Query,
     string? Folder,
