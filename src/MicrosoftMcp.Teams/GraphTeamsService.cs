@@ -36,7 +36,7 @@ public sealed class GraphTeamsService : IGraphTeamsService
 
     public async Task<IReadOnlyList<ChannelInfo>> ListChannelsAsync(string teamId, CancellationToken ct = default)
     {
-        RequireId(teamId, "teamId", "call list_teams to get valid team ids");
+        RequireId(teamId, "teamId", "call teams_list_teams to get valid team ids");
         var page = await _client.Teams[teamId.Trim()].Channels.GetAsync(c =>
         {
             c.QueryParameters.Top = 100;
@@ -48,8 +48,8 @@ public sealed class GraphTeamsService : IGraphTeamsService
     public async Task<IReadOnlyList<MessageSummary>> ListChannelMessagesAsync(
         string teamId, string channelId, int top = 25, CancellationToken ct = default)
     {
-        RequireId(teamId, "teamId", "call list_teams to get valid team ids");
-        RequireId(channelId, "channelId", "call list_channels for the team to get valid channel ids");
+        RequireId(teamId, "teamId", "call teams_list_teams to get valid team ids");
+        RequireId(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
         int take = Math.Clamp(top, 1, 100);
         var page = await _client.Teams[teamId.Trim()].Channels[channelId.Trim()].Messages.GetAsync(c =>
         {
@@ -62,9 +62,9 @@ public sealed class GraphTeamsService : IGraphTeamsService
     public async Task<IReadOnlyList<MessageSummary>> ListMessageRepliesAsync(
         string teamId, string channelId, string messageId, int top = 25, CancellationToken ct = default)
     {
-        RequireId(teamId, "teamId", "call list_teams to get valid team ids");
-        RequireId(channelId, "channelId", "call list_channels for the team to get valid channel ids");
-        RequireId(messageId, "messageId", "call list_channel_messages to get valid message ids");
+        RequireId(teamId, "teamId", "call teams_list_teams to get valid team ids");
+        RequireId(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
+        RequireId(messageId, "messageId", "call teams_list_channel_messages to get valid message ids");
         int take = Math.Clamp(top, 1, 100);
         var page = await _client.Teams[teamId.Trim()].Channels[channelId.Trim()].Messages[messageId.Trim()]
             .Replies.GetAsync(c =>
@@ -78,13 +78,13 @@ public sealed class GraphTeamsService : IGraphTeamsService
     public async Task<MessageDetail> ReadChannelMessageAsync(
         string teamId, string channelId, string messageId, CancellationToken ct = default)
     {
-        RequireId(teamId, "teamId", "call list_teams to get valid team ids");
-        RequireId(channelId, "channelId", "call list_channels for the team to get valid channel ids");
-        RequireId(messageId, "messageId", "call list_channel_messages to get valid message ids");
+        RequireId(teamId, "teamId", "call teams_list_teams to get valid team ids");
+        RequireId(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
+        RequireId(messageId, "messageId", "call teams_list_channel_messages to get valid message ids");
         var msg = await _client.Teams[teamId.Trim()].Channels[channelId.Trim()].Messages[messageId.Trim()]
             .GetAsync(c => c.QueryParameters.Select = TeamsMapper.Select, ct).ConfigureAwait(false);
         return msg is null
-            ? throw MailServiceException.TeamsMessageNotFound(messageId, "read_channel_message")
+            ? throw MailServiceException.TeamsMessageNotFound(messageId, "teams_read_channel_message")
             : TeamsMapper.MapDetail(msg);
     }
 
@@ -102,7 +102,7 @@ public sealed class GraphTeamsService : IGraphTeamsService
     public async Task<IReadOnlyList<MessageSummary>> ListChatMessagesAsync(
         string chatId, int top = 25, CancellationToken ct = default)
     {
-        RequireId(chatId, "chatId", "call list_chats to get valid chat ids");
+        RequireId(chatId, "chatId", "call teams_list_chats to get valid chat ids");
         int take = Math.Clamp(top, 1, 100);
         var page = await _client.Me.Chats[chatId.Trim()].Messages.GetAsync(c =>
         {
@@ -115,8 +115,8 @@ public sealed class GraphTeamsService : IGraphTeamsService
     public async Task<IReadOnlyList<MessageSummary>> ListChatRepliesAsync(
         string chatId, string messageId, int top = 25, CancellationToken ct = default)
     {
-        RequireId(chatId, "chatId", "call list_chats to get valid chat ids");
-        RequireId(messageId, "messageId", "call list_chat_messages to get valid message ids");
+        RequireId(chatId, "chatId", "call teams_list_chats to get valid chat ids");
+        RequireId(messageId, "messageId", "call teams_list_chat_messages to get valid message ids");
         int take = Math.Clamp(top, 1, 100);
         var page = await _client.Me.Chats[chatId.Trim()].Messages[messageId.Trim()].Replies.GetAsync(c =>
         {
@@ -129,12 +129,12 @@ public sealed class GraphTeamsService : IGraphTeamsService
     public async Task<MessageDetail> ReadChatMessageAsync(
         string chatId, string messageId, CancellationToken ct = default)
     {
-        RequireId(chatId, "chatId", "call list_chats to get valid chat ids");
-        RequireId(messageId, "messageId", "call list_chat_messages to get valid message ids");
+        RequireId(chatId, "chatId", "call teams_list_chats to get valid chat ids");
+        RequireId(messageId, "messageId", "call teams_list_chat_messages to get valid message ids");
         var msg = await _client.Me.Chats[chatId.Trim()].Messages[messageId.Trim()]
             .GetAsync(c => c.QueryParameters.Select = TeamsMapper.Select, ct).ConfigureAwait(false);
         return msg is null
-            ? throw MailServiceException.TeamsMessageNotFound(messageId, "read_chat_message")
+            ? throw MailServiceException.TeamsMessageNotFound(messageId, "teams_read_chat_message")
             : TeamsMapper.MapDetail(msg);
     }
 

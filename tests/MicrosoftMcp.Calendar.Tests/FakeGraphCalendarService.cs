@@ -124,7 +124,7 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
         if (string.IsNullOrWhiteSpace(eventId))
         {
             throw MailServiceException.InvalidRequest(
-                "eventId must not be empty.", "use an id from list_events or search_events");
+                "eventId must not be empty.", "use an id from calendar_list_events or calendar_search_events");
         }
 
         return Task.FromResult(

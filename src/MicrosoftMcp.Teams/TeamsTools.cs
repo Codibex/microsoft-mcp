@@ -40,65 +40,65 @@ public sealed class TeamsTools(IGraphTeamsService teams, ILogger<TeamsTools> log
     }
 
     [McpServerTool, Description("List joined teams (id, name). Needed to pick a team id. Read-only.")]
-    public Task<CallToolResult> list_teams(CancellationToken ct = default) =>
-        InvokeAsync("list_teams", () => teams.ListTeamsAsync(ct), "team");
+    public Task<CallToolResult> teams_list_teams(CancellationToken ct = default) =>
+        InvokeAsync("teams_list_teams", () => teams.ListTeamsAsync(ct), "team");
 
     [McpServerTool, Description("List channels of a team. Read-only.")]
-    public Task<CallToolResult> list_channels(
-        [Description("Team id from list_teams")] string teamId,
+    public Task<CallToolResult> teams_list_channels(
+        [Description("Team id from teams_list_teams")] string teamId,
         CancellationToken ct = default) =>
-        InvokeAsync("list_channels", () => teams.ListChannelsAsync(teamId, ct), "channel");
+        InvokeAsync("teams_list_channels", () => teams.ListChannelsAsync(teamId, ct), "channel");
 
     [McpServerTool, Description("List messages of a channel (newest first). Read-only, no send.")]
-    public Task<CallToolResult> list_channel_messages(
+    public Task<CallToolResult> teams_list_channel_messages(
         [Description("Team id")] string teamId,
         [Description("Channel id")] string channelId,
         [Description("Max messages 1-100")] int top = 25,
         CancellationToken ct = default) =>
-        InvokeAsync("list_channel_messages", () => teams.ListChannelMessagesAsync(teamId, channelId, top, ct));
+        InvokeAsync("teams_list_channel_messages", () => teams.ListChannelMessagesAsync(teamId, channelId, top, ct));
 
     [McpServerTool, Description("List replies to a channel message (thread). Read-only.")]
-    public Task<CallToolResult> list_message_replies(
+    public Task<CallToolResult> teams_list_message_replies(
         [Description("Team id")] string teamId,
         [Description("Channel id")] string channelId,
         [Description("Parent message id")] string messageId,
         [Description("Max replies 1-100")] int top = 25,
         CancellationToken ct = default) =>
-        InvokeAsync("list_message_replies", () => teams.ListMessageRepliesAsync(teamId, channelId, messageId, top, ct));
+        InvokeAsync("teams_list_message_replies", () => teams.ListMessageRepliesAsync(teamId, channelId, messageId, top, ct));
 
     [McpServerTool, Description("Read a full channel message (content, reactions, mentions). Read-only.")]
-    public Task<CallToolResult> read_channel_message(
+    public Task<CallToolResult> teams_read_channel_message(
         [Description("Team id")] string teamId,
         [Description("Channel id")] string channelId,
         [Description("Message id")] string messageId,
         CancellationToken ct = default) =>
-        InvokeAsync("read_channel_message", () => teams.ReadChannelMessageAsync(teamId, channelId, messageId, ct));
+        InvokeAsync("teams_read_channel_message", () => teams.ReadChannelMessageAsync(teamId, channelId, messageId, ct));
 
     [McpServerTool, Description("List recent chats (1:1 and group). Read-only.")]
-    public Task<CallToolResult> list_chats(
+    public Task<CallToolResult> teams_list_chats(
         [Description("Max chats 1-100")] int top = 25,
         CancellationToken ct = default) =>
-        InvokeAsync("list_chats", () => teams.ListChatsAsync(top, ct), "chat");
+        InvokeAsync("teams_list_chats", () => teams.ListChatsAsync(top, ct), "chat");
 
     [McpServerTool, Description("List messages of a chat. Read-only, no send.")]
-    public Task<CallToolResult> list_chat_messages(
-        [Description("Chat id from list_chats")] string chatId,
+    public Task<CallToolResult> teams_list_chat_messages(
+        [Description("Chat id from teams_list_chats")] string chatId,
         [Description("Max messages 1-100")] int top = 25,
         CancellationToken ct = default) =>
-        InvokeAsync("list_chat_messages", () => teams.ListChatMessagesAsync(chatId, top, ct));
+        InvokeAsync("teams_list_chat_messages", () => teams.ListChatMessagesAsync(chatId, top, ct));
 
     [McpServerTool, Description("List replies to a chat message (thread). Read-only.")]
-    public Task<CallToolResult> list_chat_replies(
+    public Task<CallToolResult> teams_list_chat_replies(
         [Description("Chat id")] string chatId,
         [Description("Parent message id")] string messageId,
         [Description("Max replies 1-100")] int top = 25,
         CancellationToken ct = default) =>
-        InvokeAsync("list_chat_replies", () => teams.ListChatRepliesAsync(chatId, messageId, top, ct));
+        InvokeAsync("teams_list_chat_replies", () => teams.ListChatRepliesAsync(chatId, messageId, top, ct));
 
     [McpServerTool, Description("Read a full chat message (content, reactions, mentions). Read-only.")]
-    public Task<CallToolResult> read_chat_message(
+    public Task<CallToolResult> teams_read_chat_message(
         [Description("Chat id")] string chatId,
         [Description("Message id")] string messageId,
         CancellationToken ct = default) =>
-        InvokeAsync("read_chat_message", () => teams.ReadChatMessageAsync(chatId, messageId, ct));
+        InvokeAsync("teams_read_chat_message", () => teams.ReadChatMessageAsync(chatId, messageId, ct));
 }

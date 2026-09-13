@@ -70,25 +70,25 @@ For production use take the published binary (or a release asset).
 
 ## 6. Addressing items
 
-Every item tool accepts `"root"`, an item id (from `list_children` or
-`search_files`), or a `/path/from/root`:
+Every item tool accepts `"root"`, an item id (from `onedrive_list_children` or
+`onedrive_search_files`), or a `/path/from/root`:
 
-- `list_children("/Belege")`, `get_item("01ABC…")`, `download_file("/Belege/rechnung.pdf")`
+- `onedrive_list_children("/Belege")`, `onedrive_get_item("01ABC…")`, `onedrive_download_file("/Belege/rechnung.pdf")`
 
 ## 7. Tools (9)
 
-- `get_drive` – default drive with quota (total/used/remaining)
-- `list_drives` – accessible drives (own OneDrive, shared libraries)
-- `get_item` – metadata of one file or folder
-- `list_children` – folder contents, folders first (default `root`, up to 200)
-- `search_files` – name/keyword search across the drive
-- `download_file` – text decoded (truncated at 20000 chars), binary as
+- `onedrive_get_drive` – default drive with quota (total/used/remaining)
+- `onedrive_list_drives` – accessible drives (own OneDrive, shared libraries)
+- `onedrive_get_item` – metadata of one file or folder
+- `onedrive_list_children` – folder contents, folders first (default `root`, up to 200)
+- `onedrive_search_files` – name/keyword search across the drive
+- `onedrive_download_file` – text decoded (truncated at 20000 chars), binary as
   base64; above `maxBytes` (default 768 KB, max 2097152) rejected with
   `attachment-too-large`
-- `create_folder` – renames on name conflict instead of failing
-- `upload_file` – text or base64, simple upload up to 4194304 bytes
+- `onedrive_create_folder` – renames on name conflict instead of failing
+- `onedrive_upload_file` – text or base64, simple upload up to 4194304 bytes
   (larger files need resumable sessions – out of scope, use the OneDrive UI)
-- `move_item` – rename and/or reparent; move back to undo
+- `onedrive_move_item` – rename and/or reparent; move back to undo
 
 ## 8. Error codes (returned as `isError` results with a `Next:` hint)
 

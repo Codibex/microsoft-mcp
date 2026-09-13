@@ -56,7 +56,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
 
     public Task<IReadOnlyList<ChannelInfo>> ListChannelsAsync(string teamId, CancellationToken ct = default)
     {
-        Require(teamId, "teamId", "call list_teams to get valid team ids");
+        Require(teamId, "teamId", "call teams_list_teams to get valid team ids");
         if (!_teams.ContainsKey(teamId.Trim()))
         {
             throw MailServiceException.TeamNotFound(teamId, "fake");
@@ -74,8 +74,8 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
     public Task<IReadOnlyList<MessageSummary>> ListChannelMessagesAsync(
         string teamId, string channelId, int top = 25, CancellationToken ct = default)
     {
-        Require(teamId, "teamId", "call list_teams to get valid team ids");
-        Require(channelId, "channelId", "call list_channels for the team to get valid channel ids");
+        Require(teamId, "teamId", "call teams_list_teams to get valid team ids");
+        Require(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
         if (!_channels.TryGetValue(channelId.Trim(), out var ch) || ch.TeamId != teamId.Trim())
         {
             throw MailServiceException.ChannelNotFound(channelId, "fake");
@@ -88,7 +88,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
     public Task<IReadOnlyList<MessageSummary>> ListMessageRepliesAsync(
         string teamId, string channelId, string messageId, int top = 25, CancellationToken ct = default)
     {
-        Require(messageId, "messageId", "call list_channel_messages to get valid message ids");
+        Require(messageId, "messageId", "call teams_list_channel_messages to get valid message ids");
         return Task.FromResult<IReadOnlyList<MessageSummary>>(
             [.. Thread(channelId, messageId.Trim(), top).Select(ToSummary)]);
     }
@@ -96,7 +96,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
     public Task<MessageDetail> ReadChannelMessageAsync(
         string teamId, string channelId, string messageId, CancellationToken ct = default)
     {
-        Require(messageId, "messageId", "call list_channel_messages to get valid message ids");
+        Require(messageId, "messageId", "call teams_list_channel_messages to get valid message ids");
         return Task.FromResult(
             _messages.TryGetValue(messageId.Trim(), out var m)
                 ? ToDetail(m)
@@ -110,7 +110,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
     public Task<IReadOnlyList<MessageSummary>> ListChatMessagesAsync(
         string chatId, int top = 25, CancellationToken ct = default)
     {
-        Require(chatId, "chatId", "call list_chats to get valid chat ids");
+        Require(chatId, "chatId", "call teams_list_chats to get valid chat ids");
         if (!_chats.ContainsKey(chatId.Trim()))
         {
             throw MailServiceException.ChatNotFound(chatId, "fake");
@@ -123,7 +123,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
     public Task<IReadOnlyList<MessageSummary>> ListChatRepliesAsync(
         string chatId, string messageId, int top = 25, CancellationToken ct = default)
     {
-        Require(messageId, "messageId", "call list_chat_messages to get valid message ids");
+        Require(messageId, "messageId", "call teams_list_chat_messages to get valid message ids");
         return Task.FromResult<IReadOnlyList<MessageSummary>>(
             [.. Thread(chatId, messageId.Trim(), top).Select(ToSummary)]);
     }
@@ -131,7 +131,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
     public Task<MessageDetail> ReadChatMessageAsync(
         string chatId, string messageId, CancellationToken ct = default)
     {
-        Require(messageId, "messageId", "call list_chat_messages to get valid message ids");
+        Require(messageId, "messageId", "call teams_list_chat_messages to get valid message ids");
         return Task.FromResult(
             _messages.TryGetValue(messageId.Trim(), out var m)
                 ? ToDetail(m)

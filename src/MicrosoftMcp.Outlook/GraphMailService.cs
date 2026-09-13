@@ -40,7 +40,7 @@ public sealed class GraphMailService(
                 c.QueryParameters.Select = [.. SummarySelect, "body"], ct).ConfigureAwait(false);
 
         return msg is null
-            ? throw MailServiceException.MessageNotFound(messageId, "read_email")
+            ? throw MailServiceException.MessageNotFound(messageId, "outlook_read_email")
             : EmailMapper.MapDetail(msg);
     }
 
@@ -83,7 +83,7 @@ public sealed class GraphMailService(
             var body = new Microsoft.Graph.Me.Messages.Item.Move.MovePostRequestBody { DestinationId = destId };
             var moved = await client.Me.Messages[messageId].Move.PostAsync(body, cancellationToken: ct).ConfigureAwait(false);
             return moved is null
-                ? throw MailServiceException.MessageNotFound(messageId, "move_email")
+                ? throw MailServiceException.MessageNotFound(messageId, "outlook_move_email")
                 : EmailMapper.MapSummary(moved);
         }
 
@@ -91,7 +91,7 @@ public sealed class GraphMailService(
         var userMoved = await client.Users[_options.UserIdOrUpn].Messages[messageId].Move
             .PostAsync(userBody, cancellationToken: ct).ConfigureAwait(false);
         return userMoved is null
-            ? throw MailServiceException.MessageNotFound(messageId, "move_email")
+            ? throw MailServiceException.MessageNotFound(messageId, "outlook_move_email")
             : EmailMapper.MapSummary(userMoved);
     }
 
@@ -149,7 +149,7 @@ public sealed class GraphMailService(
             var draft = await client.Me.Messages[messageId].CreateReply
                 .PostAsync(body, cancellationToken: ct).ConfigureAwait(false);
             return draft is null
-                ? throw MailServiceException.MessageNotFound(messageId, "create_reply_draft")
+                ? throw MailServiceException.MessageNotFound(messageId, "outlook_create_reply_draft")
                 : EmailMapper.MapDetail(draft);
         }
 
@@ -160,7 +160,7 @@ public sealed class GraphMailService(
         var userDraft = await client.Users[_options.UserIdOrUpn].Messages[messageId].CreateReply
             .PostAsync(userBody, cancellationToken: ct).ConfigureAwait(false);
         return userDraft is null
-            ? throw MailServiceException.MessageNotFound(messageId, "create_reply_draft")
+            ? throw MailServiceException.MessageNotFound(messageId, "outlook_create_reply_draft")
             : EmailMapper.MapDetail(userDraft);
     }
 
@@ -180,7 +180,7 @@ public sealed class GraphMailService(
             var draft = await client.Me.Messages[messageId].CreateForward
                 .PostAsync(body, cancellationToken: ct).ConfigureAwait(false);
             return draft is null
-                ? throw MailServiceException.MessageNotFound(messageId, "create_forward_draft")
+                ? throw MailServiceException.MessageNotFound(messageId, "outlook_create_forward_draft")
                 : EmailMapper.MapDetail(draft);
         }
 
@@ -192,7 +192,7 @@ public sealed class GraphMailService(
         var userDraft = await client.Users[_options.UserIdOrUpn].Messages[messageId].CreateForward
             .PostAsync(userBody, cancellationToken: ct).ConfigureAwait(false);
         return userDraft is null
-            ? throw MailServiceException.MessageNotFound(messageId, "create_forward_draft")
+            ? throw MailServiceException.MessageNotFound(messageId, "outlook_create_forward_draft")
             : EmailMapper.MapDetail(userDraft);
     }
 
@@ -237,14 +237,14 @@ public sealed class GraphMailService(
             var updated = await client.Me.Messages[messageId]
                 .PatchAsync(patch, cancellationToken: ct).ConfigureAwait(false);
             return updated is null
-                ? throw MailServiceException.MessageNotFound(messageId, "update_draft")
+                ? throw MailServiceException.MessageNotFound(messageId, "outlook_update_draft")
                 : EmailMapper.MapDetail(updated);
         }
 
         var userUpdated = await client.Users[_options.UserIdOrUpn].Messages[messageId]
             .PatchAsync(patch, cancellationToken: ct).ConfigureAwait(false);
         return userUpdated is null
-            ? throw MailServiceException.MessageNotFound(messageId, "update_draft")
+            ? throw MailServiceException.MessageNotFound(messageId, "outlook_update_draft")
             : EmailMapper.MapDetail(userUpdated);
     }
 
@@ -293,7 +293,7 @@ public sealed class GraphMailService(
         {
             throw MailServiceException.InvalidRequest(
                 $"Attachment '{attachmentId}' was not found on message '{messageId}'.",
-                "call list_attachments to get valid attachment ids");
+                "call outlook_list_attachments to get valid attachment ids");
         }
 
         return att switch
@@ -381,14 +381,14 @@ public sealed class GraphMailService(
         {
             var updated = await client.Me.Messages[messageId].PatchAsync(patch, cancellationToken: ct).ConfigureAwait(false);
             return updated is null
-                ? throw MailServiceException.MessageNotFound(messageId, "set_categories")
+                ? throw MailServiceException.MessageNotFound(messageId, "outlook_set_categories")
                 : EmailMapper.MapDetail(updated);
         }
 
         var userUpdated = await client.Users[_options.UserIdOrUpn].Messages[messageId]
             .PatchAsync(patch, cancellationToken: ct).ConfigureAwait(false);
         return userUpdated is null
-            ? throw MailServiceException.MessageNotFound(messageId, "set_categories")
+            ? throw MailServiceException.MessageNotFound(messageId, "outlook_set_categories")
             : EmailMapper.MapDetail(userUpdated);
     }
 

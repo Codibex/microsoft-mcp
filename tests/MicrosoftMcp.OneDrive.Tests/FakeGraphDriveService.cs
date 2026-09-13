@@ -127,7 +127,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
         {
             throw MailServiceException.InvalidRequest(
                 $"Drive item '{node.Name}' is a folder.",
-                "download files only; use list_children to browse folders");
+                "download files only; use onedrive_list_children to browse folders");
         }
 
         int cap = Math.Clamp(maxBytes, 1, 2097152);

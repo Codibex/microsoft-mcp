@@ -35,22 +35,22 @@ public sealed class TeamsToolsTests
     {
         var tools = Create(new FakeGraphTeamsService());
 
-        var teams = ToolResults.Ok<List<TeamInfo>>(await tools.list_teams());
+        var teams = ToolResults.Ok<List<TeamInfo>>(await tools.teams_list_teams());
         teams.Should().ContainSingle(t => t.Id == "t-eng");
 
-        var channels = ToolResults.Ok<List<ChannelInfo>>(await tools.list_channels("t-eng"));
+        var channels = ToolResults.Ok<List<ChannelInfo>>(await tools.teams_list_channels("t-eng"));
         channels.Should().HaveCount(2);
 
         var messages = ToolResults.Ok<List<MessageSummary>>(
-            await tools.list_channel_messages("t-eng", "c-general"));
+            await tools.teams_list_channel_messages("t-eng", "c-general"));
         messages.Should().ContainSingle(m => m.Id == "m-hello");
 
         var replies = ToolResults.Ok<List<MessageSummary>>(
-            await tools.list_message_replies("t-eng", "c-general", "m-hello"));
+            await tools.teams_list_message_replies("t-eng", "c-general", "m-hello"));
         replies.Should().ContainSingle(m => m.Id == "m-r1");
 
         var detail = ToolResults.Ok<MessageDetail>(
-            await tools.read_channel_message("t-eng", "c-general", "m-hello"));
+            await tools.teams_read_channel_message("t-eng", "c-general", "m-hello"));
         detail.From.Should().Be("Alice");
     }
 
@@ -59,15 +59,15 @@ public sealed class TeamsToolsTests
     {
         var tools = Create(new FakeGraphTeamsService());
 
-        var chats = ToolResults.Ok<List<ChatInfo>>(await tools.list_chats());
+        var chats = ToolResults.Ok<List<ChatInfo>>(await tools.teams_list_chats());
         chats.Should().ContainSingle(c => c.Id == "chat-1");
 
         var messages = ToolResults.Ok<List<MessageSummary>>(
-            await tools.list_chat_messages("chat-1"));
+            await tools.teams_list_chat_messages("chat-1"));
         messages.Should().ContainSingle(m => m.Id == "cm-1");
 
         var detail = ToolResults.Ok<MessageDetail>(
-            await tools.read_chat_message("chat-1", "cm-1"));
+            await tools.teams_read_chat_message("chat-1", "cm-1"));
         detail.Id.Should().Be("cm-1");
     }
 
@@ -76,13 +76,13 @@ public sealed class TeamsToolsTests
     {
         var tools = Create(new FakeGraphTeamsService());
 
-        ToolResults.Fail(await tools.list_channels("no-team")).Should().Contain("[team-not-found]");
-        ToolResults.Fail(await tools.list_channel_messages("t-eng", "no-channel"))
+        ToolResults.Fail(await tools.teams_list_channels("no-team")).Should().Contain("[team-not-found]");
+        ToolResults.Fail(await tools.teams_list_channel_messages("t-eng", "no-channel"))
             .Should().Contain("[channel-not-found]");
-        ToolResults.Fail(await tools.read_channel_message("t-eng", "c-general", "nope"))
+        ToolResults.Fail(await tools.teams_read_channel_message("t-eng", "c-general", "nope"))
             .Should().Contain("[channel-message-not-found]");
-        ToolResults.Fail(await tools.list_chat_messages("no-chat")).Should().Contain("[chat-not-found]");
-        ToolResults.Fail(await tools.read_chat_message("chat-1", "  ")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.teams_list_chat_messages("no-chat")).Should().Contain("[chat-not-found]");
+        ToolResults.Fail(await tools.teams_read_chat_message("chat-1", "  ")).Should().Contain("[invalid-request]");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class TeamsToolsTests
             .Returns<Task<IReadOnlyList<TeamInfo>>>(_ => throw new HttpRequestException("no route"));
         var tools = Create(failing);
 
-        var text = ToolResults.Fail(await tools.list_teams());
+        var text = ToolResults.Fail(await tools.teams_list_teams());
         text.Should().Contain("[service-unavailable]");
         text.Should().Contain("Next:");
     }
@@ -106,7 +106,7 @@ public sealed class TeamsToolsTests
             [new TeamInfo("t1", "Team", null, "private", false)]);
         var tools = Create(teams);
 
-        ToolResults.Ok<List<TeamInfo>>(await tools.list_teams())
+        ToolResults.Ok<List<TeamInfo>>(await tools.teams_list_teams())
             .Should().ContainSingle(t => t.Id == "t1");
     }
 }

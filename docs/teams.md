@@ -69,20 +69,20 @@ For production use take the published binary (or a release asset).
 
 ## 6. Tools (9, read-only)
 
-- `list_teams` – joined teams with id and name
-- `list_channels` – channels of a team
-- `list_channel_messages` – channel messages (pass `teamId` + `channelId`)
-- `list_message_replies` – thread replies to a channel message
-- `read_channel_message` – full message (HTML content truncated at
+- `teams_list_teams` – joined teams with id and name
+- `teams_list_channels` – channels of a team
+- `teams_list_channel_messages` – channel messages (pass `teamId` + `channelId`)
+- `teams_list_message_replies` – thread replies to a channel message
+- `teams_read_channel_message` – full message (HTML content truncated at
   8000 chars, reactions, mentions)
-- `list_chats` – recent 1:1 and group chats
-- `list_chat_messages` – messages of a chat
-- `list_chat_replies` – thread replies to a chat message
-- `read_chat_message` – full chat message
+- `teams_list_chats` – recent 1:1 and group chats
+- `teams_list_chat_messages` – messages of a chat
+- `teams_list_chat_replies` – thread replies to a chat message
+- `teams_read_chat_message` – full chat message
 
 Message previews are plain text (HTML stripped, truncated at 500 chars).
 Example prompt: “What happened in #general today
-(`list_channel_messages`)? Show the thread (`list_message_replies`).”
+(`teams_list_channel_messages`)? Show the thread (`teams_list_message_replies`).”
 
 ## 7. Error codes (returned as `isError` results with a `Next:` hint)
 

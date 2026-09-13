@@ -35,16 +35,16 @@ public sealed class CalendarToolsTests
     {
         var tools = Create(new FakeGraphCalendarService());
 
-        var calendars = ToolResults.Ok<List<CalendarInfo>>(await tools.list_calendars());
+        var calendars = ToolResults.Ok<List<CalendarInfo>>(await tools.calendar_list_calendars());
         calendars.Should().HaveCount(2);
         calendars.Should().Contain(c => c.IsDefault);
 
-        var upcoming = ToolResults.Ok<List<EventSummary>>(await tools.list_events());
+        var upcoming = ToolResults.Ok<List<EventSummary>>(await tools.calendar_list_events());
         upcoming.Should().Contain(e => e.Id == "e-standup");
         upcoming.Should().NotContain(e => e.Id == "e-old");
 
         var birthdays = ToolResults.Ok<List<EventSummary>>(
-            await tools.list_events("cal-birth"));
+            await tools.calendar_list_events("cal-birth"));
         birthdays.Should().ContainSingle(e => e.Id == "e-bday");
     }
 
@@ -53,10 +53,10 @@ public sealed class CalendarToolsTests
     {
         var tools = Create(new FakeGraphCalendarService());
 
-        var found = ToolResults.Ok<List<EventSummary>>(await tools.search_events("standup"));
+        var found = ToolResults.Ok<List<EventSummary>>(await tools.calendar_search_events("standup"));
         found.Should().ContainSingle(e => e.Id == "e-standup");
 
-        var detail = ToolResults.Ok<EventDetail>(await tools.read_event("e-standup"));
+        var detail = ToolResults.Ok<EventDetail>(await tools.calendar_read_event("e-standup"));
         detail.Subject.Should().Be("Daily Standup");
         detail.Attendees.Should().HaveCount(1);
     }
@@ -66,11 +66,11 @@ public sealed class CalendarToolsTests
     {
         var tools = Create(new FakeGraphCalendarService());
 
-        ToolResults.Fail(await tools.read_event("nope")).Should().Contain("[event-not-found]");
-        ToolResults.Fail(await tools.read_event("  ")).Should().Contain("[invalid-request]");
-        ToolResults.Fail(await tools.search_events("  ")).Should().Contain("[invalid-request]");
-        ToolResults.Fail(await tools.list_events("no-cal")).Should().Contain("[calendar-not-found]");
-        ToolResults.Fail(await tools.list_events(timeMin: "kein-datum"))
+        ToolResults.Fail(await tools.calendar_read_event("nope")).Should().Contain("[event-not-found]");
+        ToolResults.Fail(await tools.calendar_read_event("  ")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.calendar_search_events("  ")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.calendar_list_events("no-cal")).Should().Contain("[calendar-not-found]");
+        ToolResults.Fail(await tools.calendar_list_events(timeMin: "kein-datum"))
             .Should().Contain("[invalid-request]");
     }
 
@@ -82,7 +82,7 @@ public sealed class CalendarToolsTests
             .Returns<Task<IReadOnlyList<CalendarInfo>>>(_ => throw new HttpRequestException("no route"));
         var tools = Create(failing);
 
-        var text = ToolResults.Fail(await tools.list_calendars());
+        var text = ToolResults.Fail(await tools.calendar_list_calendars());
         text.Should().Contain("[service-unavailable]");
         text.Should().Contain("Next:");
     }
@@ -95,7 +95,7 @@ public sealed class CalendarToolsTests
             [new CalendarInfo("c1", "Kalender", null, true, true)]);
         var tools = Create(calendar);
 
-        ToolResults.Ok<List<CalendarInfo>>(await tools.list_calendars())
+        ToolResults.Ok<List<CalendarInfo>>(await tools.calendar_list_calendars())
             .Should().ContainSingle(c => c.Id == "c1");
     }
 }

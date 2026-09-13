@@ -35,18 +35,18 @@ public sealed class DriveToolsTests
     {
         var tools = Create(new FakeGraphDriveService());
 
-        var drive = ToolResults.Ok<DriveInfoDto>(await tools.get_drive());
+        var drive = ToolResults.Ok<DriveInfoDto>(await tools.onedrive_get_drive());
         drive.Name.Should().Be("OneDrive");
 
-        ToolResults.Ok<List<DriveInfoDto>>(await tools.list_drives()).Should().HaveCount(1);
+        ToolResults.Ok<List<DriveInfoDto>>(await tools.onedrive_list_drives()).Should().HaveCount(1);
 
-        var root = ToolResults.Ok<List<DriveItemSummary>>(await tools.list_children("root"));
+        var root = ToolResults.Ok<List<DriveItemSummary>>(await tools.onedrive_list_children("root"));
         root.Should().Contain(i => i.Name == "Dokumente");
 
-        var byPath = ToolResults.Ok<DriveItemSummary>(await tools.get_item("/Dokumente"));
+        var byPath = ToolResults.Ok<DriveItemSummary>(await tools.onedrive_get_item("/Dokumente"));
         byPath.IsFolder.Should().BeTrue();
 
-        var found = ToolResults.Ok<List<DriveItemSummary>>(await tools.search_files("notiz"));
+        var found = ToolResults.Ok<List<DriveItemSummary>>(await tools.onedrive_search_files("notiz"));
         found.Should().Contain(i => i.Id == "f-note");
     }
 
@@ -55,11 +55,11 @@ public sealed class DriveToolsTests
     {
         var tools = Create(new FakeGraphDriveService());
 
-        var text = ToolResults.Ok<FileContentDto>(await tools.download_file("f-note"));
+        var text = ToolResults.Ok<FileContentDto>(await tools.onedrive_download_file("f-note"));
         text.Encoding.Should().Be("text");
         text.Text.Should().Contain("Hallo Welt");
 
-        var binary = ToolResults.Ok<FileContentDto>(await tools.download_file("/Dokumente/bild.png"));
+        var binary = ToolResults.Ok<FileContentDto>(await tools.onedrive_download_file("/Dokumente/bild.png"));
         binary.Encoding.Should().Be("base64");
         binary.DataBase64.Should().NotBeNullOrEmpty();
     }
@@ -69,9 +69,9 @@ public sealed class DriveToolsTests
     {
         var tools = Create(new FakeGraphDriveService());
 
-        ToolResults.Fail(await tools.download_file("f-big")).Should().Contain("[attachment-too-large]");
-        ToolResults.Fail(await tools.download_file("f-docs")).Should().Contain("[invalid-request]");
-        ToolResults.Fail(await tools.download_file("nope")).Should().Contain("[item-not-found]");
+        ToolResults.Fail(await tools.onedrive_download_file("f-big")).Should().Contain("[attachment-too-large]");
+        ToolResults.Fail(await tools.onedrive_download_file("f-docs")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.onedrive_download_file("nope")).Should().Contain("[item-not-found]");
     }
 
     [Fact]
@@ -79,18 +79,18 @@ public sealed class DriveToolsTests
     {
         var tools = Create(new FakeGraphDriveService());
 
-        var folder = ToolResults.Ok<DriveItemSummary>(await tools.create_folder("Belege"));
+        var folder = ToolResults.Ok<DriveItemSummary>(await tools.onedrive_create_folder("Belege"));
         folder.IsFolder.Should().BeTrue();
 
         var uploaded = ToolResults.Ok<DriveItemSummary>(
-            await tools.upload_file("neu.txt", folder.Id, contentText: "Inhalt"));
+            await tools.onedrive_upload_file("neu.txt", folder.Id, contentText: "Inhalt"));
         uploaded.Name.Should().Be("neu.txt");
 
-        var downloaded = ToolResults.Ok<FileContentDto>(await tools.download_file(uploaded.Id));
+        var downloaded = ToolResults.Ok<FileContentDto>(await tools.onedrive_download_file(uploaded.Id));
         downloaded.Text.Should().Be("Inhalt");
 
         var moved = ToolResults.Ok<DriveItemSummary>(
-            await tools.move_item(uploaded.Id, newParentRef: "root", newName: "umbenannt.txt"));
+            await tools.onedrive_move_item(uploaded.Id, newParentRef: "root", newName: "umbenannt.txt"));
         moved.Name.Should().Be("umbenannt.txt");
         moved.ParentId.Should().Be("root");
     }
@@ -100,11 +100,11 @@ public sealed class DriveToolsTests
     {
         var tools = Create(new FakeGraphDriveService());
 
-        ToolResults.Fail(await tools.upload_file("x.txt", contentBase64: "!!!"))
+        ToolResults.Fail(await tools.onedrive_upload_file("x.txt", contentBase64: "!!!"))
             .Should().Contain("[invalid-request]");
-        ToolResults.Fail(await tools.upload_file("x.txt"))
+        ToolResults.Fail(await tools.onedrive_upload_file("x.txt"))
             .Should().Contain("[invalid-request]");
-        ToolResults.Fail(await tools.move_item("f-note"))
+        ToolResults.Fail(await tools.onedrive_move_item("f-note"))
             .Should().Contain("[invalid-request]");
     }
 
@@ -116,6 +116,6 @@ public sealed class DriveToolsTests
             .Returns<Task<DriveInfoDto>>(_ => throw new HttpRequestException("no route"));
         var tools = Create(failing);
 
-        ToolResults.Fail(await tools.get_drive()).Should().Contain("[service-unavailable]");
+        ToolResults.Fail(await tools.onedrive_get_drive()).Should().Contain("[service-unavailable]");
     }
 }

@@ -276,7 +276,7 @@ internal sealed class FakeGraphMailService : IGraphMailService
         var att = _contents.FirstOrDefault(a => a.MessageId == msg.Id && a.Id == attachmentId)
             ?? throw MailServiceException.InvalidRequest(
                 $"Attachment '{attachmentId}' was not found on message '{messageId}'.",
-                "call list_attachments to get valid attachment ids");
+                "call outlook_list_attachments to get valid attachment ids");
 
         if (att.Kind == "nested")
         {

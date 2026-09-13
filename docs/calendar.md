@@ -65,15 +65,15 @@ For production use take the published binary (or a release asset).
 
 ## 6. Tools (4, read-only)
 
-- `list_calendars` – calendars with id, name, default flag
-- `list_events` – window view (default: default calendar, now plus 7 days).
+- `calendar_list_calendars` – calendars with id, name, default flag
+- `calendar_list_events` – window view (default: default calendar, now plus 7 days).
   Times in ISO format, e.g. `2026-09-14T00:00:00`
-- `search_events` – subject/keyword search across calendars
-- `read_event` – full event (attendees, recurrence summary, body
+- `calendar_search_events` – subject/keyword search across calendars
+- `calendar_read_event` – full event (attendees, recurrence summary, body
   truncated at 8000 chars, online meeting link)
 
-Example prompt: “What meetings do I have tomorrow (`list_events` with
-`timeMin`/`timeMax`)? Who attends the sync (`read_event`)?”
+Example prompt: “What meetings do I have tomorrow (`calendar_list_events` with
+`timeMin`/`timeMax`)? Who attends the sync (`calendar_read_event`)?”
 
 ## 7. Error codes (returned as `isError` results with a `Next:` hint)
 
