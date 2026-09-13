@@ -40,7 +40,7 @@ tests/                          # xUnit + NSubstitute, incl. in-memory fakes
 (`VersionPrefix`). While `MAJOR = 0`, `MINOR` may contain breaking changes:
 new tool/feature → `MINOR`, fix → `PATCH`, breaking from `1.0.0` → `MAJOR`.
 Push tag `vX.Y.Z` → GitHub Action builds, tests and releases binaries
-(linux-x64, win-x64, osx-arm64) with checksums; `-rc.1` tags become prereleases.
+(linux-x64/arm64, win-x64/arm64, osx-arm64) with checksums; `-rc.1` tags become prereleases.
 Release notes are curated in `docs/releases/<tag>.md` and used as the
 GitHub release body (auto-generated commit lists are appended).
 
