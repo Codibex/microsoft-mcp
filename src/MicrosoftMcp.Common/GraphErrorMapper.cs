@@ -108,6 +108,10 @@ public static partial class GraphErrorMapper
             "event" => MailServiceException.EventNotFound("<unknown>", operation),
             "drive" => MailServiceException.DriveItemNotFound("<unknown>", operation),
             "folder" => MailServiceException.FolderNotFound("<unknown>"),
+            "team" => MailServiceException.TeamNotFound("<unknown>", operation),
+            "channel" => MailServiceException.ChannelNotFound("<unknown>", operation),
+            "chat" => MailServiceException.ChatNotFound("<unknown>", operation),
+            "teams-message" => MailServiceException.TeamsMessageNotFound("<unknown>", operation),
             _ => MailServiceException.MessageNotFound("<unknown>", operation)
         };
 

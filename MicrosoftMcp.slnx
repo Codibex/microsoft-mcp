@@ -7,11 +7,14 @@
     <Project Path="src/MicrosoftMcp.OneDrive/MicrosoftMcp.OneDrive.csproj" />
     <Project Path="src/MicrosoftMcp.Outlook.Host/MicrosoftMcp.Outlook.Host.csproj" />
     <Project Path="src/MicrosoftMcp.Outlook/MicrosoftMcp.Outlook.csproj" />
+    <Project Path="src/MicrosoftMcp.Teams.Host/MicrosoftMcp.Teams.Host.csproj" />
+    <Project Path="src/MicrosoftMcp.Teams/MicrosoftMcp.Teams.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MicrosoftMcp.Calendar.Tests/MicrosoftMcp.Calendar.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Common.Tests/MicrosoftMcp.Common.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.OneDrive.Tests/MicrosoftMcp.OneDrive.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Outlook.Tests/MicrosoftMcp.Outlook.Tests.csproj" />
+    <Project Path="tests/MicrosoftMcp.Teams.Tests/MicrosoftMcp.Teams.Tests.csproj" />
   </Folder>
 </Solution>
