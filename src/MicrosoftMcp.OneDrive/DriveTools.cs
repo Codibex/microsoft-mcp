@@ -19,7 +19,8 @@ public static class DriveServiceRegistration
 [McpServerToolType]
 public sealed class DriveTools(IGraphDriveService drive, ILogger<DriveTools> log)
 {
-    private async Task<CallToolResult> InvokeAsync<T>(string operation, Func<Task<T>> call)
+    private async Task<CallToolResult> InvokeAsync<T>(
+        string operation, Func<Task<T>> call, string resource = "drive")
     {
         try
         {
@@ -32,7 +33,7 @@ public sealed class DriveTools(IGraphDriveService drive, ILogger<DriveTools> log
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            var mapped = GraphErrorMapper.ToMailServiceException(ex, operation);
+            var mapped = GraphErrorMapper.ToMailServiceException(ex, operation, resource);
             log.LogError(ex, "Tool {Operation} failed unexpectedly ({Code})", operation, mapped.Code);
             return ToolResult.Fail(mapped);
         }

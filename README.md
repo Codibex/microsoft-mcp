@@ -7,6 +7,7 @@ Local MCP servers (Stdio) for Microsoft 365 via Microsoft Graph.
 |---|---|---|---|
 | Outlook email triage (17 tools, drafts only, no send) | `microsoft-mcp-outlook` | [docs/outlook.md](docs/outlook.md) | ✅ Live-verified (personal account) |
 | OneDrive files (9 tools, read/create/move, no delete) | `microsoft-mcp-onedrive` | [docs/onedrive.md](docs/onedrive.md) | Implemented |
+| Calendar (4 tools, read-only) | `microsoft-mcp-calendar` | [docs/calendar.md](docs/calendar.md) | Implemented |
 
 Shared foundations (delegated + app-only auth, `isError` results with
 `[code]` + `Next:` hints, censoring logs) live in `src/MicrosoftMcp.Common`.
