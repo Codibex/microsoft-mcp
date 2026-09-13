@@ -86,11 +86,11 @@ jobs:
           if [ -f "docs/releases/${{ steps.version.outputs.tag }}.md" ]; then
             echo "path=docs/releases/${{ steps.version.outputs.tag }}.md" >> "$GITHUB_OUTPUT"
           else
-            cat > "$GITHUB_WORKSPACE/release-notes-fallback.md" <<'EOF'
-            Local MCP servers (Stdio) for Microsoft 365 via Microsoft Graph.
-            Requires the **.NET 10 runtime** (included in the SDK).
-            See README in the repo for setup (Entra app, recipes, troubleshooting).
-            EOF
+            {
+              echo "Local MCP servers (Stdio) for Microsoft 365 via Microsoft Graph.";
+              echo "Requires the **.NET 10 runtime** (included in the SDK).";
+              echo "See README in the repo for setup (Entra app, recipes, troubleshooting).";
+            } > "$GITHUB_WORKSPACE/release-notes-fallback.md"
             echo "path=$GITHUB_WORKSPACE/release-notes-fallback.md" >> "$GITHUB_OUTPUT"
           fi
 
