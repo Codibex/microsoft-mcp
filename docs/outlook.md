@@ -190,6 +190,55 @@ Details + stack traces go to the server log (stderr) only, never to the client.
 - Empty tool list in the client → check `dotnet build`, then inspect the
   server stderr (in the client log) for `OptionsValidationException`
 
+## 10. Enterprise-Policy: nur interne Drafts + KI-Hinweis (`policy.json`)
+
+Drafts an externe Adressen werden mit `[invalid-request]` abgelehnt, und jeder
+Draft-Body bekommt server-seitig (nicht vom LLM, daher nicht weglassbar) den
+Hinweis-Text angehängt. Beides steuert die **admin-owned `policy.json`**
+(Template: `src/MicrosoftMcp.Outlook.Host/policy.example.json`):
+
+```jsonc
+{
+  "requireInternalRecipients": true,
+  "allowedRecipientDomains": ["firma.de"],
+  "aiDisclosureEnabled": true,
+  "aiDisclosureText": "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+}
+```
+
+Regeln: Subdomains sind eingeschlossen (`mail.firma.de` passt zu `firma.de`),
+Groß-/Kleinschreibung egal. Antworten prüfen den Absender der Originalmail
+(server-seitig aufgelöst), Weiterleitungen die expliziten Empfänger. Der Hinweis
+wird idempotent angehängt (kein Doppel bei `outlook_update_draft`).
+
+**Wichtig:** Diese Datei ist die *einzige* Quelle — `Messaging__*`-Env-Vars
+werden absichtlich ignoriert, weil `mcp.json` user-schreibbar ist und ein LLM
+mit Dateizugriff die Policy sonst per Env-Override aushebeln könnte.
+
+### 10.1 Ablage + Schutz (Windows, Linux, macOS)
+
+Suchreihenfolge: Systempfad zuerst, dann `policy.json` neben dem Binary.
+
+| OS | Systempfad | Schutz setzen |
+|---|---|---|
+| Linux | `/etc/microsoft-mcp/policy.json` | `sudo install -o root -g root -m 644 policy.json /etc/microsoft-mcp/policy.json` |
+| macOS | `/Library/Application Support/microsoft-mcp/policy.json` | `sudo install -o root -g wheel -m 644 policy.json "/Library/Application Support/microsoft-mcp/policy.json"` |
+| Windows (Admin-PS) | `%ProgramData%\microsoft-mcp\policy.json` | Kopieren, dann `icacls policy.json /inheritance:r /grant:r Administrators:F SYSTEM:F /grant:r Users:R` |
+
+Das Binary selbst gleich mit schützen (sonst wird der Code statt der Config
+gepatcht). Startverhalten: keine `policy.json` → uneingeschränkt + Warnung auf
+stderr; restriktive, aber user-schreibbare Datei → **Start verweigert**
+(Fail-Closed, außer der Prozess läuft elevated = Admin-Testszenario); gefunden →
+Pfad + SHA-256-Präfix + wirksame Flags landen auf stderr (Audit). Ohne
+Admin-Rechte auf dem Gerät (gemanagte Clients) kann ein LLM die Datei weder
+ändern noch löschen.
+
+Optionaler Backstop (gilt auch bei umgangener lokaler Config): Exchange Admin
+Center → Mail flow → Rules → Disclaimer-Regel für Mails mit KI-Vermerk, plus
+ggf. Extern-Sperre für das Service-Postfach. Transportregeln greifen allerdings
+erst beim Senden, nicht auf Entwürfen — die lokale Injektion bleibt die
+Draft-Vorschau.
+
 ## Appendix: settings reference
 
 Precedence: user-secrets / env override `appsettings.json`.

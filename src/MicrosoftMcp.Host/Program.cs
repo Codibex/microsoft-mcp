@@ -57,9 +57,18 @@ builder.Services.Configure<GraphAuthOptions>(o =>
 });
 
 var mcp = builder.Services.AddMcpServer().WithStdioServerTransport();
+
+// Shared admin-owned messaging policy (policy.json only, never env).
+// Loaded once for all messaging domains; validated + audit-logged here.
+MessagingPolicyOptions? messagingPolicy = null;
+if (enabled.Contains("outlook") || enabled.Contains("teams"))
+{
+    messagingPolicy = MessagingPolicySetup.Initialize();
+}
+
 if (enabled.Contains("outlook"))
 {
-    builder.Services.AddOutlook();
+    builder.Services.AddOutlook(messagingPolicy);
     mcp.WithToolsFromAssembly(typeof(OutlookTools).Assembly);
 }
 

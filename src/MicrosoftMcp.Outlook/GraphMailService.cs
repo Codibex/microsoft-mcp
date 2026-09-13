@@ -7,13 +7,15 @@ namespace MicrosoftMcp.Outlook;
 
 public sealed class GraphMailService(
     GraphServiceClient client,
-    IOptions<GraphAuthOptions> options) : IGraphMailService
+    IOptions<GraphAuthOptions> options,
+    IOptions<MessagingPolicyOptions> policy) : IGraphMailService
 {
     private static readonly string[] SummarySelect =
         ["id", "subject", "from", "toRecipients", "receivedDateTime", "isRead",
          "hasAttachments", "categories", "importance", "bodyPreview", "parentFolderId", "webLink"];
 
     private readonly GraphAuthOptions _options = options.Value;
+    private readonly MessagingPolicyOptions _policy = policy.Value;
     private bool IsMe => string.Equals(_options.UserIdOrUpn, "me", StringComparison.OrdinalIgnoreCase);
 
     public async Task<IReadOnlyList<EmailSummary>> SearchAsync(EmailQuery query, CancellationToken ct = default)
@@ -113,6 +115,8 @@ public sealed class GraphMailService(
     {
         RequireRecipients(to);
         RequireBody(body);
+        RecipientGuard.ValidateRecipients(to, _policy);
+        body = MessageDisclosure.Apply(body, isHtml, _policy);
 
         var msg = new Message
         {
@@ -139,6 +143,19 @@ public sealed class GraphMailService(
     {
         RequireId(messageId);
         RequireBody(comment);
+
+        if (_policy.RequireInternalRecipients)
+        {
+            // Replies go to the original sender: resolve server-side (not from LLM
+            // input) and enforce the domain policy on that address.
+            EmailDetail original = await GetAsync(messageId, ct).ConfigureAwait(false);
+            if (original.From is not null)
+            {
+                RecipientGuard.ValidateRecipients([original.From.Address], _policy);
+            }
+        }
+
+        comment = MessageDisclosure.ApplyAuto(comment, _policy);
 
         if (IsMe)
         {
@@ -169,6 +186,12 @@ public sealed class GraphMailService(
     {
         RequireId(messageId);
         RequireRecipients(to);
+        RecipientGuard.ValidateRecipients(to, _policy);
+
+        comment = comment is null ? null : MessageDisclosure.ApplyAuto(comment, _policy);
+        comment ??= _policy.AiDisclosureEnabled && !string.IsNullOrWhiteSpace(_policy.AiDisclosureText)
+            ? MessageDisclosure.Apply(string.Empty, isHtml: false, _policy)
+            : null;
 
         if (IsMe)
         {
@@ -218,18 +241,19 @@ public sealed class GraphMailService(
             patch.Subject = subject;
         }
 
+        if (to is not null)
+        {
+            RecipientGuard.ValidateRecipients(to, _policy);
+            patch.ToRecipients = [.. to.Select(ToRecipient)];
+        }
+
         if (body is not null)
         {
             patch.Body = new ItemBody
             {
                 ContentType = isHtml ? BodyType.Html : BodyType.Text,
-                Content = body
+                Content = MessageDisclosure.Apply(body, isHtml, _policy)
             };
-        }
-
-        if (to is not null)
-        {
-            patch.ToRecipients = [.. to.Select(ToRecipient)];
         }
 
         if (IsMe)
