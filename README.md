@@ -13,6 +13,30 @@ Local MCP servers (Stdio) for Microsoft 365 via Microsoft Graph.
 Shared foundations (delegated + app-only auth, `isError` results with
 `[code]` + `Next:` hints, censoring logs) live in `src/MicrosoftMcp.Common`.
 
+## Unified host (alternative)
+
+One binary `microsoft-mcp` (`src/MicrosoftMcp.Host`) with all 39 tools,
+domains selectable per process: `microsoft-mcp --servers outlook,calendar`
+(or `MCP_SERVERS` env; default without arguments: all). Requested scopes
+follow the selection unless `Graph:DelegatedScopes` is set explicitly.
+Same Entra app and secrets work; user-secrets id is `microsoft-mcp-dev`.
+
+```json
+{
+  "servers": {
+    "m365": {
+      "command": "/path/to/microsoft-mcp",
+      "env": { "Graph__TenantId": "<id>", "Graph__ClientId": "<id>" }
+    },
+    "outlook-only": {
+      "command": "/path/to/microsoft-mcp",
+      "args": ["--servers", "outlook"],
+      "env": { "Graph__TenantId": "<id>", "Graph__ClientId": "<id>" }
+    }
+  }
+}
+```
+
 ## Quickstart
 
 ```bash
@@ -28,10 +52,15 @@ effective auth mode on startup and fails fast on missing values.
 
 ```text
 src/MicrosoftMcp.Common/        # auth, Graph client, error mapping
+src/MicrosoftMcp.Host/          # microsoft-mcp (exe, --servers selection)
 src/MicrosoftMcp.Outlook/       # mail service + tools (lib)
 src/MicrosoftMcp.Outlook.Host/  # microsoft-mcp-outlook (exe)
 src/MicrosoftMcp.OneDrive/      # drive service + tools (lib)
 src/MicrosoftMcp.OneDrive.Host/ # microsoft-mcp-onedrive (exe)
+src/MicrosoftMcp.Calendar/      # calendar service + tools (lib)
+src/MicrosoftMcp.Calendar.Host/ # microsoft-mcp-calendar (exe)
+src/MicrosoftMcp.Teams/         # teams service + tools (lib)
+src/MicrosoftMcp.Teams.Host/    # microsoft-mcp-teams (exe)
 tests/                          # xUnit + NSubstitute, incl. in-memory fakes
 ```
 

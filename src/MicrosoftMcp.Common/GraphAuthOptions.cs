@@ -36,7 +36,9 @@ public sealed class GraphAuthOptions
 
     public DelegatedFlow DelegatedFlow { get; set; } = DelegatedFlow.Auto;
 
-    public string[] DelegatedScopes { get; set; } = ["Mail.Read", "Mail.ReadWrite"];
+    /// <summary>Empty means "use the host's default scopes for the enabled
+    /// servers". Set explicitly to override (e.g. minimal scopes).</summary>
+    public string[] DelegatedScopes { get; set; } = [];
 
     public bool EnableTokenCache { get; set; } = true;
 
