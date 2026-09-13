@@ -57,13 +57,13 @@ jobs:
           -p:VersionPrefix=${{ steps.version.outputs.prefix }}
           -p:VersionSuffix='${{ steps.version.outputs.suffix }}'
 
-      - name: Publish binaries (framework-dependent, single file)
+      - name: Publish binaries (self-contained, single file, no runtime needed)
         run: |
           for spec in "MicrosoftMcp.Outlook.Host:microsoft-mcp-outlook" "MicrosoftMcp.OneDrive.Host:microsoft-mcp-onedrive" "MicrosoftMcp.Calendar.Host:microsoft-mcp-calendar"; do
             proj="${spec%%:*}"; bin="${spec##*:}"
             for rid in linux-x64 linux-arm64 win-x64 win-arm64 osx-arm64; do
               dotnet publish "src/$proj" -c Release -r "$rid" \
-                --self-contained false -p:PublishSingleFile=true \
+                --self-contained true -p:PublishSingleFile=true \
                 -p:VersionPrefix=${{ steps.version.outputs.prefix }} \
                 -p:VersionSuffix='${{ steps.version.outputs.suffix }}' \
                 -o "dist/$bin/$rid"
@@ -88,7 +88,7 @@ jobs:
           else
             {
               echo "Local MCP servers (Stdio) for Microsoft 365 via Microsoft Graph.";
-              echo "Requires the **.NET 10 runtime** (included in the SDK).";
+              echo "Self-contained binaries – no .NET runtime needed (≈120 MB each, trimming intentionally off for MSAL/Kiota compatibility).";
               echo "See README in the repo for setup (Entra app, recipes, troubleshooting).";
             } > "$GITHUB_WORKSPACE/release-notes-fallback.md"
             echo "path=$GITHUB_WORKSPACE/release-notes-fallback.md" >> "$GITHUB_OUTPUT"
