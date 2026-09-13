@@ -80,6 +80,20 @@ jobs:
           done
           (cd assets && sha256sum *.zip > checksums.txt)
 
+      - name: Resolve release notes (curated file or fallback)
+        id: notes
+        run: |
+          if [ -f "docs/releases/${{ steps.version.outputs.tag }}.md" ]; then
+            echo "path=docs/releases/${{ steps.version.outputs.tag }}.md" >> "$GITHUB_OUTPUT"
+          else
+            cat > "$GITHUB_WORKSPACE/release-notes-fallback.md" <<'EOF'
+            Local MCP servers (Stdio) for Microsoft 365 via Microsoft Graph.
+            Requires the **.NET 10 runtime** (included in the SDK).
+            See README in the repo for setup (Entra app, recipes, troubleshooting).
+            EOF
+            echo "path=$GITHUB_WORKSPACE/release-notes-fallback.md" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -87,26 +101,4 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
           files: assets/*
-          body: |
-            ## MicrosoftMcp ${{ steps.version.outputs.tag }}
-
-            Local MCP servers (Stdio) for Outlook email triage and OneDrive
-            files via Microsoft Graph. Each ZIP holds one server binary plus
-            its `appsettings.json` template.
-            Requires the **.NET 10 runtime** (included in the SDK).
-
-            ### Quickstart
-            1. Download the ZIP for your OS below and extract it.
-            2. Configure (at minimum tenant + client from your Entra app):
-               ```bash
-               ./microsoft-mcp-outlook  # single start, the [startup] line validates the config
-               ```
-               Secrets via user-secrets or env (`Graph__TenantId`, `Graph__ClientId`), see README.
-            3. Wire up `mcp.json`:
-               ```json
-               { "command": "/path/to/microsoft-mcp-outlook", "env": { "Graph__TenantId": "<id>", "Graph__ClientId": "<id>" } }
-               ```
-            4. Full guide (Entra app, recipes, troubleshooting): see README in the repo.
-
-            ### Checksums
-            `checksums.txt` holds the SHA256 hashes of all ZIPs.
+          body_path: ${{ steps.notes.outputs.path }}
