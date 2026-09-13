@@ -5,6 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\MicrosoftMcp.Common\MicrosoftMcp.Common.csproj" />
+    <ProjectReference Include="..\..\src\MicrosoftMcp.Host\MicrosoftMcp.Host.csproj" />
     <ProjectReference Include="..\..\src\MicrosoftMcp.Outlook\MicrosoftMcp.Outlook.csproj" />
     <ProjectReference Include="..\..\src\MicrosoftMcp.OneDrive\MicrosoftMcp.OneDrive.csproj" />
     <ProjectReference Include="..\..\src\MicrosoftMcp.Calendar\MicrosoftMcp.Calendar.csproj" />
