@@ -27,7 +27,9 @@ builder.Configuration
 
 builder.Services
     .AddGraphCommon(builder.Configuration)
-    .AddOutlook();
+    // Admin-owned messaging policy (policy.json) is the ONLY source for
+    // recipient/disclosure rules — Messaging__* env vars are ignored by design.
+    .AddOutlook(MessagingPolicySetup.Initialize());
 
 builder.Services
     .AddMcpServer()

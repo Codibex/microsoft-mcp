@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MicrosoftMcp.Common;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -9,9 +10,13 @@ namespace MicrosoftMcp.Outlook;
 
 public static class OutlookServiceRegistration
 {
-    public static IServiceCollection AddOutlook(this IServiceCollection services)
+    /// <param name="policy">Admin-owned messaging policy from
+    /// <see cref="MessagingPolicySetup.Initialize"/> (policy.json only, never env).
+    /// Null = unrestricted defaults (no policy.json found).</param>
+    public static IServiceCollection AddOutlook(this IServiceCollection services, MessagingPolicyOptions? policy = null)
     {
         services.AddSingleton<IGraphMailService, GraphMailService>();
+        services.AddSingleton<IOptions<MessagingPolicyOptions>>(Options.Create(policy ?? new MessagingPolicyOptions()));
         return services;
     }
 }

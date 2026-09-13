@@ -7,13 +7,15 @@ namespace MicrosoftMcp.Outlook;
 
 public sealed class GraphMailService(
     GraphServiceClient client,
-    IOptions<GraphAuthOptions> options) : IGraphMailService
+    IOptions<GraphAuthOptions> options,
+    IOptions<MessagingPolicyOptions> policy) : IGraphMailService
 {
     private static readonly string[] SummarySelect =
         ["id", "subject", "from", "toRecipients", "receivedDateTime", "isRead",
          "hasAttachments", "categories", "importance", "bodyPreview", "parentFolderId", "webLink"];
 
     private readonly GraphAuthOptions _options = options.Value;
+    private readonly MessagingPolicyOptions _policy = policy.Value;
     private bool IsMe => string.Equals(_options.UserIdOrUpn, "me", StringComparison.OrdinalIgnoreCase);
 
     public async Task<IReadOnlyList<EmailSummary>> SearchAsync(EmailQuery query, CancellationToken ct = default)
@@ -113,6 +115,8 @@ public sealed class GraphMailService(
     {
         RequireRecipients(to);
         RequireBody(body);
+        RecipientGuard.ValidateRecipients(to, _policy);
+        body = MessageDisclosure.Apply(body, isHtml, _policy);
 
         var msg = new Message
         {
@@ -139,6 +143,24 @@ public sealed class GraphMailService(
     {
         RequireId(messageId);
         RequireBody(comment);
+
+        if (_policy.RequireInternalRecipients)
+        {
+            // Replies go to Reply-To when set, else to From: resolve server-side
+            // (not from LLM input) and enforce the domain policy on the targets.
+            // Missing sender fails closed — never fail open.
+            IReadOnlyList<string> targets = await GetReplyTargetsAsync(messageId, ct).ConfigureAwait(false);
+            if (targets.Count == 0)
+            {
+                throw MailServiceException.InvalidRequest(
+                    $"Cannot verify the reply recipient of message '{messageId}' (no sender address).",
+                    "pick a mail with a sender address, or ask your admin about policy.json");
+            }
+
+            RecipientGuard.ValidateRecipients(targets, _policy);
+        }
+
+        comment = MessageDisclosure.ApplyAuto(comment, _policy);
 
         if (IsMe)
         {
@@ -169,6 +191,12 @@ public sealed class GraphMailService(
     {
         RequireId(messageId);
         RequireRecipients(to);
+        RecipientGuard.ValidateRecipients(to, _policy);
+
+        comment = comment is null ? null : MessageDisclosure.ApplyAuto(comment, _policy);
+        comment ??= _policy.AiDisclosureEnabled && !string.IsNullOrWhiteSpace(_policy.AiDisclosureText)
+            ? MessageDisclosure.Apply(string.Empty, isHtml: false, _policy)
+            : null;
 
         if (IsMe)
         {
@@ -218,18 +246,51 @@ public sealed class GraphMailService(
             patch.Subject = subject;
         }
 
+        // Policy-relevant current state, fetched once when needed (raw message:
+        // EmailDetail.Body is truncated and must never be written back).
+        Message? rawForPolicy = null;
+        async Task<Message> RawForPolicyAsync() =>
+            rawForPolicy ??= await GetRawMessageAsync(messageId, ct).ConfigureAwait(false);
+
+        if (to is not null)
+        {
+            RecipientGuard.ValidateRecipients(to, _policy);
+            patch.ToRecipients = [.. to.Select(ToRecipient)];
+        }
+        else if (_policy.RequireInternalRecipients)
+        {
+            // Without replacement recipients Graph keeps the draft's existing ones:
+            // validate those server-side instead of skipping the check.
+            Message raw = await RawForPolicyAsync().ConfigureAwait(false);
+            RecipientGuard.ValidateRecipients(
+                [.. (raw.ToRecipients ?? []).Select(r => r.EmailAddress?.Address)
+                    .OfType<string>().Where(a => !string.IsNullOrWhiteSpace(a))],
+                _policy);
+        }
+
         if (body is not null)
         {
             patch.Body = new ItemBody
             {
                 ContentType = isHtml ? BodyType.Html : BodyType.Text,
-                Content = body
+                Content = MessageDisclosure.Apply(body, isHtml, _policy)
             };
         }
-
-        if (to is not null)
+        else if (_policy.AiDisclosureEnabled && !string.IsNullOrWhiteSpace(_policy.AiDisclosureText))
         {
-            patch.ToRecipients = [.. to.Select(ToRecipient)];
+            // Subject/recipient-only updates must not leave a disclosure-less body behind.
+            Message raw = await RawForPolicyAsync().ConfigureAwait(false);
+            string currentBody = raw.Body?.Content ?? string.Empty;
+            bool currentIsHtml = raw.Body?.ContentType == BodyType.Html;
+            string updated = MessageDisclosure.Apply(currentBody, currentIsHtml, _policy);
+            if (updated != currentBody)
+            {
+                patch.Body = new ItemBody
+                {
+                    ContentType = raw.Body?.ContentType ?? BodyType.Text,
+                    Content = updated
+                };
+            }
         }
 
         if (IsMe)
@@ -525,6 +586,42 @@ public sealed class GraphMailService(
             c.QueryParameters.Select = SummarySelect;
         }, ct).ConfigureAwait(false);
         return [.. filtered?.Value ?? []];
+    }
+
+    private async Task<IReadOnlyList<string>> GetReplyTargetsAsync(string messageId, CancellationToken ct)
+    {
+        Message raw = await GetRawMessageAsync(messageId, ct).ConfigureAwait(false);
+
+        var targets = new List<string>();
+        if (raw.ReplyTo is { Count: > 0 })
+        {
+            targets.AddRange(raw.ReplyTo
+                .Select(r => r.EmailAddress?.Address)
+                .OfType<string>()
+                .Where(a => !string.IsNullOrWhiteSpace(a)));
+        }
+        else if (!string.IsNullOrWhiteSpace(raw.From?.EmailAddress?.Address))
+        {
+            targets.Add(raw.From!.EmailAddress!.Address!);
+        }
+
+        return targets;
+    }
+
+    /// <summary>Raw message with the policy-relevant fields (untruncated body).
+    /// Used only for server-side policy checks, never returned to the LLM.</summary>
+    private async Task<Message> GetRawMessageAsync(string messageId, CancellationToken ct)
+    {
+        RequireId(messageId);
+        Message? msg = IsMe
+            ? await client.Me.Messages[messageId].GetAsync(c =>
+                c.QueryParameters.Select = ["from", "replyTo", "toRecipients", "body"], ct).ConfigureAwait(false)
+            : await client.Users[_options.UserIdOrUpn].Messages[messageId].GetAsync(c =>
+                c.QueryParameters.Select = ["from", "replyTo", "toRecipients", "body"], ct).ConfigureAwait(false);
+
+        return msg is null
+            ? throw MailServiceException.MessageNotFound(messageId, "policy-check")
+            : msg;
     }
 
     private async Task<string> ResolveFolderIdAsync(string destination, CancellationToken ct)

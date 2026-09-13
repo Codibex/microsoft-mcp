@@ -93,7 +93,6 @@ Example prompt: “What happened in #general today
 Details + stack traces go to the server log (stderr) only, never to the client.
 
 ## 8. Troubleshooting
-
 - `[access-denied]` → check the Teams consent/scopes from section 2
   (all four delegated scopes, consent again after adding permissions)
 - `[auth-failed]` headless → `Graph__DelegatedFlow=DeviceCode`
@@ -102,3 +101,31 @@ Details + stack traces go to the server log (stderr) only, never to the client.
 - Auth/account-type issues (personal accounts, token version, public
   client flows) → same fixes as in the
   [Outlook troubleshooting](outlook.md#9-troubleshooting)
+
+## 9. Enterprise-Policy (Vorbereitung für Write)
+
+Read-only today: there is no send path, so nothing to enforce — but the shared
+admin-owned `policy.json` (same file and format as
+[Outlook](outlook.md#10-enterprise-policy-nur-interne-drafts--ki-hinweis-policyjson),
+loaded from the OS-specific system path, `Messaging__*` env ignored) is already
+validated at startup of every Teams host, so the file stays the single source
+when send tools land.
+
+Send design (to be implemented): new tools (`teams_send_channel_message`,
+`teams_send_chat_message`) plus delegated scopes `ChannelMessage.Send` and
+`ChatMessage.Send` (admin consent required). Same two guarantees as mail,
+enforced in server code via the shared blocks in `MicrosoftMcp.Common`:
+
+- **Intern only:** no mail domains in Teams — instead same-tenant members.
+  Before send, list members server-side and compare each
+  `aadUserConversationMember.tenantId` against the configured `Graph:TenantId`
+  (chat members readable with the existing `Chat.ReadBasic` scope; team/channel
+  guest checks need `TeamMember.Read.All`, admin consent). Any external/guest
+  member → `[invalid-request]`, fail closed.
+- **Disclosure:** `MessageDisclosure.Apply(body, isHtml: true, policy)` appends
+  the admin text as HTML badge — a tool parameter for it must never exist.
+
+Note the platform limit: Teams chat messages do not pass Exchange transport
+rules, so unlike mail there is no server-side disclaimer backstop — the code
+guard plus scope assignment plus Purview (DLP / Communication Compliance,
+detective) are the enforcement story.
