@@ -1,0 +1,80 @@
+#Requires -RunAsAdministrator
+<#
+.SYNOPSIS
+  Deploys the admin-owned messaging policy.json (internal recipients + AI disclosure).
+
+.DESCRIPTION
+  Builds policy.json from parameters, writes it to the admin-owned system location
+  (%ProgramData%\microsoft-mcp\policy.json) and locks it down (Administrators/SYSTEM
+  full, Users read-only), so a user-level LLM with file access can neither rewrite
+  nor delete it. The MCP server reads this file as its ONLY policy source
+  (Messaging__* env vars are ignored by design) and refuses to start with a
+  user-writable restrictive policy.
+
+.EXAMPLE
+  .\deploy-policy.ps1 -AllowedRecipientDomains firma.de,tochter.firma.de `
+    -AiDisclosureText "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+#>
+[CmdletBinding()]
+param(
+  [Parameter(Mandatory)]
+  [string[]]$AllowedRecipientDomains,
+
+  [Parameter(Mandatory)]
+  [string]$AiDisclosureText,
+
+  [bool]$RequireInternalRecipients = $true,
+
+  [bool]$AiDisclosureEnabled = $true,
+
+  [string]$PolicyPath = (Join-Path $env:ProgramData 'microsoft-mcp\policy.json')
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+if ($RequireInternalRecipients -and $AllowedRecipientDomains.Count -eq 0) {
+  throw 'RequireInternalRecipients is set but no AllowedRecipientDomains were given.'
+}
+if ($AiDisclosureEnabled -and [string]::IsNullOrWhiteSpace($AiDisclosureText)) {
+  throw 'AiDisclosureEnabled is set but AiDisclosureText is empty.'
+}
+
+$policy = [ordered]@{
+  requireInternalRecipients = $RequireInternalRecipients
+  allowedRecipientDomains   = @($AllowedRecipientDomains | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  aiDisclosureEnabled       = $AiDisclosureEnabled
+  aiDisclosureText          = $AiDisclosureText
+}
+
+$dir = Split-Path -Parent $PolicyPath
+if (-not (Test-Path $dir)) {
+  New-Item -ItemType Directory -Path $dir | Out-Null
+}
+$policy | ConvertTo-Json -Depth 3 | Set-Content -Path $PolicyPath -Encoding utf8NoBOM
+Write-Host "Wrote $PolicyPath"
+
+# Lock down: no inheritance, Administrators/SYSTEM full, Users read-only.
+$acl = Get-Acl -Path $PolicyPath
+$acl.SetAccessRuleProtection($true, $false)
+$acl.Access | ForEach-Object { $acl.RemoveAccessRule($_) | Out-Null }
+$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+  'BUILTIN\Administrators', 'FullControl', 'Allow')))
+$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+  'NT AUTHORITY\SYSTEM', 'FullControl', 'Allow')))
+$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+  'BUILTIN\Users', 'ReadAndExecute, Synchronize', 'Allow')))
+Set-Acl -Path $PolicyPath -AclObject $acl
+
+# Verify: Users must not hold any Write-ish right.
+$bad = (Get-Acl -Path $PolicyPath).Access | Where-Object {
+  $_.IdentityReference.Value -like '*\Users' -and
+  ($_.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::Write) -and
+  $_.AccessControlType -eq 'Allow'
+}
+if ($bad) {
+  throw "Protection FAILED: Users still holds write rights on $PolicyPath. Review the ACL manually."
+}
+
+Write-Host "Protected $PolicyPath (Administrators/SYSTEM full, Users read-only)."
+Get-Acl -Path $PolicyPath | Format-Table -AutoSize | Out-String | Write-Host

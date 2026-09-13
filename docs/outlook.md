@@ -195,7 +195,7 @@ Details + stack traces go to the server log (stderr) only, never to the client.
 Drafts an externe Adressen werden mit `[invalid-request]` abgelehnt, und jeder
 Draft-Body bekommt server-seitig (nicht vom LLM, daher nicht weglassbar) den
 Hinweis-Text angehängt. Beides steuert die **admin-owned `policy.json`**
-(Template: `src/MicrosoftMcp.Outlook.Host/policy.example.json`):
+(Format: `docs/policy.example.json`, Deployment per Skript — siehe 10.1):
 
 ```jsonc
 {
@@ -215,7 +215,31 @@ wird idempotent angehängt (kein Doppel bei `outlook_update_draft`).
 werden absichtlich ignoriert, weil `mcp.json` user-schreibbar ist und ein LLM
 mit Dateizugriff die Policy sonst per Env-Override aushebeln könnte.
 
-### 10.1 Ablage + Schutz (Windows, Linux, macOS)
+### 10.1 Deployment per Skript (empfohlen)
+
+Die Skripte unter `deploy/` nehmen alle Werte als Parameter entgegen, bauen das
+JSON korrekt auf und schützen die Datei sofort schreibgeschützt — als Admin
+ausführen:
+
+```powershell
+# Windows (Admin-PowerShell)
+.\deploy\deploy-policy.ps1 -AllowedRecipientDomains firma.de,tochter.firma.de `
+  -AiDisclosureText "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+```
+
+```bash
+# Linux / macOS (root via sudo, Zielpfad wird je OS gewählt)
+sudo ./deploy/deploy-policy.sh --domains firma.de,tochter.firma.de \
+  --disclosure-text "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+```
+
+Beide Skripte validieren die Eingaben (keine Restriktion ohne Domains, kein
+Hinweis ohne Text), legen die Datei admin-owned + read-only ab und verifizieren
+den Schutz (PS: ACL-Audit auf Users-Schreibrechte; sh: `test -w` als aufrufender
+User). Danach Binary ebenfalls schützen (sonst wird der Code statt der Config
+gepatcht).
+
+### 10.2 Manuelle Ablage + Schutz (Fallback ohne Skript)
 
 Suchreihenfolge: Systempfad zuerst, dann `policy.json` neben dem Binary.
 
@@ -225,8 +249,7 @@ Suchreihenfolge: Systempfad zuerst, dann `policy.json` neben dem Binary.
 | macOS | `/Library/Application Support/microsoft-mcp/policy.json` | `sudo install -o root -g wheel -m 644 policy.json "/Library/Application Support/microsoft-mcp/policy.json"` |
 | Windows (Admin-PS) | `%ProgramData%\microsoft-mcp\policy.json` | Kopieren, dann `icacls policy.json /inheritance:r /grant:r Administrators:F SYSTEM:F /grant:r Users:R` |
 
-Das Binary selbst gleich mit schützen (sonst wird der Code statt der Config
-gepatcht). Startverhalten: keine `policy.json` → uneingeschränkt + Warnung auf
+Startverhalten: keine `policy.json` → uneingeschränkt + Warnung auf
 stderr; restriktive, aber user-schreibbare Datei → **Start verweigert**
 (Fail-Closed, außer der Prozess läuft elevated = Admin-Testszenario); gefunden →
 Pfad + SHA-256-Präfix + wirksame Flags landen auf stderr (Audit). Ohne
