@@ -99,6 +99,7 @@ public static class SetupCli
                 auth = auth.ToString(),
                 client = client.ToString(),
                 clientKey = SetupGuide.TopLevelKey(client),
+                configFile = SetupGuide.ConfigFile(client),
                 tenantHint,
                 mcpJson = snippet
             }, JsonOptions));
@@ -117,6 +118,7 @@ public static class SetupCli
         Console.Out.WriteLine("Entra (once): app registration → Mobile+desktop http://localhost → API permissions above → consent.");
         Console.Out.WriteLine("Personal accounts: token v2 + AzureADandPersonalMicrosoftAccount (see outlook.md troubleshooting).");
         Console.Out.WriteLine();
+        Console.Out.WriteLine($"Client file: {SetupGuide.ConfigFile(client)} (key {SetupGuide.TopLevelKey(client)})");
         Console.Out.WriteLine(snippet);
         Console.Out.WriteLine();
         Console.Out.WriteLine("Verify: microsoft-mcp doctor --servers " + string.Join(",", servers));
@@ -183,7 +185,7 @@ public static class SetupCli
     private static void PrintHelp(string command)
     {
         Console.Out.WriteLine(command == "setup"
-            ? "Usage: microsoft-mcp setup [--servers outlook,calendar] [--account work|personal] [--auth delegated|apponly] [--client vscode|claude|generic] [--binary PATH] [--headless] [--json]"
+            ? "Usage: microsoft-mcp setup [--servers outlook,calendar] [--account work|personal] [--auth delegated|apponly] [--client vscode|claude|opencode|codex|openclaw|hermes|generic] [--binary PATH] [--headless] [--json]"
             : "Usage: microsoft-mcp doctor [--servers outlook,calendar] [--json]");
     }
 

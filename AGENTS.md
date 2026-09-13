@@ -1,14 +1,16 @@
 # AGENTS.md
 
 Maschinen-Hinweise für dieses Repo. Fachliche Wahrheit für das
-Verwender-Setup: `docs/setup.md` (danach `docs/outlook.md §9–§10`,
-`teams.md §8–§9`).
+Verwender-Setup: `docs/setup.de.md` / `docs/setup.en.md` (inhaltsgleich,
+danach `docs/outlook.md §9–§10`, `teams.md §8–§9`).
 
 ## Setup unterstützen (Verwender-Sicht)
 
-- Immer zuerst die 3 Fragen aus `docs/setup.md §0` klären
-  (Konto, Domains, Client). Nie raten, nie Secrets erfinden.
-- `microsoft-mcp setup …` generiert Checklist + `mcp.json`-Snippet,
+- Immer zuerst die 3 Fragen aus `docs/setup.de.md §0` klären
+  (Konto, Domains, Client: vscode, claude, opencode, codex, openclaw,
+  hermes). Nie raten, nie Secrets erfinden.
+- `microsoft-mcp setup …` generiert Checklist + Client-Snippet
+  (JSON, Codex: TOML, Hermes: YAML),
   `microsoft-mcp doctor [--json]` verifiziert offline. Beide starten
   keinen MCP-Server und brauchen keine Secrets.
 - Kombinationen: App-Only nur mit `outlook` gültig; `onedrive`,

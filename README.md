@@ -45,8 +45,9 @@ dotnet test MicrosoftMcp.slnx
 ```
 
 Configuration via user-secrets or `Graph__*` env vars (never commit
-secrets) – start with [docs/setup.md](docs/setup.md) (consumer setup:
-binary, Entra app, `mcp.json`, `doctor`), details per server in its guide. Each server logs its
+secrets) – start with `docs/setup.de.md` / `docs/setup.en.md` (consumer setup:
+binary, Entra app, client config for VS Code, Claude, OpenCode, Codex,
+OpenClaw, Hermes, `doctor`), details per server in its guide. Each server logs its
 effective auth mode on startup and fails fast on missing values.
 
 ## Layout

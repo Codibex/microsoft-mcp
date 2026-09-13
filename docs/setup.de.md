@@ -1,9 +1,9 @@
 # Setup für Verwender (`microsoft-mcp` nutzen, nicht entwickeln)
 
-Ziel: ein laufender MCP-Server in deinem Client (VS Code, Claude Desktop, …)
-mit genau einer Entra-App. Quelle der Wahrheit für Agenten und CLI:
-diese Datei. Domänen-Details stehen in `outlook.md`, `onedrive.md`,
-`calendar.md`, `teams.md`.
+Ziel: ein laufender MCP-Server in deinem Client mit genau einer Entra-App.
+Quelle der Wahrheit für Agenten und CLI: diese Datei
+(inhaltsgleich mit `setup.en.md`). Domänen-Details stehen in `outlook.md`,
+`onedrive.md`, `calendar.md`, `teams.md`.
 
 ## 0. Drei Fragen zuerst (nicht raten)
 
@@ -11,8 +11,17 @@ diese Datei. Domänen-Details stehen in `outlook.md`, `onedrive.md`,
 2. **Domains:** welche von `outlook,onedrive,calendar,teams`?
    Unified host: `microsoft-mcp --servers outlook,calendar` (oder `MCP_SERVERS`),
    ohne Angabe alle.
-3. **Client:** VS Code (`.vscode/mcp.json`, Schlüssel `servers`) oder
-   Claude Desktop (`claude_desktop_config.json`, Schlüssel `mcpServers`)?
+3. **Client:** siehe Tabelle — Datei, Schlüssel und Snippet-Format hängen
+   vom Client ab (`--client`):
+
+   | Client | `--client` | Datei | Schlüssel | Format |
+   |---|---|---|---|---|
+   | VS Code | `vscode` | `.vscode/mcp.json` | `servers` | JSON |
+   | Claude Desktop | `claude` | `claude_desktop_config.json` | `mcpServers` | JSON |
+   | OpenCode | `opencode` | `opencode.json` | `mcp` | JSON (`command` als Array, Env heißt `environment`, plus `"type": "local"`) |
+   | Codex CLI | `codex` | `~/.codex/config.toml` | `mcp_servers` | TOML (alternativ: `codex mcp add …`) |
+   | OpenClaw | `openclaw` | `openclaw.json` (`mcp.servers`) | `mcp` → `servers` | JSON (plus `"enabled": true`) |
+   | Hermes Agent | `hermes` | `~/.hermes/config.yaml` | `mcp_servers` | YAML (Secrets besser in `~/.hermes/.env`) |
 
 Regel: eigenes Postfach → Delegated. Service/fremde Postfächer → App-Only
 (nur `outlook`, Admin-Consent nötig). `onedrive`, `calendar`, `teams`
@@ -56,13 +65,13 @@ Persönliche Konten brauchen Token-Version 2 + `AzureADandPersonalMicrosoftAccou
 (siehe `outlook.md` Troubleshooting). Headless ohne Browser:
 `Graph__DelegatedFlow=DeviceCode`.
 
-## 3. Client verdrahten (`mcp.json`)
+## 3. Client verdrahten
 
 Secrets gehören in `env`, nie ins Repo. Template generieren:
 
 ```bash
 microsoft-mcp setup --servers outlook,calendar --account personal --client vscode
-microsoft-mcp setup --servers outlook --account work --client claude --binary /opt/microsoft-mcp/microsoft-mcp
+microsoft-mcp setup --servers outlook --account work --client codex --binary /opt/microsoft-mcp/microsoft-mcp
 ```
 
 VS Code (`.vscode/mcp.json`):
@@ -79,10 +88,38 @@ VS Code (`.vscode/mcp.json`):
 }
 ```
 
-Claude Desktop: gleiches Objekt unter `mcpServers`. App-Only zusätzlich:
-`Graph__AuthMode=AppOnly`, `Graph__UserIdOrUpn`, `Graph__ClientSecret`.
-`policy.json` (nur Outlook/Teams, optional): admin-owned Systempfad oder
-neben dem Binary; `Messaging__*`-Env wird ignoriert (siehe `outlook.md` §10).
+Claude Desktop: gleiches Objekt unter `mcpServers`. OpenCode/OpenClaw:
+gleiches Objekt unter `mcp` (OpenCode: `command` als Array, Env heißt
+`environment`). Codex (`~/.codex/config.toml`, TOML):
+
+```toml
+[mcp_servers.m365]
+command = "/opt/microsoft-mcp/microsoft-mcp"
+args = ["--servers", "outlook,calendar"]
+
+[mcp_servers.m365.env]
+Graph__TenantId = "<id>"
+Graph__ClientId = "<id>"
+```
+
+Alternativ: `codex mcp add m365 --env Graph__TenantId=<id> --env
+Graph__ClientId=<id> -- /opt/microsoft-mcp/microsoft-mcp --servers
+outlook,calendar`. Hermes (`~/.hermes/config.yaml`, YAML):
+
+```yaml
+mcp_servers:
+  m365:
+    command: "/opt/microsoft-mcp/microsoft-mcp"
+    args: ["--servers", "outlook,calendar"]
+    env:
+      Graph__TenantId: "<id>"
+      Graph__ClientId: "<id>"
+```
+
+App-Only zusätzlich: `Graph__AuthMode=AppOnly`, `Graph__UserIdOrUpn`,
+`Graph__ClientSecret`. `policy.json` (nur Outlook/Teams, optional):
+admin-owned Systempfad oder neben dem Binary; `Messaging__*`-Env wird
+ignoriert (siehe `outlook.md` §10).
 
 ## 4. Verifizieren
 
@@ -96,13 +133,15 @@ Erwartung: alle Checks `ok`, Exit 0. Dann im Client z. B.:
 Fehler kommen als `isError` mit `[code]` + `Next:`-Hinweis; Details nur
 auf stderr. `[access-denied]` → Consent/Scopes aus §2, `[auth-failed]`
 headless → `DeviceCode`, leere Tool-Liste → stderr auf
-`OptionsValidationException` prüfen.
+`OptionsValidationException` prüfen. OpenClaw: zusätzlich
+`openclaw mcp doctor m365 --probe` für einen Live-Verbindungstest.
 
 ## Maschinen-Vertrag (für `setup`/`doctor`)
 
 - Eingaben: `--servers` (Teilmenge von `outlook,onedrive,calendar,teams`,
   leer = alle), `--account work|personal`, `--auth delegated|apponly`,
-  `--client vscode|claude|generic`, `--binary PATH`, `--headless`, `--json`.
+  `--client vscode|claude|opencode|codex|openclaw|hermes|generic`,
+  `--binary PATH`, `--headless`, `--json`.
 - `setup` braucht keine Secrets, schreibt keine Secrets, Exit 0 bei
   gültiger Kombination, 2 bei ungültiger (z. B. `teams` + `apponly`,
   `onedrive`/`calendar`/`teams` + `apponly`).
