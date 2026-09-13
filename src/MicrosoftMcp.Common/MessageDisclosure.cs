@@ -28,7 +28,8 @@ public static class MessageDisclosure
                 continue;
             }
 
-            if (value.IndexOf('>', i + 2) > i + 2)
+            // '>=' : shortest valid tags ('<p>', '<br>') close at exactly i + 2.
+            if (value.IndexOf('>', i + 2) >= i + 2)
             {
                 return true;
             }

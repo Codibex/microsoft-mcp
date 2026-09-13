@@ -54,17 +54,14 @@ if (-not (Test-Path $dir)) {
 $policy | ConvertTo-Json -Depth 3 | Set-Content -Path $PolicyPath -Encoding utf8NoBOM
 Write-Host "Wrote $PolicyPath"
 
-# Lock down: no inheritance, Administrators/SYSTEM full, Users read-only.
-$acl = Get-Acl -Path $PolicyPath
-$acl.SetAccessRuleProtection($true, $false)
-$acl.Access | ForEach-Object { $acl.RemoveAccessRule($_) | Out-Null }
-$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
-  'BUILTIN\Administrators', 'FullControl', 'Allow')))
-$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
-  'NT AUTHORITY\SYSTEM', 'FullControl', 'Allow')))
-$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
-  'BUILTIN\Users', 'ReadAndExecute, Synchronize', 'Allow')))
-Set-Acl -Path $PolicyPath -AclObject $acl
+# Lock down file AND directory (a writable directory allows delete-and-replace
+# of even a read-only file). SID form: locale-proof.
+# S-1-5-32-544 Administrators, S-1-5-18 SYSTEM, S-1-5-32-545 Users.
+icacls $dir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
+icacls $PolicyPath /inheritance:r /grant:r '*S-1-5-32-544:F' '*S-1-5-18:F' '*S-1-5-32-545:R' | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  throw "icacls failed for $PolicyPath."
+}
 
 # Verify: Users must not hold any Write-ish right.
 $bad = (Get-Acl -Path $PolicyPath).Access | Where-Object {

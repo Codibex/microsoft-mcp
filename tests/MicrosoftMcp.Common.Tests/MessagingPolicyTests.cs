@@ -78,6 +78,16 @@ public sealed class MessagingPolicyTests
     }
 
     [Fact]
+    public void Guard_rejects_double_at_smuggling()
+    {
+        // LastIndexOf would read firma.de and pass; exactly one '@' is required.
+        var ex = Assert.Throws<MailServiceException>(() =>
+            RecipientGuard.ValidateRecipients(["a@extern.example@firma.de"], InternalPolicy()));
+
+        Assert.Contains("[invalid-request]", ex.Message);
+    }
+
+    [Fact]
     public void Guard_disabled_allows_everything()
     {
         RecipientGuard.ValidateRecipients(["a@gmail.com"], new MessagingPolicyOptions());
@@ -130,10 +140,13 @@ public sealed class MessagingPolicyTests
 
     [Theory]
     [InlineData("<p>Hallo</p>", true)]
+    [InlineData("<p>", true)]
+    [InlineData("<br>", true)]
     [InlineData("Text<br/>weiter", true)]
     [InlineData("Hallo Welt", false)]
     [InlineData("a < b und c > d", false)]
     [InlineData("2 <3 Äpfel", false)]
+    [InlineData("<>", false)]
     public void LooksLikeHtml_detects_tags_not_comparisons(string body, bool expected)
     {
         Assert.Equal(expected, MessageDisclosure.LooksLikeHtml(body));
@@ -189,6 +202,87 @@ public sealed class MessagingPolicyTests
     }
 
     [Fact]
+    public void Load_normalizes_null_domains_to_empty()
+    {
+        string path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, """{"requireInternalRecipients": false, "allowedRecipientDomains": null}""");
+
+            var policy = PolicyFile.Load(path);
+
+            Assert.NotNull(policy.AllowedRecipientDomains);
+            Assert.Empty(policy.AllowedRecipientDomains);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Load_rejects_unknown_properties_fail_closed()
+    {
+        string path = Path.GetTempFileName();
+        try
+        {
+            // Typo: must not silently start with a permissive policy.
+            File.WriteAllText(path, """{"requireInternalRecipient": true}""");
+
+            Assert.Throws<System.Text.Json.JsonException>(() => PolicyFile.Load(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Load_rejects_null_document()
+    {
+        string path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "null");
+
+            Assert.Throws<System.Text.Json.JsonException>(() => PolicyFile.Load(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ProbeExists_distinguishes_missing_from_unreadable()
+    {
+        Assert.False(PolicyFile.ProbeExists(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))));
+
+        if (OperatingSystem.IsWindows() || IsElevatedTestProcess())
+        {
+            return; // Needs Unix permission bits; root bypasses them anyway.
+        }
+
+        // Inaccessible directory: stat fails (Exists=false) but opening would be
+        // EACCES — must fail closed instead of falling back to a weaker policy.
+        string dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.SetUnixFileMode(dir, UnixFileMode.None);
+
+            Assert.Throws<Microsoft.Extensions.Options.OptionsValidationException>(() =>
+                PolicyFile.ProbeExists(Path.Combine(dir, "policy.json")));
+        }
+        finally
+        {
+            File.SetUnixFileMode(dir,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            Directory.Delete(dir);
+        }
+    }
+
+    [Fact]
     public void EnsureProtected_passes_for_permissive_policy_on_writable_file()
     {
         string path = Path.GetTempFileName();
@@ -204,26 +298,70 @@ public sealed class MessagingPolicyTests
     }
 
     [Fact]
-    public void EnsureProtected_passes_for_readonly_restrictive_file()
+    public void EnsureProtected_passes_for_readonly_file_in_readonly_dir()
     {
         if (IsElevatedTestProcess())
         {
             return; // Root/admin bypasses permission bits; nothing meaningful to assert.
         }
 
-        string path = Path.GetTempFileName();
+        if (OperatingSystem.IsWindows())
+        {
+            return; // Read-only dirs need ACL juggling; covered by file-level test below.
+        }
+
+        string dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, "policy.json");
         try
         {
             File.WriteAllText(path, "{}");
             MakeReadOnly(path);
             Assert.False(PolicyFile.IsWritable(path));
+            File.SetUnixFileMode(dir,
+                UnixFileMode.UserRead | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+            Assert.False(PolicyFile.IsDirectoryWritable(dir));
 
             PolicyFile.EnsureProtected(path, InternalPolicy());
         }
         finally
         {
+            File.SetUnixFileMode(dir,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             MakeWritable(path);
             File.Delete(path);
+            Directory.Delete(dir);
+        }
+    }
+
+    [Fact]
+    public void EnsureProtected_throws_for_readonly_file_in_writable_dir()
+    {
+        // Delete-and-replace defeats file-level read-only: the directory counts too.
+        if (IsElevatedTestProcess())
+        {
+            return;
+        }
+
+        string dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, "policy.json");
+        try
+        {
+            File.WriteAllText(path, "{}");
+            MakeReadOnly(path);
+            Assert.True(PolicyFile.IsDirectoryWritable(dir));
+
+            Assert.Throws<Microsoft.Extensions.Options.OptionsValidationException>(() =>
+                PolicyFile.EnsureProtected(path, InternalPolicy()));
+        }
+        finally
+        {
+            MakeWritable(path);
+            File.Delete(path);
+            Directory.Delete(dir);
         }
     }
 
@@ -294,6 +432,24 @@ public sealed class MessagingPolicyTests
             UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
     }
 
-    private static bool IsElevatedTestProcess() =>
-        string.Equals(Environment.UserName, "root", StringComparison.OrdinalIgnoreCase);
+    private static bool IsElevatedTestProcess()
+    {
+        // Mirror PolicyFile.IsElevated: Windows administrator token counts too,
+        // otherwise the Throws-tests fail when the suite runs elevated on Windows.
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+                var principal = new System.Security.Principal.WindowsPrincipal(identity);
+                return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+            catch (Exception ex) when (ex is PlatformNotSupportedException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+
+        return string.Equals(Environment.UserName, "root", StringComparison.OrdinalIgnoreCase);
+    }
 }

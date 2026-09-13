@@ -26,7 +26,15 @@ public static class RecipientGuard
 
     public static string DomainOf(string address)
     {
-        int at = address.LastIndexOf('@');
+        // Exactly one '@': LastIndexOf would let 'a@external@firma.de' pass as internal.
+        if (address.Count(c => c == '@') != 1)
+        {
+            throw MailServiceException.InvalidRequest(
+                $"Recipient '{address}' is not a valid email address.",
+                "pass addresses like \"name@firma.de\"");
+        }
+
+        int at = address.IndexOf('@');
         if (at <= 0 || at == address.Length - 1)
         {
             throw MailServiceException.InvalidRequest(

@@ -207,9 +207,12 @@ Hinweis-Text angehängt. Beides steuert die **admin-owned `policy.json`**
 ```
 
 Regeln: Subdomains sind eingeschlossen (`mail.firma.de` passt zu `firma.de`),
-Groß-/Kleinschreibung egal. Antworten prüfen den Absender der Originalmail
-(server-seitig aufgelöst), Weiterleitungen die expliziten Empfänger. Der Hinweis
-wird idempotent angehängt (kein Doppel bei `outlook_update_draft`).
+Groß-/Kleinschreibung egal, genau ein `@` erforderlich. Antworten prüfen
+server-seitig das tatsächliche Reply-Ziel (`Reply-To`, sonst Absender) und
+scheitern geschlossen ohne Absender; Weiterleitungen prüfen die expliziten
+Empfänger; `outlook_update_draft` ohne `to` prüft die bestehenden Empfänger des
+Drafts, ohne `body` wird der Hinweis auf den bestehenden Body nachgetragen. Der
+Hinweis wird idempotent angehängt (kein Doppel bei `outlook_update_draft`).
 
 **Wichtig:** Diese Datei ist die *einzige* Quelle — `Messaging__*`-Env-Vars
 werden absichtlich ignoriert, weil `mcp.json` user-schreibbar ist und ein LLM
@@ -250,7 +253,9 @@ Suchreihenfolge: Systempfad zuerst, dann `policy.json` neben dem Binary.
 | Windows (Admin-PS) | `%ProgramData%\microsoft-mcp\policy.json` | Kopieren, dann `icacls policy.json /inheritance:r /grant:r Administrators:F SYSTEM:F /grant:r Users:R` |
 
 Startverhalten: keine `policy.json` → uneingeschränkt + Warnung auf
-stderr; restriktive, aber user-schreibbare Datei → **Start verweigert**
+stderr; vorhandene, aber unlesbare Datei → Start verweigert (kein Fallback auf
+schwächere Policy); restriktive Datei oder restriktives Verzeichnis mit
+User-Schreibrecht → **Start verweigert**
 (Fail-Closed, außer der Prozess läuft elevated = Admin-Testszenario); gefunden →
 Pfad + SHA-256-Präfix + wirksame Flags landen auf stderr (Audit). Ohne
 Admin-Rechte auf dem Gerät (gemanagte Clients) kann ein LLM die Datei weder
