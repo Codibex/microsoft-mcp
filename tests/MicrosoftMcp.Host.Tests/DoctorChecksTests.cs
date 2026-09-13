@@ -4,7 +4,7 @@ using MicrosoftMcp.Host.Setup;
 
 namespace MicrosoftMcp.Host.Tests;
 
-/// <summary>Offline-Doctor: Config-Validierung ohne Netzwerk und ohne Secrets-Abfluss.</summary>
+/// <summary>Offline doctor: config validation without network and without leaking secrets.</summary>
 public sealed class DoctorChecksTests
 {
     private static GraphAuthOptions Delegated(string tenant = "common", string client = "11111111-1111-1111-1111-111111111111")

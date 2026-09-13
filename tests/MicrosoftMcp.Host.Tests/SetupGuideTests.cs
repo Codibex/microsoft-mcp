@@ -4,7 +4,7 @@ using MicrosoftMcp.Host.Setup;
 
 namespace MicrosoftMcp.Host.Tests;
 
-/// <summary>Setup-Wizard: Kombinationen, Scopes, Tenant-Hints, mcp.json-Snippet.</summary>
+/// <summary>Setup wizard: combinations, scopes, tenant hints, config snippet.</summary>
 public sealed class SetupGuideTests
 {
     [Fact]

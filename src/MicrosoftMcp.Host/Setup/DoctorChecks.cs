@@ -2,15 +2,15 @@ using MicrosoftMcp.Common;
 
 namespace MicrosoftMcp.Host.Setup;
 
-/// <summary>Ein Offline-Check mit Hinweis für die Behebung.</summary>
+/// <summary>One offline check with a fix hint.</summary>
 public sealed record SetupCheck(string Id, bool Ok, string Message, string? Next);
 
-/// <summary>Offline-Prüfungen über die Host-Config (kein Netzwerk, kein Token).</summary>
+/// <summary>Offline checks over the host config (no network, no token).</summary>
 public static class DoctorChecks
 {
     private static readonly string[] SpecialTenants = ["common", "consumers", "organizations"];
 
-    /// <summary>Führt alle Checks aus. Policy: fehlend = ok (deaktiviert), unlesbar = fail.</summary>
+    /// <summary>Runs all checks. Policy: missing = ok (disabled), unreadable = fail.</summary>
     public static IReadOnlyList<SetupCheck> Run(
         IReadOnlyList<string> servers,
         GraphAuthOptions options,

@@ -5,7 +5,7 @@ using MicrosoftMcp.Common;
 
 namespace MicrosoftMcp.Host.Setup;
 
-/// <summary>Dispatch für <c>setup</c> / <c>doctor</c> (startet nie den MCP-Server).</summary>
+/// <summary>Dispatch for <c>setup</c> / <c>doctor</c> (never starts the MCP server).</summary>
 public static class SetupCli
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -14,7 +14,7 @@ public static class SetupCli
         WriteIndented = true
     };
 
-    /// <summary>True wenn args mit setup/doctor (oder deren Hilfe) beginnen.</summary>
+    /// <summary>True when args start with setup/doctor (or their help).</summary>
     public static bool IsSetupCommand(string[] args)
     {
         return args.Length > 0
@@ -22,7 +22,7 @@ public static class SetupCli
                 || args[0].Equals("doctor", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>Führt setup/doctor aus, gibt den Exit-Code zurück.</summary>
+    /// <summary>Runs setup/doctor, returns the exit code.</summary>
     public static int Run(string[] args)
     {
         string command = args[0].ToLowerInvariant();
@@ -136,8 +136,8 @@ public static class SetupCli
 
         GraphAuthOptions options = new();
         config.GetSection(GraphAuthOptions.SectionName).Bind(options);
-        // Leere DelegatedScopes nicht auffüllen: DoctorChecks meldet dann
-        // "Scopes follow the selection" mit der Union (wie der Host anfordert).
+        // Don't backfill empty DelegatedScopes: DoctorChecks then reports
+        // "Scopes follow the selection" with the union (as the host requests).
 
         string? policyPath = null;
         string? policyError = null;

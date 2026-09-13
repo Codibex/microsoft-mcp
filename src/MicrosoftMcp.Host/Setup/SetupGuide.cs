@@ -3,7 +3,7 @@ using MicrosoftMcp.Common;
 
 namespace MicrosoftMcp.Host.Setup;
 
-/// <summary>Client-Typen für das generierte Config-Snippet.</summary>
+/// <summary>Client types for the generated config snippet.</summary>
 public enum SetupClient
 {
     Vscode,
@@ -15,7 +15,7 @@ public enum SetupClient
     Generic
 }
 
-/// <summary>Serialisierungsformat des Snippets.</summary>
+/// <summary>Serialization format of the snippet.</summary>
 public enum SnippetFormat
 {
     Json,
@@ -23,10 +23,10 @@ public enum SnippetFormat
     Yaml
 }
 
-/// <summary>Reine Setup-Logik (ohne I/O): Kombination prüfen, Scopes auflösen, Snippet bauen.</summary>
+/// <summary>Pure setup logic (no I/O): validate combos, resolve scopes, build snippets.</summary>
 public static class SetupGuide
 {
-    /// <summary>Prüft AuthMode gegen die gewählten Domains. Null = gültig.</summary>
+    /// <summary>Validates AuthMode against the selected domains. Null = valid.</summary>
     public static string? ValidateCombination(IReadOnlyList<string> servers, AuthMode auth)
     {
         if (auth == AuthMode.AppOnly
@@ -38,13 +38,13 @@ public static class SetupGuide
         return null;
     }
 
-    /// <summary>Scope-Union für die Auswahl (Least Privilege).</summary>
+    /// <summary>Scope union for the selection (least privilege).</summary>
     public static IReadOnlyList<string> ScopesFor(IReadOnlyList<string> servers)
     {
         return ServerSelection.DefaultScopesFor(servers);
     }
 
-    /// <summary>Tenant-Platzhalter je Kontotyp.</summary>
+    /// <summary>Tenant placeholder per account type.</summary>
     public static string TenantHint(string account)
     {
         return account.Equals("personal", StringComparison.OrdinalIgnoreCase)
@@ -52,7 +52,7 @@ public static class SetupGuide
             : "<tenant-guid>";
     }
 
-    /// <summary>Parst den Client-Namen, unbekannt fällt auf generic zurück.</summary>
+    /// <summary>Parses the client name, unknown falls back to generic.</summary>
     public static SetupClient ParseClient(string? raw)
     {
         return raw?.ToLowerInvariant() switch
@@ -67,7 +67,7 @@ public static class SetupGuide
         };
     }
 
-    /// <summary>Top-Level-Schlüssel je Client (z. B. vscode: servers, claude: mcpServers).</summary>
+    /// <summary>Top-level key per client (e.g. vscode: servers, claude: mcpServers).</summary>
     public static string TopLevelKey(SetupClient client)
     {
         return client switch
@@ -81,7 +81,7 @@ public static class SetupGuide
         };
     }
 
-    /// <summary>Config-Datei je Client.</summary>
+    /// <summary>Config file per client.</summary>
     public static string ConfigFile(SetupClient client)
     {
         return client switch
@@ -96,7 +96,7 @@ public static class SetupGuide
         };
     }
 
-    /// <summary>Serialisierungsformat je Client (codex: TOML, hermes: YAML, Rest: JSON).</summary>
+    /// <summary>Serialization format per client (codex: TOML, hermes: YAML, rest: JSON).</summary>
     public static SnippetFormat Format(SetupClient client)
     {
         return client switch
@@ -107,7 +107,7 @@ public static class SetupGuide
         };
     }
 
-    /// <summary>Env-Einträge (Name + Platzhalter) für die Auswahl.</summary>
+    /// <summary>Env entries (name + placeholder) for the selection.</summary>
     public static IReadOnlyList<(string Name, string Value)> EnvEntries(
         string tenantPlaceholder, AuthMode auth, bool headless)
     {
@@ -131,7 +131,7 @@ public static class SetupGuide
         return entries;
     }
 
-    /// <summary>Baut das kopierfertige Config-Snippet (keine Secrets enthalten).</summary>
+    /// <summary>Builds the copy-paste config snippet (contains no secrets).</summary>
     public static string BuildMcpJson(
         SetupClient client,
         string binaryPath,
@@ -160,7 +160,7 @@ public static class SetupGuide
             return string.Join(",\n", env.Select(e => $"{indent}\"{e.Name}\": \"{e.Value}\""));
         }
 
-        // OpenCode: command ist ein Array, Env heißt "environment".
+        // OpenCode: command is an array, env is called "environment".
         if (client == SetupClient.Opencode)
         {
             return "{\n"
@@ -176,7 +176,7 @@ public static class SetupGuide
                 + "}";
         }
 
-        // OpenClaw: mcp.servers mit enabled-Flag.
+        // OpenClaw: mcp.servers with enabled flag.
         if (client == SetupClient.Openclaw)
         {
             return "{\n"
