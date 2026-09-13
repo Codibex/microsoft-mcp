@@ -59,7 +59,7 @@ jobs:
 
       - name: Publish binaries (framework-dependent, single file)
         run: |
-          for spec in "MicrosoftMcp.Outlook.Host:microsoft-mcp-outlook" "MicrosoftMcp.OneDrive.Host:microsoft-mcp-onedrive"; do
+          for spec in "MicrosoftMcp.Outlook.Host:microsoft-mcp-outlook" "MicrosoftMcp.OneDrive.Host:microsoft-mcp-onedrive" "MicrosoftMcp.Calendar.Host:microsoft-mcp-calendar"; do
             proj="${spec%%:*}"; bin="${spec##*:}"
             for rid in linux-x64 win-x64 osx-arm64; do
               dotnet publish "src/$proj" -c Release -r "$rid" \
@@ -73,7 +73,7 @@ jobs:
       - name: Pack assets + checksums
         run: |
           mkdir -p assets
-          for bin in microsoft-mcp-outlook microsoft-mcp-onedrive; do
+          for bin in microsoft-mcp-outlook microsoft-mcp-onedrive microsoft-mcp-calendar; do
             for rid in linux-x64 win-x64 osx-arm64; do
               (cd "dist/$bin/$rid" && zip -q "$GITHUB_WORKSPACE/assets/$bin-${{ steps.version.outputs.tag }}-$rid.zip" "$bin" "$bin.exe" appsettings.json)
             done

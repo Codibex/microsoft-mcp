@@ -32,6 +32,16 @@ public sealed class MailServiceException : Exception
         $"Drive item '{itemRef}' was not found during {operation}.",
         "call list_children or search_files to get a valid id or /path (ids change on move)");
 
+    public static MailServiceException CalendarNotFound(string calendarId, string operation) => Create(
+        "calendar-not-found",
+        $"Calendar '{calendarId}' was not found during {operation}.",
+        "call list_calendars to get valid calendar ids");
+
+    public static MailServiceException EventNotFound(string eventId, string operation) => Create(
+        "event-not-found",
+        $"Event '{eventId}' was not found during {operation}.",
+        "call list_events for the time window to get valid event ids (ids change on move)");
+
     public static MailServiceException MissingRef(string what = "itemRef") => Create(
         "invalid-request",
         $"{what} must not be empty.",

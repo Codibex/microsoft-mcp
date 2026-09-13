@@ -7,30 +7,28 @@ namespace MicrosoftMcp.Common;
 /// <summary>Translates Graph/Kiota/transport exceptions into agent-actionable errors.</summary>
 public static partial class GraphErrorMapper
 {
-    private static readonly Dictionary<string, Func<int, string?, string, MailServiceException>> GraphCodeOverrides =
+    private static readonly Dictionary<string, Func<int, string?, string, string, MailServiceException>> GraphCodeOverrides =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["ErrorItemNotFound"] = static (_, _, op) =>
-                MailServiceException.MessageNotFound("<unknown>", op),
-            ["ErrorMessageNotFound"] = static (_, _, op) =>
-                MailServiceException.MessageNotFound("<unknown>", op),
-            ["ErrorFolderNotFound"] = static (_, _, _) =>
+            ["ErrorItemNotFound"] = static (_, _, op, res) => NotFoundFor(res, op),
+            ["ErrorMessageNotFound"] = static (_, _, op, res) => NotFoundFor(res, op),
+            ["ErrorFolderNotFound"] = static (_, _, _, _) =>
                 MailServiceException.FolderNotFound("<unknown>"),
-            ["ErrorAccessDenied"] = static (s, c, _) =>
+            ["ErrorAccessDenied"] = static (s, c, _, _) =>
                 MailServiceException.AccessDenied(s, c, null),
-            ["ErrorInvalidIdMalformed"] = static (_, _, _) =>
+            ["ErrorInvalidIdMalformed"] = static (_, _, _, _) =>
                 MailServiceException.InvalidRequest(
                     "Malformed Graph id.",
-                    "use the 'id' field from search_emails, not internetMessageId or webLink"),
-            ["MailboxNotEnabledForRESTAPI"] = static (_, c, d) =>
+                    "use the 'id' field from the matching list/search tool, not a web link or secondary id"),
+            ["MailboxNotEnabledForRESTAPI"] = static (_, c, d, _) =>
                 MailServiceException.MailboxUnavailable(c, d),
-            ["ErrorMailboxNotAssociated"] = static (_, c, d) =>
+            ["ErrorMailboxNotAssociated"] = static (_, c, d, _) =>
                 MailServiceException.MailboxUnavailable(c, d),
-            ["ErrorMailboxStoreUnknown"] = static (_, c, d) =>
+            ["ErrorMailboxStoreUnknown"] = static (_, c, d, _) =>
                 MailServiceException.MailboxUnavailable(c, d),
-            ["ErrorNonExistentMailbox"] = static (_, c, d) =>
+            ["ErrorNonExistentMailbox"] = static (_, c, d, _) =>
                 MailServiceException.MailboxUnavailable(c, d),
-            ["ErrorQuotaExceeded"] = static (_, _, _) =>
+            ["ErrorQuotaExceeded"] = static (_, _, _, _) =>
                 MailServiceException.InvalidRequest(
                     "Mailbox quota exceeded.",
                     "free mailbox space or narrow the operation before retrying"),
@@ -48,12 +46,15 @@ public static partial class GraphErrorMapper
             ["AADSTS90002"] = "TenantId is wrong: verify the directory ID, or use common/consumers",
         };
 
-    public static MailServiceException ToMailServiceException(Exception ex, string operation) =>
+    /// <summary>Maps Graph/Kiota failures. Resource selects the not-found
+    /// wording: "message" (mail), "calendar", "event", "drive" or "folder".</summary>
+    public static MailServiceException ToMailServiceException(
+        Exception ex, string operation, string resource = "message") =>
         ex switch
         {
             MailServiceException already => already,
             ApiException api => FromStatus(
-                api.ResponseStatusCode, ResolveGraphCode(api), Truncate(api.Message, 300), operation),
+                api.ResponseStatusCode, ResolveGraphCode(api), Truncate(api.Message, 300), operation, resource),
             HttpRequestException http => MailServiceException.ServiceUnavailable(
                 Truncate(http.Message, 200), http),
             TimeoutException timeout => MailServiceException.ServiceUnavailable(
@@ -75,11 +76,11 @@ public static partial class GraphErrorMapper
     }
 
     public static MailServiceException FromStatus(
-        int status, string? graphCode, string? detail, string operation)
+        int status, string? graphCode, string? detail, string operation, string resource = "message")
     {
         if (graphCode is not null && GraphCodeOverrides.TryGetValue(graphCode, out var map))
         {
-            return map(status, graphCode, operation);
+            return map(status, graphCode, operation, resource);
         }
 
         return status switch
@@ -91,7 +92,7 @@ public static partial class GraphErrorMapper
                 $"Graph authentication failed (401{(graphCode is null ? string.Empty : $", {graphCode}")}). {detail ?? string.Empty}".Trim(),
                 null),
             403 => MailServiceException.AccessDenied(status, graphCode, detail),
-            404 => MailServiceException.MessageNotFound("<unknown>", operation),
+            404 => NotFoundFor(resource, operation),
             409 => MailServiceException.Conflict(operation, detail),
             429 => MailServiceException.Throttled(detail),
             >= 500 => MailServiceException.ServiceUnavailable(
@@ -99,6 +100,16 @@ public static partial class GraphErrorMapper
             _ => MailServiceException.GraphError(status, graphCode, detail)
         };
     }
+
+    internal static MailServiceException NotFoundFor(string resource, string operation) =>
+        resource switch
+        {
+            "calendar" => MailServiceException.CalendarNotFound("<unknown>", operation),
+            "event" => MailServiceException.EventNotFound("<unknown>", operation),
+            "drive" => MailServiceException.DriveItemNotFound("<unknown>", operation),
+            "folder" => MailServiceException.FolderNotFound("<unknown>"),
+            _ => MailServiceException.MessageNotFound("<unknown>", operation)
+        };
 
     /// <summary>Prefers the structured ODataError code; falls back to regex
     /// over the message text (Kiota puts the Graph body there).</summary>
