@@ -8,7 +8,14 @@ using MicrosoftMcp.Common;
 using MicrosoftMcp.OneDrive;
 using MicrosoftMcp.Outlook;
 using MicrosoftMcp.Teams;
+using MicrosoftMcp.Host.Setup;
 using ModelContextProtocol.Server;
+
+// setup/doctor never start the MCP server (offline wizard + checks, no secrets needed).
+if (SetupCli.IsSetupCommand(args))
+{
+    return SetupCli.Run(args);
+}
 
 // One binary, selectable domains: --servers outlook,calendar (or MCP_SERVERS env).
 // Run separate processes per domain for isolation, or one process for everything.
