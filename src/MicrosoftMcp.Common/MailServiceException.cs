@@ -42,6 +42,26 @@ public sealed class MailServiceException : Exception
         $"Event '{eventId}' was not found during {operation}.",
         "call list_events for the time window to get valid event ids (ids change on move)");
 
+    public static MailServiceException TeamNotFound(string teamId, string operation) => Create(
+        "team-not-found",
+        $"Team '{teamId}' was not found during {operation}.",
+        "call list_teams to get valid team ids");
+
+    public static MailServiceException ChannelNotFound(string channelId, string operation) => Create(
+        "channel-not-found",
+        $"Channel '{channelId}' was not found during {operation}.",
+        "call list_channels for the team to get valid channel ids");
+
+    public static MailServiceException ChatNotFound(string chatId, string operation) => Create(
+        "chat-not-found",
+        $"Chat '{chatId}' was not found during {operation}.",
+        "call list_chats to get valid chat ids");
+
+    public static MailServiceException TeamsMessageNotFound(string messageId, string operation) => Create(
+        "channel-message-not-found",
+        $"Message '{messageId}' was not found during {operation}.",
+        "call list_channel_messages or list_chat_messages to get valid message ids");
+
     public static MailServiceException MissingRef(string what = "itemRef") => Create(
         "invalid-request",
         $"{what} must not be empty.",
