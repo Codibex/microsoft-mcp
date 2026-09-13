@@ -40,29 +40,29 @@ public sealed class CalendarTools(IGraphCalendarService calendar, ILogger<Calend
     }
 
     [McpServerTool, Description("List calendars (id, name, default flag). Needed to pick a calendar id.")]
-    public Task<CallToolResult> list_calendars(CancellationToken ct = default) =>
-        InvokeAsync("list_calendars", () => calendar.ListCalendarsAsync(ct), "calendar");
+    public Task<CallToolResult> calendar_list_calendars(CancellationToken ct = default) =>
+        InvokeAsync("calendar_list_calendars", () => calendar.ListCalendarsAsync(ct), "calendar");
 
     [McpServerTool, Description("List events in a time window (default: default calendar, now plus 7 days). Times in ISO format, e.g. 2026-09-14T00:00:00.")]
-    public Task<CallToolResult> list_events(
+    public Task<CallToolResult> calendar_list_events(
         [Description("Calendar id or \"default\" (optional)")] string? calendarId = null,
         [Description("Window start ISO (optional, default now)")] string? timeMin = null,
         [Description("Window end ISO (optional, default now plus 7 days)")] string? timeMax = null,
         [Description("Max events 1-200")] int top = 50,
         CancellationToken ct = default) =>
-        InvokeAsync("list_events", () => calendar.ListEventsAsync(calendarId, timeMin, timeMax, top, ct));
+        InvokeAsync("calendar_list_events", () => calendar.ListEventsAsync(calendarId, timeMin, timeMax, top, ct));
 
     [McpServerTool, Description("Search events by subject/keyword across calendars.")]
-    public Task<CallToolResult> search_events(
+    public Task<CallToolResult> calendar_search_events(
         [Description("Subject or keyword, e.g. \"dentist\"")] string query,
         [Description("Max results 1-50")] int top = 25,
         CancellationToken ct = default) =>
-        InvokeAsync("search_events", () => calendar.SearchEventsAsync(query, top, ct));
+        InvokeAsync("calendar_search_events", () => calendar.SearchEventsAsync(query, top, ct));
 
     [McpServerTool, Description("Read a full event by id (attendees, recurrence, body, online meeting link).")]
-    public Task<CallToolResult> read_event(
+    public Task<CallToolResult> calendar_read_event(
         [Description("Graph event id")] string eventId,
         [Description("Calendar id or \"default\" (optional)")] string? calendarId = null,
         CancellationToken ct = default) =>
-        InvokeAsync("read_event", () => calendar.GetEventAsync(eventId, calendarId, ct));
+        InvokeAsync("calendar_read_event", () => calendar.GetEventAsync(eventId, calendarId, ct));
 }

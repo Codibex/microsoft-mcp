@@ -58,7 +58,7 @@ public sealed class GraphDriveService : IGraphDriveService
     {
         var item = await GetItemOrNullAsync(itemRef, ct).ConfigureAwait(false);
         return item is null
-            ? throw MailServiceException.DriveItemNotFound(itemRef, "get_item")
+            ? throw MailServiceException.DriveItemNotFound(itemRef, "onedrive_get_item")
             : DriveMapper.MapItem(item);
     }
 
@@ -101,13 +101,13 @@ public sealed class GraphDriveService : IGraphDriveService
     {
         int cap = Math.Clamp(maxBytes, 1, MaxDownloadBytes);
         var item = await GetItemOrNullAsync(itemRef, ct).ConfigureAwait(false)
-            ?? throw MailServiceException.DriveItemNotFound(itemRef, "download_file");
+            ?? throw MailServiceException.DriveItemNotFound(itemRef, "onedrive_download_file");
 
         if (item.Folder is not null)
         {
             throw MailServiceException.InvalidRequest(
                 $"Drive item '{item.Name}' is a folder.",
-                "download files only; use list_children to browse folders");
+                "download files only; use onedrive_list_children to browse folders");
         }
 
         long size = item.Size ?? 0;
@@ -245,7 +245,7 @@ public sealed class GraphDriveService : IGraphDriveService
         var moved = await _client.Drives[driveId].Items[itemId.Trim()].PatchAsync(patch, cancellationToken: ct)
             .ConfigureAwait(false);
         return moved is null
-            ? throw MailServiceException.DriveItemNotFound(itemId, "move_item")
+            ? throw MailServiceException.DriveItemNotFound(itemId, "onedrive_move_item")
             : DriveMapper.MapItem(moved);
     }
 

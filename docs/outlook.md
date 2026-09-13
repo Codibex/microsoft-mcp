@@ -135,25 +135,25 @@ Claude Desktop (`claude_desktop_config.json`): same schema under
 ## 6. First triage run
 
 Example prompt for the agent:
-> “Show unread mails from today (`search_emails`), summarize each in one
-> sentence, archive newsletters (`archive_email`), label invoices with
-> `set_categories`, and prepare reply drafts (`create_reply_draft`)
+> “Show unread mails from today (`outlook_search_emails`), summarize each in one
+> sentence, archive newsletters (`outlook_archive_email`), label invoices with
+> `outlook_set_categories`, and prepare reply drafts (`outlook_create_reply_draft`)
 > – send nothing, delete nothing permanently.”
 
 The server deliberately **cannot**: send (no tool, no `Mail.Send`
 permission needed), hard-delete, or download attachments larger than
-2 MB and nested items (see `read_attachment` limits).
+2 MB and nested items (see `outlook_read_attachment` limits).
 
 ## 7. Tools (17)
 
-Search/read: `search_emails`, `read_email`, `list_folders`,
-`list_attachments`, `read_attachment`, `list_categories` · Organize:
-`move_email`, `archive_email`, `delete_email` (trash), `create_folder`,
-`set_categories`, `mark_read`, `set_importance` · Draft:
-`create_draft`, `create_reply_draft`, `create_forward_draft`,
-`update_draft`.
+Search/read: `outlook_search_emails`, `outlook_read_email`, `outlook_list_folders`,
+`outlook_list_attachments`, `outlook_read_attachment`, `outlook_list_categories` · Organize:
+`outlook_move_email`, `outlook_archive_email`, `outlook_delete_email` (trash), `outlook_create_folder`,
+`outlook_set_categories`, `outlook_mark_read`, `outlook_set_importance` · Draft:
+`outlook_create_draft`, `outlook_create_reply_draft`, `outlook_create_forward_draft`,
+`outlook_update_draft`.
 
-`read_attachment` returns text files decoded (truncated at 20000 chars)
+`outlook_read_attachment` returns text files decoded (truncated at 20000 chars)
 and binary files as base64; downloads above `maxBytes` (default 768 KB,
 max 2097152) are rejected with `attachment-too-large`. Nested messages
 and OneDrive links are reported, not downloaded.

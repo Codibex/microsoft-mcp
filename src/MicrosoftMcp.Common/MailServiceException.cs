@@ -20,47 +20,47 @@ public sealed class MailServiceException : Exception
     public static MailServiceException MessageNotFound(string messageId, string operation) => Create(
         "message-not-found",
         $"Message '{messageId}' was not found during {operation}.",
-        "call search_emails to get a valid Graph id (use 'id', not internetMessageId; ids expire after moves)");
+        "call outlook_search_emails to get a valid Graph id (use 'id', not internetMessageId; ids expire after moves)");
 
     public static MailServiceException FolderNotFound(string destination) => Create(
         "folder-not-found",
         $"Folder '{destination}' was not found.",
-        "call list_folders and use id, displayName or a well-known name (inbox, archive, deleteditems, drafts)");
+        "call outlook_list_folders and use id, displayName or a well-known name (inbox, archive, deleteditems, drafts)");
 
     public static MailServiceException DriveItemNotFound(string itemRef, string operation) => Create(
         "item-not-found",
         $"Drive item '{itemRef}' was not found during {operation}.",
-        "call list_children or search_files to get a valid id or /path (ids change on move)");
+        "call onedrive_list_children or onedrive_search_files to get a valid id or /path (ids change on move)");
 
     public static MailServiceException CalendarNotFound(string calendarId, string operation) => Create(
         "calendar-not-found",
         $"Calendar '{calendarId}' was not found during {operation}.",
-        "call list_calendars to get valid calendar ids");
+        "call calendar_list_calendars to get valid calendar ids");
 
     public static MailServiceException EventNotFound(string eventId, string operation) => Create(
         "event-not-found",
         $"Event '{eventId}' was not found during {operation}.",
-        "call list_events for the time window to get valid event ids (ids change on move)");
+        "call calendar_list_events for the time window to get valid event ids (ids change on move)");
 
     public static MailServiceException TeamNotFound(string teamId, string operation) => Create(
         "team-not-found",
         $"Team '{teamId}' was not found during {operation}.",
-        "call list_teams to get valid team ids");
+        "call teams_list_teams to get valid team ids");
 
     public static MailServiceException ChannelNotFound(string channelId, string operation) => Create(
         "channel-not-found",
         $"Channel '{channelId}' was not found during {operation}.",
-        "call list_channels for the team to get valid channel ids");
+        "call teams_list_channels for the team to get valid channel ids");
 
     public static MailServiceException ChatNotFound(string chatId, string operation) => Create(
         "chat-not-found",
         $"Chat '{chatId}' was not found during {operation}.",
-        "call list_chats to get valid chat ids");
+        "call teams_list_chats to get valid chat ids");
 
     public static MailServiceException TeamsMessageNotFound(string messageId, string operation) => Create(
         "channel-message-not-found",
         $"Message '{messageId}' was not found during {operation}.",
-        "call list_channel_messages or list_chat_messages to get valid message ids");
+        "call teams_list_channel_messages or teams_list_chat_messages to get valid message ids");
 
     public static MailServiceException MissingRef(string what = "itemRef") => Create(
         "invalid-request",
@@ -73,7 +73,7 @@ public sealed class MailServiceException : Exception
     public static MailServiceException MissingId(string what = "messageId") => Create(
         "invalid-request",
         $"{what} must not be empty.",
-        "use an id from search_emails or read_email");
+        "use an id from outlook_search_emails or outlook_read_email");
 
     public static MailServiceException AuthMisconfigured(string detail) => Create(
         "auth-misconfigured",
@@ -104,12 +104,12 @@ public sealed class MailServiceException : Exception
     public static MailServiceException AttachmentTooLarge(string name, int size, int maxBytes) => Create(
         "attachment-too-large",
         $"Attachment '{name}' is {size} bytes, above the {maxBytes} byte limit.",
-        "pick a smaller attachment (see size in list_attachments), or raise maxBytes up to 2097152");
+        "pick a smaller attachment (see size in outlook_list_attachments), or raise maxBytes up to 2097152");
 
     public static MailServiceException Conflict(string operation, string? detail) => Create(
         "conflict",
         $"Concurrent change during {operation} (409). {detail ?? string.Empty}".Trim(),
-        "re-read the message (read_email) to get fresh state, then retry");
+        "re-read the message (outlook_read_email) to get fresh state, then retry");
 
     public static MailServiceException ServiceUnavailable(string? detail, Exception? inner = null) => Create(
         "service-unavailable",

@@ -13,6 +13,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/MicrosoftMcp.Calendar.Tests/MicrosoftMcp.Calendar.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Common.Tests/MicrosoftMcp.Common.Tests.csproj" />
+    <Project Path="tests/MicrosoftMcp.Host.Tests/MicrosoftMcp.Host.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.OneDrive.Tests/MicrosoftMcp.OneDrive.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Outlook.Tests/MicrosoftMcp.Outlook.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Teams.Tests/MicrosoftMcp.Teams.Tests.csproj" />

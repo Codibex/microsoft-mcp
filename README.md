@@ -45,6 +45,15 @@ Push tag `vX.Y.Z` → GitHub Action builds, tests and releases binaries
 Release notes are curated in `docs/releases/<tag>.md` and used as the
 GitHub release body (auto-generated commit lists are appended).
 
+## Protocol
+
+MCP C# SDK 2.2.0. The server negotiates up to **2025-11-25** via the
+classic `initialize` handshake and advertises **2026-07-28** via the new
+`server/discover` flow with per-request `_meta` metadata. Tool names are
+globally unique with domain prefixes (`outlook_*`, `onedrive_*`,
+`calendar_*`, `teams_*`); the spec requires uniqueness within a server
+and recommends identifier-prefixing for aggregated domains.
+
 ## License
 
 MIT – see [LICENSE](LICENSE).

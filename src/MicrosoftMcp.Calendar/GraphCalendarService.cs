@@ -137,7 +137,7 @@ public sealed class GraphCalendarService(
         {
             throw MailServiceException.InvalidRequest(
                 "eventId must not be empty.",
-                "use an id from list_events or search_events");
+                "use an id from calendar_list_events or calendar_search_events");
         }
 
         Event? ev = (IsDefaultCalendar(calendarId), IsMe) switch
@@ -153,7 +153,7 @@ public sealed class GraphCalendarService(
         };
 
         return ev is null
-            ? throw MailServiceException.EventNotFound(eventId, "read_event")
+            ? throw MailServiceException.EventNotFound(eventId, "calendar_read_event")
             : CalendarMapper.MapDetail(ev);
     }
 

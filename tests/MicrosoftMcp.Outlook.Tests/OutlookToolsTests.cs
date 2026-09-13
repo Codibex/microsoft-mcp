@@ -37,7 +37,7 @@ public sealed class OutlookToolsTests
             .Returns([new EmailSummary("m1", "Hi", null, [], null, false, false, [], null, null)]);
         var tools = Create(mail);
 
-        var result = ToolResults.Ok<List<EmailSummary>>(await tools.search_emails("Hi", top: 10));
+        var result = ToolResults.Ok<List<EmailSummary>>(await tools.outlook_search_emails("Hi", top: 10));
 
         result.Should().HaveCount(1);
         result[0].Id.Should().Be("m1");
@@ -49,7 +49,7 @@ public sealed class OutlookToolsTests
         var fake = new FakeGraphMailService();
         var tools = Create(fake);
 
-        await tools.search_emails("Rechnung", folder: "Inbox", top: 5);
+        await tools.outlook_search_emails("Rechnung", folder: "Inbox", top: 5);
 
         fake.LastQuery.Should().NotBeNull();
         fake.LastQuery!.Query.Should().Be("Rechnung");
@@ -62,18 +62,18 @@ public sealed class OutlookToolsTests
     {
         var tools = Create(new FakeGraphMailService());
 
-        ToolResults.Ok<EmailSummary>(await tools.move_email("m1", "Projekte")).Id.Should().Be("m1");
-        ToolResults.Ok<EmailDetail>(await tools.read_email("m1")).Should().NotBeNull();
+        ToolResults.Ok<EmailSummary>(await tools.outlook_move_email("m1", "Projekte")).Id.Should().Be("m1");
+        ToolResults.Ok<EmailDetail>(await tools.outlook_read_email("m1")).Should().NotBeNull();
 
-        var inbox = ToolResults.Ok<List<EmailSummary>>(await tools.search_emails(folder: "inbox"));
+        var inbox = ToolResults.Ok<List<EmailSummary>>(await tools.outlook_search_emails(folder: "inbox"));
         inbox.Should().NotContain(m => m.Id == "m1");
 
-        await tools.archive_email("m2");
-        ToolResults.Ok<List<EmailSummary>>(await tools.search_emails(folder: "archive"))
+        await tools.outlook_archive_email("m2");
+        ToolResults.Ok<List<EmailSummary>>(await tools.outlook_search_emails(folder: "archive"))
             .Should().Contain(m => m.Id == "m2");
 
-        ToolResults.Ok<string>(await tools.delete_email("m2")).Should().Contain("trash");
-        ToolResults.Ok<List<EmailSummary>>(await tools.search_emails(folder: "deleteditems"))
+        ToolResults.Ok<string>(await tools.outlook_delete_email("m2")).Should().Contain("trash");
+        ToolResults.Ok<List<EmailSummary>>(await tools.outlook_search_emails(folder: "deleteditems"))
             .Should().Contain(m => m.Id == "m2");
     }
 
@@ -82,16 +82,16 @@ public sealed class OutlookToolsTests
     {
         var tools = Create(new FakeGraphMailService());
 
-        var draft = ToolResults.Ok<EmailDetail>(await tools.create_draft(["a@x.y"], "Betreff", "Hallo"));
+        var draft = ToolResults.Ok<EmailDetail>(await tools.outlook_create_draft(["a@x.y"], "Betreff", "Hallo"));
         draft.Id.Should().StartWith("draft-");
 
-        var reply = ToolResults.Ok<EmailDetail>(await tools.create_reply_draft("m1", "Bin dabei"));
+        var reply = ToolResults.Ok<EmailDetail>(await tools.outlook_create_reply_draft("m1", "Bin dabei"));
         reply.Subject.Should().StartWith("Re:");
 
-        var fwd = ToolResults.Ok<EmailDetail>(await tools.create_forward_draft("m1", ["b@x.y"], "FYI"));
+        var fwd = ToolResults.Ok<EmailDetail>(await tools.outlook_create_forward_draft("m1", ["b@x.y"], "FYI"));
         fwd.Subject.Should().StartWith("Fwd:");
 
-        var updated = ToolResults.Ok<EmailDetail>(await tools.update_draft(draft.Id, subject: "Neu"));
+        var updated = ToolResults.Ok<EmailDetail>(await tools.outlook_update_draft(draft.Id, subject: "Neu"));
         updated.Subject.Should().Be("Neu");
     }
 
@@ -100,16 +100,16 @@ public sealed class OutlookToolsTests
     {
         var tools = Create(new FakeGraphMailService());
 
-        var labeled = ToolResults.Ok<EmailDetail>(await tools.set_categories("m1", ["Blue category"], []));
+        var labeled = ToolResults.Ok<EmailDetail>(await tools.outlook_set_categories("m1", ["Blue category"], []));
         labeled.Categories.Should().Contain("Blue category");
 
-        ToolResults.Ok<List<CategoryInfo>>(await tools.list_categories()).Should().HaveCount(2);
-        ToolResults.Ok<List<AttachmentInfo>>(await tools.list_attachments("m1")).Should().HaveCount(5);
-        ToolResults.Ok<List<AttachmentInfo>>(await tools.list_attachments("m2")).Should().BeEmpty();
+        ToolResults.Ok<List<CategoryInfo>>(await tools.outlook_list_categories()).Should().HaveCount(2);
+        ToolResults.Ok<List<AttachmentInfo>>(await tools.outlook_list_attachments("m1")).Should().HaveCount(5);
+        ToolResults.Ok<List<AttachmentInfo>>(await tools.outlook_list_attachments("m2")).Should().BeEmpty();
 
-        ToolResults.Ok<string>(await tools.mark_read("m1", true)).Should().Contain("read");
-        ToolResults.Ok<string>(await tools.set_importance("m1", "high")).Should().Contain("high");
-        ToolResults.Fail(await tools.set_importance("m1", "urgent")).Should().Contain("[invalid-request]");
+        ToolResults.Ok<string>(await tools.outlook_mark_read("m1", true)).Should().Contain("read");
+        ToolResults.Ok<string>(await tools.outlook_set_importance("m1", "high")).Should().Contain("high");
+        ToolResults.Fail(await tools.outlook_set_importance("m1", "urgent")).Should().Contain("[invalid-request]");
     }
 
     [Fact]
@@ -117,19 +117,19 @@ public sealed class OutlookToolsTests
     {
         var tools = Create(new FakeGraphMailService());
 
-        var text = ToolResults.Ok<AttachmentContent>(await tools.read_attachment("m1", "a1"));
+        var text = ToolResults.Ok<AttachmentContent>(await tools.outlook_read_attachment("m1", "a1"));
         text.Encoding.Should().Be("text");
         text.Text.Should().Contain("42,00");
         text.Truncated.Should().BeFalse();
 
-        var binary = ToolResults.Ok<AttachmentContent>(await tools.read_attachment("m1", "a2"));
+        var binary = ToolResults.Ok<AttachmentContent>(await tools.outlook_read_attachment("m1", "a2"));
         binary.Encoding.Should().Be("base64");
         binary.DataBase64.Should().NotBeNullOrEmpty();
 
-        var nested = ToolResults.Ok<AttachmentContent>(await tools.read_attachment("m1", "a4"));
+        var nested = ToolResults.Ok<AttachmentContent>(await tools.outlook_read_attachment("m1", "a4"));
         nested.Encoding.Should().Be("nested");
 
-        var reference = ToolResults.Ok<AttachmentContent>(await tools.read_attachment("m1", "a5"));
+        var reference = ToolResults.Ok<AttachmentContent>(await tools.outlook_read_attachment("m1", "a5"));
         reference.Encoding.Should().Be("reference");
         reference.SourceUrl.Should().Contain("sharepoint");
     }
@@ -139,9 +139,9 @@ public sealed class OutlookToolsTests
     {
         var tools = Create(new FakeGraphMailService());
 
-        ToolResults.Fail(await tools.read_attachment("m1", "a3")).Should().Contain("[attachment-too-large]");
-        ToolResults.Fail(await tools.read_attachment("m1", "nope")).Should().Contain("[invalid-request]");
-        ToolResults.Fail(await tools.read_attachment("m1", "  ")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.outlook_read_attachment("m1", "a3")).Should().Contain("[attachment-too-large]");
+        ToolResults.Fail(await tools.outlook_read_attachment("m1", "nope")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.outlook_read_attachment("m1", "  ")).Should().Contain("[invalid-request]");
     }
 
     [Fact]
@@ -149,11 +149,11 @@ public sealed class OutlookToolsTests
     {
         var tools = Create(new FakeGraphMailService());
 
-        var folder = ToolResults.Ok<FolderInfo>(await tools.create_folder("Kunden"));
+        var folder = ToolResults.Ok<FolderInfo>(await tools.outlook_create_folder("Kunden"));
         folder.DisplayName.Should().Be("Kunden");
 
-        await tools.move_email("m1", "Kunden");
-        ToolResults.Ok<List<EmailSummary>>(await tools.search_emails(folder: "Kunden"))
+        await tools.outlook_move_email("m1", "Kunden");
+        ToolResults.Ok<List<EmailSummary>>(await tools.outlook_search_emails(folder: "Kunden"))
             .Should().Contain(m => m.Id == "m1");
     }
 
@@ -162,14 +162,14 @@ public sealed class OutlookToolsTests
     {
         var tools = Create(new FakeGraphMailService());
 
-        ToolResults.Fail(await tools.read_email("nope")).Should().Contain("[message-not-found]");
-        ToolResults.Fail(await tools.read_email("nope")).Should().Contain("search_emails");
+        ToolResults.Fail(await tools.outlook_read_email("nope")).Should().Contain("[message-not-found]");
+        ToolResults.Fail(await tools.outlook_read_email("nope")).Should().Contain("outlook_search_emails");
 
-        ToolResults.Fail(await tools.move_email("m1", "Nirwana")).Should().Contain("[folder-not-found]");
-        ToolResults.Fail(await tools.move_email("m1", "Nirwana")).Should().Contain("list_folders");
+        ToolResults.Fail(await tools.outlook_move_email("m1", "Nirwana")).Should().Contain("[folder-not-found]");
+        ToolResults.Fail(await tools.outlook_move_email("m1", "Nirwana")).Should().Contain("outlook_list_folders");
 
-        ToolResults.Fail(await tools.read_email("  ")).Should().Contain("[invalid-request]");
-        ToolResults.Fail(await tools.create_draft([], "s", "b")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.outlook_read_email("  ")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.outlook_create_draft([], "s", "b")).Should().Contain("[invalid-request]");
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class OutlookToolsTests
             .Returns<Task<EmailDetail>>(_ => throw new HttpRequestException("no route"));
         var tools = Create(failing);
 
-        var text = ToolResults.Fail(await tools.read_email("m1"));
+        var text = ToolResults.Fail(await tools.outlook_read_email("m1"));
         text.Should().Contain("[service-unavailable]");
         text.Should().Contain("Next:");
     }

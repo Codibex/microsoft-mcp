@@ -19,7 +19,7 @@ public sealed class GraphErrorMapperTests
     [InlineData(500, null, "service-unavailable")]
     [InlineData(418, null, "graph-error")]
     public void Status_maps_to_code(int status, string? graphCode, string expectedCode) =>
-        GraphErrorMapper.FromStatus(status, graphCode, "detail", "read_email")
+        GraphErrorMapper.FromStatus(status, graphCode, "detail", "outlook_read_email")
             .Code.Should().Be(expectedCode);
 
     [Theory]
@@ -29,13 +29,13 @@ public sealed class GraphErrorMapperTests
     [InlineData("ErrorAccessDenied", "access-denied")]
     [InlineData("ErrorInvalidIdMalformed", "invalid-request")]
     public void Known_graph_codes_override_status(string graphCode, string expectedCode) =>
-        GraphErrorMapper.FromStatus(400, graphCode, "detail", "move_email")
+        GraphErrorMapper.FromStatus(400, graphCode, "detail", "outlook_move_email")
             .Code.Should().Be(expectedCode);
 
     [Fact]
     public void Message_always_carries_code_and_hint()
     {
-        var ex = GraphErrorMapper.FromStatus(429, null, "slow down", "search_emails");
+        var ex = GraphErrorMapper.FromStatus(429, null, "slow down", "outlook_search_emails");
 
         ex.Message.Should().Contain("[throttled]");
         ex.Message.Should().Contain("Next:");
@@ -63,7 +63,7 @@ public sealed class GraphErrorMapperTests
         };
 
         GraphErrorMapper.ResolveGraphCode(api).Should().Be("MailboxNotEnabledForRESTAPI");
-        GraphErrorMapper.ToMailServiceException(api, "search_emails").Code.Should().Be("mailbox-unavailable");
+        GraphErrorMapper.ToMailServiceException(api, "outlook_search_emails").Code.Should().Be("mailbox-unavailable");
     }
 
     [Theory]
@@ -71,7 +71,7 @@ public sealed class GraphErrorMapperTests
     [InlineData("ErrorNonExistentMailbox")]
     public void Mailbox_codes_map_to_mailbox_unavailable(string code)
     {
-        var mapped = GraphErrorMapper.FromStatus(404, code, "inactive", "search_emails");
+        var mapped = GraphErrorMapper.FromStatus(404, code, "inactive", "outlook_search_emails");
         mapped.Code.Should().Be("mailbox-unavailable");
         mapped.Message.Should().Contain("Next:");
     }
@@ -83,7 +83,7 @@ public sealed class GraphErrorMapperTests
             "A configuration issue. Original exception: AADSTS7000218: missing client_assertion.");
         var ex = new AuthenticationFailedException("DeviceCodeCredential authentication failed: ", inner);
 
-        var mapped = GraphErrorMapper.ToMailServiceException(ex, "search_emails");
+        var mapped = GraphErrorMapper.ToMailServiceException(ex, "outlook_search_emails");
 
         mapped.Code.Should().Be("auth-failed");
         mapped.Message.Should().Contain("AADSTS7000218");
@@ -97,7 +97,7 @@ public sealed class GraphErrorMapperTests
         var ex = new AuthenticationFailedException(
             "AADSTS700016: Application was not found in the directory '9188040d'.");
 
-        var mapped = GraphErrorMapper.ToMailServiceException(ex, "search_emails");
+        var mapped = GraphErrorMapper.ToMailServiceException(ex, "outlook_search_emails");
 
         mapped.Code.Should().Be("auth-failed");
         mapped.Message.Should().Contain("propagation");
@@ -107,12 +107,12 @@ public sealed class GraphErrorMapperTests
     public void MailServiceException_passes_through_untouched()
     {
         var original = MailServiceException.FolderNotFound("x");
-        GraphErrorMapper.ToMailServiceException(original, "move_email").Should().BeSameAs(original);
+        GraphErrorMapper.ToMailServiceException(original, "outlook_move_email").Should().BeSameAs(original);
     }
 
     [Fact]
     public void Network_failure_becomes_service_unavailable() =>
-        GraphErrorMapper.ToMailServiceException(new HttpRequestException("no route"), "read_email")
+        GraphErrorMapper.ToMailServiceException(new HttpRequestException("no route"), "outlook_read_email")
             .Code.Should().Be("service-unavailable");
 
     [Fact]
