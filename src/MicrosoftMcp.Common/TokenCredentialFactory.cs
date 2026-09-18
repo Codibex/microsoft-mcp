@@ -78,7 +78,7 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
 
         AuthenticationRecord? authenticationRecord = _authenticationRecordStore.Load();
         if (authenticationRecord is not null
-            && !string.Equals(authenticationRecord.ClientId, options.ClientId, StringComparison.OrdinalIgnoreCase))
+            && !IsAuthenticationRecordCompatible(authenticationRecord, options))
         {
             authenticationRecord = null;
         }
@@ -149,6 +149,21 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
             InteractiveBrowserCredential browser => browser.AuthenticateAsync,
             _ => null
         };
+
+    private static bool IsAuthenticationRecordCompatible(
+        AuthenticationRecord record,
+        GraphAuthOptions options)
+    {
+        if (!string.Equals(record.ClientId, options.ClientId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return options.TenantId.Equals("common", StringComparison.OrdinalIgnoreCase)
+            || options.TenantId.Equals("consumers", StringComparison.OrdinalIgnoreCase)
+            || options.TenantId.Equals("organizations", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(record.TenantId, options.TenantId, StringComparison.OrdinalIgnoreCase);
+    }
 
     internal static bool IsTokenCachePersistenceFailure(Exception ex)
     {

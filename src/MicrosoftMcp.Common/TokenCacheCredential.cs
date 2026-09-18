@@ -28,9 +28,16 @@ internal sealed class TokenCacheCredential(
         }
         catch (AuthenticationRequiredException) when (authenticateAsync is not null)
         {
-            AuthenticationRecord record = authenticateAsync(cancellationToken).GetAwaiter().GetResult();
-            authenticationRecordSink?.Invoke(record);
-            return persistent.GetToken(requestContext, cancellationToken);
+            try
+            {
+                AuthenticationRecord record = authenticateAsync(cancellationToken).GetAwaiter().GetResult();
+                authenticationRecordSink?.Invoke(record);
+                return persistent.GetToken(requestContext, cancellationToken);
+            }
+            catch (Exception ex) when (TokenCredentialFactory.IsTokenCachePersistenceFailure(ex))
+            {
+                return SwitchToMemory(requestContext, cancellationToken, ex);
+            }
         }
         catch (Exception ex) when (TokenCredentialFactory.IsTokenCachePersistenceFailure(ex))
         {
@@ -53,9 +60,16 @@ internal sealed class TokenCacheCredential(
         }
         catch (AuthenticationRequiredException) when (authenticateAsync is not null)
         {
-            AuthenticationRecord record = await authenticateAsync(cancellationToken);
-            authenticationRecordSink?.Invoke(record);
-            return await persistent.GetTokenAsync(requestContext, cancellationToken);
+            try
+            {
+                AuthenticationRecord record = await authenticateAsync(cancellationToken);
+                authenticationRecordSink?.Invoke(record);
+                return await persistent.GetTokenAsync(requestContext, cancellationToken);
+            }
+            catch (Exception ex) when (TokenCredentialFactory.IsTokenCachePersistenceFailure(ex))
+            {
+                return await SwitchToMemoryAsync(requestContext, cancellationToken, ex);
+            }
         }
         catch (Exception ex) when (TokenCredentialFactory.IsTokenCachePersistenceFailure(ex))
         {

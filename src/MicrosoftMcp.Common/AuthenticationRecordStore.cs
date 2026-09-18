@@ -9,11 +9,16 @@ internal sealed class AuthenticationRecordStore
     private const string StoreFileName = "authentication-record.json";
     private readonly IFileSystem _fileSystem;
     private readonly string _path;
+    private readonly Action<string, UnixFileMode> _setUnixFileMode;
 
-    internal AuthenticationRecordStore(string? path = null, IFileSystem? fileSystem = null)
+    internal AuthenticationRecordStore(
+        string? path = null,
+        IFileSystem? fileSystem = null,
+        Action<string, UnixFileMode>? setUnixFileMode = null)
     {
         _path = path ?? GetDefaultPath();
         _fileSystem = fileSystem ?? new FileSystem();
+        _setUnixFileMode = setUnixFileMode ?? SetUnixFileMode;
     }
 
     internal AuthenticationRecord? Load()
@@ -83,9 +88,12 @@ internal sealed class AuthenticationRecordStore
         if (string.IsNullOrWhiteSpace(root))
         {
             string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            root = OperatingSystem.IsWindows()
-                ? Path.Combine(profile, "AppData", "Local")
-                : Path.Combine(profile, ".local", "share");
+            if (!string.IsNullOrWhiteSpace(profile))
+            {
+                root = OperatingSystem.IsWindows()
+                    ? Path.Combine(profile, "AppData", "Local")
+                    : Path.Combine(profile, ".local", "share");
+            }
         }
 
         if (string.IsNullOrWhiteSpace(root))
@@ -106,7 +114,15 @@ internal sealed class AuthenticationRecordStore
         UnixFileMode mode = isDirectory
             ? UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
             : UnixFileMode.UserRead | UnixFileMode.UserWrite;
-        File.SetUnixFileMode(path, mode);
+        _setUnixFileMode(path, mode);
+    }
+
+    private static void SetUnixFileMode(string path, UnixFileMode mode)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(path, mode);
+        }
     }
 
     private void TryDelete(string path)
