@@ -10,7 +10,7 @@ always reversible (trash, no hard delete).
 | Account | Mode | Config | Status |
 |---|---|---|---|
 | Work (org tenant) | Delegated | `TenantId` = tenant GUID | Implemented, live test pending (only tested with a mailbox-less account so far) |
-| Personal (`outlook.com` etc.) | Delegated | `TenantId` = `common`, app: org + personal, token v2 | ✅ Live-verified (real mails read) |
+| Personal (`outlook.com` etc.) | Delegated | `TenantId` = `consumers` for a personal-only app, or `common` for an org + personal app; token v2 | ✅ Live-verified (real mails read) |
 | Service / foreign mailboxes | App-Only | + `UserIdOrUpn`, `ClientSecret`, admin consent | Implemented, untested |
 
 ## 0. Which mode? (decide first, then follow exactly one recipe)
@@ -174,9 +174,16 @@ Details + stack traces go to the server log (stderr) only, never to the client.
   (Background: multi-tenant/personal audience requires access-token
   version 2; the new Authentication UI reports this only cryptically.)
   Recommended: org + personal, not “personal only”.
-- Personal account (`outlook.com` etc.): set `Graph:TenantId` to `common`
-  (or `consumers`) instead of the tenant GUID and confirm the device
-  flow with the mailbox account.
+- Personal account (`outlook.com` etc.): use `Graph:TenantId=consumers`
+  with a personal-only app (`signInAudience=PersonalMicrosoftAccount`). Use
+  `Graph:TenantId=common` only with an app that supports both org and personal
+  accounts (`signInAudience=AzureADandPersonalMicrosoftAccount`). Confirm the
+  device flow with the mailbox account.
+
+- `AADSTS2346` → the app is personal-only but the authority is `common`;
+  set `Graph:TenantId=consumers`, or change the app audience to
+  `AzureADandPersonalMicrosoftAccount` when organizational accounts are also
+  required.
 
 - `[auth-failed]` headless → `Graph__DelegatedFlow=DeviceCode`
 - `AADSTS7000218` (client_assertion/client_secret required) → in the

@@ -44,6 +44,7 @@ public static partial class GraphErrorMapper
             ["AADSTS65001"] = "consent is required: sign in with an account that can consent, or ask an admin to grant the Graph mail permissions",
             ["AADSTS50020"] = "this account does not exist in the target tenant: use the matching account, or switch TenantId to common/consumers",
             ["AADSTS90002"] = "TenantId is wrong: verify the directory ID, or use common/consumers",
+            ["AADSTS2346"] = "this app is personal-only: use TenantId=consumers; use common only when signInAudience is AzureADandPersonalMicrosoftAccount",
         };
 
     /// <summary>Maps Graph/Kiota failures. Resource selects the not-found
