@@ -7,7 +7,7 @@ internal sealed class TokenCacheCredential(
     TokenCredential persistent,
     TokenCredential? memory,
     Action<string> warningSink,
-    Func<CancellationToken, Task<AuthenticationRecord>>? authenticateAsync = null,
+    Func<TokenRequestContext, CancellationToken, Task<AuthenticationRecord>>? authenticateAsync = null,
     Action<AuthenticationRecord>? authenticationRecordSink = null) : TokenCredential
 {
     private int _useMemory;
@@ -30,7 +30,7 @@ internal sealed class TokenCacheCredential(
         {
             try
             {
-                AuthenticationRecord record = authenticateAsync(cancellationToken).GetAwaiter().GetResult();
+                AuthenticationRecord record = authenticateAsync(requestContext, cancellationToken).GetAwaiter().GetResult();
                 authenticationRecordSink?.Invoke(record);
                 return persistent.GetToken(requestContext, cancellationToken);
             }
@@ -62,7 +62,7 @@ internal sealed class TokenCacheCredential(
         {
             try
             {
-                AuthenticationRecord record = await authenticateAsync(cancellationToken);
+                AuthenticationRecord record = await authenticateAsync(requestContext, cancellationToken);
                 authenticationRecordSink?.Invoke(record);
                 return await persistent.GetTokenAsync(requestContext, cancellationToken);
             }

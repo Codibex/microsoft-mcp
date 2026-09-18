@@ -142,7 +142,7 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
         });
     }
 
-    private static Func<CancellationToken, Task<AuthenticationRecord>>? GetAuthenticationHandler(TokenCredential credential) =>
+    private static Func<TokenRequestContext, CancellationToken, Task<AuthenticationRecord>>? GetAuthenticationHandler(TokenCredential credential) =>
         credential switch
         {
             DeviceCodeCredential deviceCode => deviceCode.AuthenticateAsync,
