@@ -16,7 +16,7 @@ internal static class PathResolver
     {
         if (string.IsNullOrWhiteSpace(itemRef))
         {
-            throw MicrosoftMcp.Common.MailServiceException.InvalidRequest(
+            throw MicrosoftMcp.Common.GraphServiceException.InvalidRequest(
                 $"{what} must not be empty.",
                 "use \"root\", an item id from onedrive_list_children/search, or a /path/from/root");
         }

@@ -63,7 +63,7 @@ public sealed class GraphErrorMapperTests
         };
 
         GraphErrorMapper.ResolveGraphCode(api).Should().Be("MailboxNotEnabledForRESTAPI");
-        GraphErrorMapper.ToMailServiceException(api, "outlook_search_emails").Code.Should().Be("mailbox-unavailable");
+        GraphErrorMapper.ToGraphServiceException(api, "outlook_search_emails").Code.Should().Be("mailbox-unavailable");
     }
 
     [Theory]
@@ -83,7 +83,7 @@ public sealed class GraphErrorMapperTests
             "A configuration issue. Original exception: AADSTS7000218: missing client_assertion.");
         var ex = new AuthenticationFailedException("DeviceCodeCredential authentication failed: ", inner);
 
-        var mapped = GraphErrorMapper.ToMailServiceException(ex, "outlook_search_emails");
+        var mapped = GraphErrorMapper.ToGraphServiceException(ex, "outlook_search_emails");
 
         mapped.Code.Should().Be("auth-failed");
         mapped.Message.Should().Contain("AADSTS7000218");
@@ -97,7 +97,7 @@ public sealed class GraphErrorMapperTests
         var ex = new AuthenticationFailedException(
             "AADSTS700016: Application was not found in the directory '9188040d'.");
 
-        var mapped = GraphErrorMapper.ToMailServiceException(ex, "outlook_search_emails");
+        var mapped = GraphErrorMapper.ToGraphServiceException(ex, "outlook_search_emails");
 
         mapped.Code.Should().Be("auth-failed");
         mapped.Message.Should().Contain("propagation");
@@ -109,7 +109,7 @@ public sealed class GraphErrorMapperTests
         var ex = new AuthenticationFailedException(
             "AADSTS2346: The app is configured for personal Microsoft accounts only.");
 
-        var mapped = GraphErrorMapper.ToMailServiceException(ex, "outlook_search_emails");
+        var mapped = GraphErrorMapper.ToGraphServiceException(ex, "outlook_search_emails");
 
         mapped.Code.Should().Be("auth-failed");
         mapped.Message.Should().Contain("TenantId=consumers");
@@ -117,15 +117,15 @@ public sealed class GraphErrorMapperTests
     }
 
     [Fact]
-    public void MailServiceException_passes_through_untouched()
+    public void GraphServiceException_passes_through_untouched()
     {
-        var original = MailServiceException.FolderNotFound("x");
-        GraphErrorMapper.ToMailServiceException(original, "outlook_move_email").Should().BeSameAs(original);
+        var original = GraphServiceException.FolderNotFound("x");
+        GraphErrorMapper.ToGraphServiceException(original, "outlook_move_email").Should().BeSameAs(original);
     }
 
     [Fact]
     public void Network_failure_becomes_service_unavailable() =>
-        GraphErrorMapper.ToMailServiceException(new HttpRequestException("no route"), "outlook_read_email")
+        GraphErrorMapper.ToGraphServiceException(new HttpRequestException("no route"), "outlook_read_email")
             .Code.Should().Be("service-unavailable");
 
     [Fact]

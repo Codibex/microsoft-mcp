@@ -72,6 +72,29 @@ public sealed class TeamsToolsTests
     }
 
     [Fact]
+    public async Task Browse_meeting_transcript_and_insight_with_fake()
+    {
+        var tools = Create(new FakeGraphTeamsService());
+
+        var transcripts = ToolResults.Ok<List<MeetingTranscriptInfo>>(
+            await tools.teams_list_meeting_transcripts("meeting-1"));
+        transcripts.Should().ContainSingle(t => t.Id == "tr-1");
+
+        var transcript = ToolResults.Ok<MeetingTranscriptDetail>(
+            await tools.teams_read_meeting_transcript("meeting-1", "tr-1"));
+        transcript.Content.Should().Contain("WEBVTT");
+
+        var insights = ToolResults.Ok<List<MeetingInsightInfo>>(
+            await tools.teams_list_meeting_insights("meeting-1"));
+        insights.Should().ContainSingle(i => i.Id == "insight-1");
+
+        var insight = ToolResults.Ok<MeetingInsightDetail>(
+            await tools.teams_read_meeting_insight("meeting-1", "insight-1"));
+        insight.ActionItems.Should().ContainSingle(a => a.OwnerDisplayName == "Alice");
+        insight.MeetingNotes.Should().ContainSingle(n => n.Title == "Decisions");
+    }
+
+    [Fact]
     public async Task Tool_errors_carry_codes_and_hints()
     {
         var tools = Create(new FakeGraphTeamsService());
@@ -83,6 +106,10 @@ public sealed class TeamsToolsTests
             .Should().Contain("[channel-message-not-found]");
         ToolResults.Fail(await tools.teams_list_chat_messages("no-chat")).Should().Contain("[chat-not-found]");
         ToolResults.Fail(await tools.teams_read_chat_message("chat-1", "  ")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.teams_read_meeting_transcript("meeting-1", "nope"))
+            .Should().Contain("[meeting-transcript-not-found]");
+        ToolResults.Fail(await tools.teams_read_meeting_insight("meeting-1", "nope"))
+            .Should().Contain("[meeting-insight-not-found]");
     }
 
     [Fact]

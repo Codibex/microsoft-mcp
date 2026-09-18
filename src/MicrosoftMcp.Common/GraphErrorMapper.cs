@@ -7,29 +7,29 @@ namespace MicrosoftMcp.Common;
 /// <summary>Translates Graph/Kiota/transport exceptions into agent-actionable errors.</summary>
 public static partial class GraphErrorMapper
 {
-    private static readonly Dictionary<string, Func<int, string?, string, string, MailServiceException>> GraphCodeOverrides =
+    private static readonly Dictionary<string, Func<int, string?, string, string, GraphServiceException>> GraphCodeOverrides =
         new(StringComparer.OrdinalIgnoreCase)
         {
             ["ErrorItemNotFound"] = static (_, _, op, res) => NotFoundFor(res, op),
             ["ErrorMessageNotFound"] = static (_, _, op, res) => NotFoundFor(res, op),
             ["ErrorFolderNotFound"] = static (_, _, _, _) =>
-                MailServiceException.FolderNotFound("<unknown>"),
+                GraphServiceException.FolderNotFound("<unknown>"),
             ["ErrorAccessDenied"] = static (s, c, _, _) =>
-                MailServiceException.AccessDenied(s, c, null),
+                GraphServiceException.AccessDenied(s, c, null),
             ["ErrorInvalidIdMalformed"] = static (_, _, _, _) =>
-                MailServiceException.InvalidRequest(
+                GraphServiceException.InvalidRequest(
                     "Malformed Graph id.",
                     "use the 'id' field from the matching list/search tool, not a web link or secondary id"),
             ["MailboxNotEnabledForRESTAPI"] = static (_, c, d, _) =>
-                MailServiceException.MailboxUnavailable(c, d),
+                GraphServiceException.MailboxUnavailable(c, d),
             ["ErrorMailboxNotAssociated"] = static (_, c, d, _) =>
-                MailServiceException.MailboxUnavailable(c, d),
+                GraphServiceException.MailboxUnavailable(c, d),
             ["ErrorMailboxStoreUnknown"] = static (_, c, d, _) =>
-                MailServiceException.MailboxUnavailable(c, d),
+                GraphServiceException.MailboxUnavailable(c, d),
             ["ErrorNonExistentMailbox"] = static (_, c, d, _) =>
-                MailServiceException.MailboxUnavailable(c, d),
+                GraphServiceException.MailboxUnavailable(c, d),
             ["ErrorQuotaExceeded"] = static (_, _, _, _) =>
-                MailServiceException.InvalidRequest(
+                GraphServiceException.InvalidRequest(
                     "Mailbox quota exceeded.",
                     "free mailbox space or narrow the operation before retrying"),
         };
@@ -49,34 +49,34 @@ public static partial class GraphErrorMapper
 
     /// <summary>Maps Graph/Kiota failures. Resource selects the not-found
     /// wording: "message" (mail), "calendar", "event", "drive" or "folder".</summary>
-    public static MailServiceException ToMailServiceException(
+    public static GraphServiceException ToGraphServiceException(
         Exception ex, string operation, string resource = "message") =>
         ex switch
         {
-            MailServiceException already => already,
+            GraphServiceException already => already,
             ApiException api => FromStatus(
                 api.ResponseStatusCode, ResolveGraphCode(api), Truncate(api.Message, 300), operation, resource),
-            HttpRequestException http => MailServiceException.ServiceUnavailable(
+            HttpRequestException http => GraphServiceException.ServiceUnavailable(
                 Truncate(http.Message, 200), http),
-            TimeoutException timeout => MailServiceException.ServiceUnavailable(
+            TimeoutException timeout => GraphServiceException.ServiceUnavailable(
                 Truncate(timeout.Message, 200), timeout),
-            ArgumentException arg => MailServiceException.InvalidRequest(
+            ArgumentException arg => GraphServiceException.InvalidRequest(
                 Truncate(arg.Message, 300) ?? "Invalid argument.",
                 "check ids, folder names and enum values (low|normal|high), then retry"),
             { } other when IsAuthNamespace(other) => MapAuthFailure(AuthDetail(other), other),
-            _ => MailServiceException.GraphError(0, ex.GetType().Name, Truncate(ex.Message, 300))
+            _ => GraphServiceException.GraphError(0, ex.GetType().Name, Truncate(ex.Message, 300))
         };
 
-    private static MailServiceException MapAuthFailure(string detail, Exception? ex)
+    private static GraphServiceException MapAuthFailure(string detail, Exception? ex)
     {
         string? hint = ExtractAadStsCode(detail) is { } code
             && AadStsHints.TryGetValue(code, out var specific)
             ? specific
             : null;
-        return MailServiceException.AuthFailed(detail, hint, ex);
+        return GraphServiceException.AuthFailed(detail, hint, ex);
     }
 
-    public static MailServiceException FromStatus(
+    public static GraphServiceException FromStatus(
         int status, string? graphCode, string? detail, string operation, string resource = "message")
     {
         if (graphCode is not null && GraphCodeOverrides.TryGetValue(graphCode, out var map))
@@ -86,34 +86,36 @@ public static partial class GraphErrorMapper
 
         return status switch
         {
-            400 => MailServiceException.InvalidRequest(
+            400 => GraphServiceException.InvalidRequest(
                 $"Graph rejected the request (400{(graphCode is null ? string.Empty : $", {graphCode}")}). {detail ?? string.Empty}".Trim(),
                 "check ids, folder names and parameters, then retry with a narrower request"),
             401 => MapAuthFailure(
                 $"Graph authentication failed (401{(graphCode is null ? string.Empty : $", {graphCode}")}). {detail ?? string.Empty}".Trim(),
                 null),
-            403 => MailServiceException.AccessDenied(status, graphCode, detail),
+            403 => GraphServiceException.AccessDenied(status, graphCode, detail),
             404 => NotFoundFor(resource, operation),
-            409 => MailServiceException.Conflict(operation, detail),
-            429 => MailServiceException.Throttled(detail),
-            >= 500 => MailServiceException.ServiceUnavailable(
+            409 => GraphServiceException.Conflict(operation, detail),
+            429 => GraphServiceException.Throttled(detail),
+            >= 500 => GraphServiceException.ServiceUnavailable(
                 $"HTTP {status}{(graphCode is null ? string.Empty : $", {graphCode}")}. {detail ?? string.Empty}".Trim()),
-            _ => MailServiceException.GraphError(status, graphCode, detail)
+            _ => GraphServiceException.GraphError(status, graphCode, detail)
         };
     }
 
-    internal static MailServiceException NotFoundFor(string resource, string operation) =>
+    internal static GraphServiceException NotFoundFor(string resource, string operation) =>
         resource switch
         {
-            "calendar" => MailServiceException.CalendarNotFound("<unknown>", operation),
-            "event" => MailServiceException.EventNotFound("<unknown>", operation),
-            "drive" => MailServiceException.DriveItemNotFound("<unknown>", operation),
-            "folder" => MailServiceException.FolderNotFound("<unknown>"),
-            "team" => MailServiceException.TeamNotFound("<unknown>", operation),
-            "channel" => MailServiceException.ChannelNotFound("<unknown>", operation),
-            "chat" => MailServiceException.ChatNotFound("<unknown>", operation),
-            "teams-message" => MailServiceException.TeamsMessageNotFound("<unknown>", operation),
-            _ => MailServiceException.MessageNotFound("<unknown>", operation)
+            "calendar" => GraphServiceException.CalendarNotFound("<unknown>", operation),
+            "event" => GraphServiceException.EventNotFound("<unknown>", operation),
+            "drive" => GraphServiceException.DriveItemNotFound("<unknown>", operation),
+            "folder" => GraphServiceException.FolderNotFound("<unknown>"),
+            "team" => GraphServiceException.TeamNotFound("<unknown>", operation),
+            "channel" => GraphServiceException.ChannelNotFound("<unknown>", operation),
+            "chat" => GraphServiceException.ChatNotFound("<unknown>", operation),
+            "teams-message" => GraphServiceException.TeamsMessageNotFound("<unknown>", operation),
+            "meeting-transcript" => GraphServiceException.MeetingTranscriptNotFound("<unknown>", operation),
+            "meeting-insight" => GraphServiceException.MeetingInsightNotFound("<unknown>", operation),
+            _ => GraphServiceException.MessageNotFound("<unknown>", operation)
         };
 
     /// <summary>Prefers the structured ODataError code; falls back to regex

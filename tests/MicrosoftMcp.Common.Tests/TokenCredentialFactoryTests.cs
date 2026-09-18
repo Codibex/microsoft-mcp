@@ -23,7 +23,7 @@ public sealed class TokenCredentialFactoryTests
     {
         var options = new GraphAuthOptions { AuthMode = AuthMode.Delegated, ClientId = "c" };
         Action act = () => _sut.GetCredential(options);
-        act.Should().Throw<MailServiceException>().Where(e => e.Code == "auth-misconfigured").WithMessage("*TenantId*");
+        act.Should().Throw<GraphServiceException>().Where(e => e.Code == "auth-misconfigured").WithMessage("*TenantId*");
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class TokenCredentialFactoryTests
     {
         var options = new GraphAuthOptions { AuthMode = AuthMode.Delegated, TenantId = "t" };
         Action act = () => _sut.GetCredential(options);
-        act.Should().Throw<MailServiceException>().Where(e => e.Code == "auth-misconfigured").WithMessage("*ClientId*");
+        act.Should().Throw<GraphServiceException>().Where(e => e.Code == "auth-misconfigured").WithMessage("*ClientId*");
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class TokenCredentialFactoryTests
         };
 
         Action act = () => _sut.GetCredential(options);
-        act.Should().Throw<MailServiceException>().Where(e => e.Code == "auth-misconfigured").WithMessage("*ClientSecret*");
+        act.Should().Throw<GraphServiceException>().Where(e => e.Code == "auth-misconfigured").WithMessage("*ClientSecret*");
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public sealed class TokenCredentialFactoryTests
 
         Action act = () => credential.GetToken(new TokenRequestContext(["scope"]), CancellationToken.None);
 
-        act.Should().Throw<MailServiceException>()
+        act.Should().Throw<GraphServiceException>()
             .Where(e => e.Code == "auth-cache-unavailable")
             .WithMessage("*FallbackToMemoryTokenCache*");
     }

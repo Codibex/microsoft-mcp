@@ -104,7 +104,7 @@ public sealed class GraphCalendarService(
     {
         if (string.IsNullOrWhiteSpace(query))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "Query must not be empty.",
                 "pass a subject or keyword, e.g. \"dentist\"");
         }
@@ -135,7 +135,7 @@ public sealed class GraphCalendarService(
     {
         if (string.IsNullOrWhiteSpace(eventId))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "eventId must not be empty.",
                 "use an id from calendar_list_events or calendar_search_events");
         }
@@ -153,7 +153,7 @@ public sealed class GraphCalendarService(
         };
 
         return ev is null
-            ? throw MailServiceException.EventNotFound(eventId, "calendar_read_event")
+            ? throw GraphServiceException.EventNotFound(eventId, "calendar_read_event")
             : CalendarMapper.MapDetail(ev);
     }
 
@@ -170,7 +170,7 @@ public sealed class GraphCalendarService(
 
         if (!DateTimeOffset.TryParse(value, out _))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"{what} '{value}' is not a valid date/time.",
                 "use ISO format, e.g. \"2026-09-14T00:00:00\"");
         }

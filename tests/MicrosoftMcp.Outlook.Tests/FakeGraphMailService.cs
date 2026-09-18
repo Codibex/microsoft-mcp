@@ -94,12 +94,12 @@ internal sealed class FakeGraphMailService : IGraphMailService
     {
         if (string.IsNullOrWhiteSpace(id))
         {
-            throw MailServiceException.MissingId();
+            throw GraphServiceException.MissingId();
         }
 
         return _messages.TryGetValue(id, out var m)
             ? m
-            : throw MailServiceException.MessageNotFound(id, "fake");
+            : throw GraphServiceException.MessageNotFound(id, "fake");
     }
 
     private static EmailSummary ToSummary(Stored m) => new(
@@ -245,7 +245,7 @@ internal sealed class FakeGraphMailService : IGraphMailService
     {
         if (to.Count == 0 || to.Any(string.IsNullOrWhiteSpace))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "At least one valid recipient address is required.",
                 "pass non-empty 'to' addresses, e.g. [\"a@example.com\"]");
         }
@@ -269,12 +269,12 @@ internal sealed class FakeGraphMailService : IGraphMailService
         var msg = Get(messageId);
         if (string.IsNullOrWhiteSpace(attachmentId))
         {
-            throw MailServiceException.MissingId("attachmentId");
+            throw GraphServiceException.MissingId("attachmentId");
         }
 
         int cap = Math.Clamp(maxBytes, 1, 2097152);
         var att = _contents.FirstOrDefault(a => a.MessageId == msg.Id && a.Id == attachmentId)
-            ?? throw MailServiceException.InvalidRequest(
+            ?? throw GraphServiceException.InvalidRequest(
                 $"Attachment '{attachmentId}' was not found on message '{messageId}'.",
                 "call outlook_list_attachments to get valid attachment ids");
 
@@ -292,7 +292,7 @@ internal sealed class FakeGraphMailService : IGraphMailService
 
         if (att.Content.Length > cap)
         {
-            throw MailServiceException.AttachmentTooLarge(att.Name, att.Content.Length, cap);
+            throw GraphServiceException.AttachmentTooLarge(att.Name, att.Content.Length, cap);
         }
 
         if (IsText(att.ContentType))
@@ -347,7 +347,7 @@ internal sealed class FakeGraphMailService : IGraphMailService
         string lower = importance.ToLowerInvariant();
         if (lower is not ("low" or "normal" or "high"))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"Invalid importance '{importance}'.",
                 "use low, normal or high");
         }

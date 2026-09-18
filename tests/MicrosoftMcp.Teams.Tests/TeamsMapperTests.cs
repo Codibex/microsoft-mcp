@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Microsoft.Graph.Models;
+using System.Text.Json;
 
 namespace MicrosoftMcp.Teams.Tests;
 
@@ -71,4 +72,35 @@ public sealed class TeamsMapperTests
         detail.Reactions.Should().ContainSingle(r => r.Type == "like");
         detail.Mentions.Should().ContainSingle(x => x.Mentioned == "Alice");
     }
+
+        [Fact]
+        public void MapInsightDetail_reads_notes_actions_and_mentions()
+        {
+                using var document = JsonDocument.Parse("""
+                        {
+                            "id": "i1",
+                            "callId": "c1",
+                            "contentCorrelationId": "corr1",
+                            "createdDateTime": "2026-09-19T10:00:00Z",
+                            "endDateTime": "2026-09-19T10:30:00Z",
+                            "meetingNotes": [{
+                                "title": "Decision",
+                                "text": "Use Graph",
+                                "subpoints": [{"title": "Next", "text": "Implement"}]
+                            }],
+                            "actionItems": [{"title": "Implement", "text": "Add tools", "ownerDisplayName": "Alice"}],
+                            "viewpoint": {"mentionEvents": [{
+                                "eventDateTime": "2026-09-19T10:10:00Z",
+                                "transcriptUtterance": "Alice mentioned Bob.",
+                                "speaker": {"user": {"displayName": "Alice"}}
+                            }]}
+                        }
+                        """);
+
+                var detail = TeamsMapper.MapInsightDetail(document.RootElement);
+
+                detail.MeetingNotes.Should().ContainSingle(n => n.Subpoints.Single().Text == "Implement");
+                detail.ActionItems.Should().ContainSingle(a => a.OwnerDisplayName == "Alice");
+                detail.Mentions.Should().ContainSingle(m => m.Speaker == "Alice");
+        }
 }

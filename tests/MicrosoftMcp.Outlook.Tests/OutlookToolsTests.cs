@@ -189,7 +189,7 @@ public sealed class OutlookToolsTests
     public void ToolResult_fail_shape_is_agent_readable()
     {
         var result = ToolResult.Fail(
-            MicrosoftMcp.Common.MailServiceException.Throttled(null));
+            MicrosoftMcp.Common.GraphServiceException.Throttled(null));
 
         Assert.True(result.IsError is true);
         ToolResult.ReadText(result).Should().Contain("[throttled]");

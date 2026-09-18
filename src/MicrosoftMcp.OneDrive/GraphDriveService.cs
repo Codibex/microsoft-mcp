@@ -28,7 +28,7 @@ public sealed class GraphDriveService : IGraphDriveService
         // need Sites.Selected + a different path scheme (out of scope).
         if (options.Value.AuthMode == AuthMode.AppOnly)
         {
-            throw MailServiceException.AuthMisconfigured(
+            throw GraphServiceException.AuthMisconfigured(
                 "The OneDrive host requires delegated auth. Set Graph:AuthMode to Delegated.");
         }
 
@@ -40,7 +40,7 @@ public sealed class GraphDriveService : IGraphDriveService
         var drive = await _client.Me.Drive.GetAsync(cancellationToken: ct).ConfigureAwait(false);
         if (drive?.Id is null)
         {
-            throw MailServiceException.MailboxUnavailable(null, "Default drive has no id.");
+            throw GraphServiceException.MailboxUnavailable(null, "Default drive has no id.");
         }
 
         _driveId = drive.Id;
@@ -58,7 +58,7 @@ public sealed class GraphDriveService : IGraphDriveService
     {
         var item = await GetItemOrNullAsync(itemRef, ct).ConfigureAwait(false);
         return item is null
-            ? throw MailServiceException.DriveItemNotFound(itemRef, "onedrive_get_item")
+            ? throw GraphServiceException.DriveItemNotFound(itemRef, "onedrive_get_item")
             : DriveMapper.MapItem(item);
     }
 
@@ -81,7 +81,7 @@ public sealed class GraphDriveService : IGraphDriveService
     {
         if (string.IsNullOrWhiteSpace(query))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "Query must not be empty.",
                 "pass a filename or keyword, e.g. \"Rechnung\"");
         }
@@ -101,11 +101,11 @@ public sealed class GraphDriveService : IGraphDriveService
     {
         int cap = Math.Clamp(maxBytes, 1, MaxDownloadBytes);
         var item = await GetItemOrNullAsync(itemRef, ct).ConfigureAwait(false)
-            ?? throw MailServiceException.DriveItemNotFound(itemRef, "onedrive_download_file");
+            ?? throw GraphServiceException.DriveItemNotFound(itemRef, "onedrive_download_file");
 
         if (item.Folder is not null)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"Drive item '{item.Name}' is a folder.",
                 "download files only; use onedrive_list_children to browse folders");
         }
@@ -113,13 +113,13 @@ public sealed class GraphDriveService : IGraphDriveService
         long size = item.Size ?? 0;
         if (size > cap)
         {
-            throw MailServiceException.AttachmentTooLarge(item.Name ?? "?", (int)Math.Min(size, int.MaxValue), cap);
+            throw GraphServiceException.AttachmentTooLarge(item.Name ?? "?", (int)Math.Min(size, int.MaxValue), cap);
         }
 
         string driveId = await DriveIdAsync(ct).ConfigureAwait(false);
         var builder = ItemBuilderFor(driveId, await RootIdAsync(ct).ConfigureAwait(false), itemRef);
         await using var stream = await builder.Content.GetAsync(cancellationToken: ct).ConfigureAwait(false)
-            ?? throw MailServiceException.GraphError(0, null, "Download returned no content.");
+            ?? throw GraphServiceException.GraphError(0, null, "Download returned no content.");
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct).ConfigureAwait(false);
         byte[] bytes = ms.ToArray();
@@ -145,7 +145,7 @@ public sealed class GraphDriveService : IGraphDriveService
     {
         if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['/', '\\']) >= 0)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "Folder name must be non-empty and contain no slashes.",
                 "pass a plain name, e.g. \"Belege\"");
         }
@@ -164,7 +164,7 @@ public sealed class GraphDriveService : IGraphDriveService
         var created = await _client.Drives[driveId].Items[parentId].Children
             .PostAsync(folder, cancellationToken: ct).ConfigureAwait(false);
         return created is null
-            ? throw MailServiceException.GraphError(0, null, "Folder creation returned no result.")
+            ? throw GraphServiceException.GraphError(0, null, "Folder creation returned no result.")
             : DriveMapper.MapItem(created);
     }
 
@@ -177,7 +177,7 @@ public sealed class GraphDriveService : IGraphDriveService
     {
         if (string.IsNullOrWhiteSpace(fileName) || fileName.IndexOfAny(['/', '\\']) >= 0)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "File name must be non-empty and contain no slashes.",
                 "pass a plain file name, e.g. \"notiz.txt\"");
         }
@@ -189,20 +189,20 @@ public sealed class GraphDriveService : IGraphDriveService
                 ? System.Text.Encoding.UTF8.GetBytes(contentText)
                 : contentBase64 is not null
                     ? Convert.FromBase64String(contentBase64)
-                    : throw MailServiceException.InvalidRequest(
+                    : throw GraphServiceException.InvalidRequest(
                         "Either contentText or contentBase64 is required.",
                         "pass text directly or base64 for binary files");
         }
         catch (FormatException)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "contentBase64 is not valid base64.",
                 "pass correctly padded base64, or use contentText for text files");
         }
 
         if (bytes.Length > MaxSimpleUploadBytes)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"File is {bytes.Length} bytes, above the {MaxSimpleUploadBytes} byte simple-upload limit.",
                 "split the file or upload it via OneDrive/SharePoint UI (resumable sessions are out of scope)");
         }
@@ -213,7 +213,7 @@ public sealed class GraphDriveService : IGraphDriveService
         var created = await _client.Drives[driveId].Items[parentId].ItemWithPath(fileName.Trim()).Content
             .PutAsync(stream, cancellationToken: ct).ConfigureAwait(false);
         return created is null
-            ? throw MailServiceException.GraphError(0, null, "Upload returned no result.")
+            ? throw GraphServiceException.GraphError(0, null, "Upload returned no result.")
             : DriveMapper.MapItem(created);
     }
 
@@ -225,12 +225,12 @@ public sealed class GraphDriveService : IGraphDriveService
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
-            throw MailServiceException.MissingRef("itemId");
+            throw GraphServiceException.MissingRef("itemId");
         }
 
         if (newParentRef is null && newName is null)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "Nothing to do: provide newParentRef and/or newName.",
                 "pass a destination folder and/or a new file name");
         }
@@ -245,19 +245,19 @@ public sealed class GraphDriveService : IGraphDriveService
         var moved = await _client.Drives[driveId].Items[itemId.Trim()].PatchAsync(patch, cancellationToken: ct)
             .ConfigureAwait(false);
         return moved is null
-            ? throw MailServiceException.DriveItemNotFound(itemId, "onedrive_move_item")
+            ? throw GraphServiceException.DriveItemNotFound(itemId, "onedrive_move_item")
             : DriveMapper.MapItem(moved);
     }
 
     private async Task<string> DriveIdAsync(CancellationToken ct) =>
         _driveId ??= (await _client.Me.Drive.GetAsync(c =>
             c.QueryParameters.Select = ["id"], ct).ConfigureAwait(false))?.Id
-            ?? throw MailServiceException.GraphError(0, null, "Default drive returned no id.");
+            ?? throw GraphServiceException.GraphError(0, null, "Default drive returned no id.");
 
     private async Task<string> RootIdAsync(CancellationToken ct) =>
         _rootId ??= (await _client.Drives[await DriveIdAsync(ct).ConfigureAwait(false)].Root
             .GetAsync(c => c.QueryParameters.Select = ["id"], ct).ConfigureAwait(false))?.Id
-            ?? throw MailServiceException.GraphError(0, null, "Drive root returned no id.");
+            ?? throw GraphServiceException.GraphError(0, null, "Drive root returned no id.");
 
     private async Task<string> ResolveIdAsync(string itemRef, CancellationToken ct)
     {
@@ -274,7 +274,7 @@ public sealed class GraphDriveService : IGraphDriveService
 
         var item = await GetItemOrNullAsync(reference, ct).ConfigureAwait(false);
         return item?.Id
-            ?? throw MailServiceException.DriveItemNotFound(reference, "resolve");
+            ?? throw GraphServiceException.DriveItemNotFound(reference, "resolve");
     }
 
     private async Task<DriveItem?> GetItemOrNullAsync(string itemRef, CancellationToken ct)

@@ -119,7 +119,7 @@ internal sealed class TokenCacheCredential(
     {
         if (memory is null)
         {
-            throw MailServiceException.AuthCacheUnavailable(failure);
+            throw GraphServiceException.AuthCacheUnavailable(failure);
         }
     }
 

@@ -18,4 +18,12 @@ public interface IGraphTeamsService
         string chatId, string messageId, int top = 25, CancellationToken ct = default);
     Task<MessageDetail> ReadChatMessageAsync(
         string chatId, string messageId, CancellationToken ct = default);
+    Task<IReadOnlyList<MeetingTranscriptInfo>> ListMeetingTranscriptsAsync(
+        string meetingId, int top = 25, CancellationToken ct = default);
+    Task<MeetingTranscriptDetail> ReadMeetingTranscriptAsync(
+        string meetingId, string transcriptId, CancellationToken ct = default);
+    Task<IReadOnlyList<MeetingInsightInfo>> ListMeetingInsightsAsync(
+        string meetingId, int top = 25, CancellationToken ct = default);
+    Task<MeetingInsightDetail> ReadMeetingInsightAsync(
+        string meetingId, string insightId, CancellationToken ct = default);
 }

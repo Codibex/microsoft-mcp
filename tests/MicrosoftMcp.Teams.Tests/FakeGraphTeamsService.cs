@@ -19,6 +19,19 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
     private readonly Dictionary<string, (string TeamId, ChannelInfo Channel)> _channels = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ChatInfo> _chats = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, StoredMessage> _messages = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, MeetingTranscriptInfo> _transcripts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["tr-1"] = new("tr-1", "meeting-1", "call-1", DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow, "corr-1")
+    };
+    private readonly Dictionary<string, MeetingInsightDetail> _insights = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["insight-1"] = new(
+            "insight-1", "call-1", "corr-1", DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow,
+            [new MeetingNoteInfo("Decisions", "The team agreed on the plan.",
+                [new MeetingNoteSubpointInfo("Next step", "Publish the draft.")])],
+            [new MeetingActionItemInfo("Publish draft", "Publish the meeting draft.", "Alice")],
+            [new MeetingMentionInfo(DateTimeOffset.UtcNow.AddMinutes(-2), "Alice mentioned Bob.", "Alice")])
+    };
 
     public FakeGraphTeamsService()
     {
@@ -47,7 +60,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            throw MailServiceException.InvalidRequest($"{what} must not be empty.", hint);
+            throw GraphServiceException.InvalidRequest($"{what} must not be empty.", hint);
         }
     }
 
@@ -59,7 +72,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
         Require(teamId, "teamId", "call teams_list_teams to get valid team ids");
         if (!_teams.ContainsKey(teamId.Trim()))
         {
-            throw MailServiceException.TeamNotFound(teamId, "fake");
+            throw GraphServiceException.TeamNotFound(teamId, "fake");
         }
 
         return Task.FromResult<IReadOnlyList<ChannelInfo>>(
@@ -78,7 +91,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
         Require(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
         if (!_channels.TryGetValue(channelId.Trim(), out var ch) || ch.TeamId != teamId.Trim())
         {
-            throw MailServiceException.ChannelNotFound(channelId, "fake");
+            throw GraphServiceException.ChannelNotFound(channelId, "fake");
         }
 
         return Task.FromResult<IReadOnlyList<MessageSummary>>(
@@ -100,7 +113,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
         return Task.FromResult(
             _messages.TryGetValue(messageId.Trim(), out var m)
                 ? ToDetail(m)
-                : throw MailServiceException.TeamsMessageNotFound(messageId, "fake"));
+                : throw GraphServiceException.TeamsMessageNotFound(messageId, "fake"));
     }
 
     public Task<IReadOnlyList<ChatInfo>> ListChatsAsync(int top = 25, CancellationToken ct = default) =>
@@ -113,7 +126,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
         Require(chatId, "chatId", "call teams_list_chats to get valid chat ids");
         if (!_chats.ContainsKey(chatId.Trim()))
         {
-            throw MailServiceException.ChatNotFound(chatId, "fake");
+            throw GraphServiceException.ChatNotFound(chatId, "fake");
         }
 
         return Task.FromResult<IReadOnlyList<MessageSummary>>(
@@ -135,6 +148,55 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
         return Task.FromResult(
             _messages.TryGetValue(messageId.Trim(), out var m)
                 ? ToDetail(m)
-                : throw MailServiceException.TeamsMessageNotFound(messageId, "fake"));
+                : throw GraphServiceException.TeamsMessageNotFound(messageId, "fake"));
+    }
+
+    public Task<IReadOnlyList<MeetingTranscriptInfo>> ListMeetingTranscriptsAsync(
+        string meetingId, int top = 25, CancellationToken ct = default)
+    {
+        Require(meetingId, "meetingId", "use the online meeting id from Microsoft Graph");
+        return Task.FromResult<IReadOnlyList<MeetingTranscriptInfo>>(
+            [.. _transcripts.Values.Where(t => t.MeetingId == meetingId.Trim()).Take(Math.Clamp(top, 1, 100))]);
+    }
+
+    public Task<MeetingTranscriptDetail> ReadMeetingTranscriptAsync(
+        string meetingId, string transcriptId, CancellationToken ct = default)
+    {
+        Require(meetingId, "meetingId", "use the online meeting id from Microsoft Graph");
+        Require(transcriptId, "transcriptId", "call teams_list_meeting_transcripts to get valid transcript ids");
+        if (!_transcripts.TryGetValue(transcriptId.Trim(), out var transcript)
+            || transcript.MeetingId != meetingId.Trim())
+        {
+            throw GraphServiceException.MeetingTranscriptNotFound(transcriptId, "fake");
+        }
+
+        return Task.FromResult(new MeetingTranscriptDetail(
+            transcript.Id, transcript.MeetingId, transcript.CallId, transcript.Created,
+            transcript.Ended, transcript.ContentCorrelationId, "WEBVTT\n\nHello", "text/vtt"));
+    }
+
+    public Task<IReadOnlyList<MeetingInsightInfo>> ListMeetingInsightsAsync(
+        string meetingId, int top = 25, CancellationToken ct = default)
+    {
+        Require(meetingId, "meetingId", "use the online meeting id from Microsoft Graph");
+        return Task.FromResult<IReadOnlyList<MeetingInsightInfo>>(
+            [.. _insights.Values
+                .Where(i => _transcripts.Values.Any(t => t.MeetingId == meetingId.Trim() && t.CallId == i.CallId))
+                .Take(Math.Clamp(top, 1, 100))
+                .Select(i => new MeetingInsightInfo(i.Id, i.CallId, i.ContentCorrelationId, i.Created, i.Ended))]);
+    }
+
+    public Task<MeetingInsightDetail> ReadMeetingInsightAsync(
+        string meetingId, string insightId, CancellationToken ct = default)
+    {
+        Require(meetingId, "meetingId", "use the online meeting id from Microsoft Graph");
+        Require(insightId, "insightId", "call teams_list_meeting_insights to get valid insight ids");
+        if (!_insights.TryGetValue(insightId.Trim(), out var insight)
+            || !_transcripts.Values.Any(t => t.MeetingId == meetingId.Trim() && t.CallId == insight.CallId))
+        {
+            throw GraphServiceException.MeetingInsightNotFound(insightId, "fake");
+        }
+
+        return Task.FromResult(insight);
     }
 }

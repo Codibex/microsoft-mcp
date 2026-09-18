@@ -63,7 +63,7 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
 
         return _calendars.TryGetValue(calendarId.Trim(), out var cal)
             ? cal
-            : throw MailServiceException.CalendarNotFound(calendarId, "fake");
+            : throw GraphServiceException.CalendarNotFound(calendarId, "fake");
     }
 
     private static EventSummary ToSummary(StoredEvent e) => new(
@@ -107,7 +107,7 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
     {
         if (string.IsNullOrWhiteSpace(query))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "Query must not be empty.", "pass a subject or keyword");
         }
 
@@ -123,14 +123,14 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
     {
         if (string.IsNullOrWhiteSpace(eventId))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "eventId must not be empty.", "use an id from calendar_list_events or calendar_search_events");
         }
 
         return Task.FromResult(
             _events.TryGetValue(eventId.Trim(), out var e)
                 ? ToDetail(e)
-                : throw MailServiceException.EventNotFound(eventId, "fake"));
+                : throw GraphServiceException.EventNotFound(eventId, "fake"));
     }
 
     private static DateTimeOffset? ParseBound(string? value, string what)
@@ -142,7 +142,7 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
 
         return DateTimeOffset.TryParse(value, out var parsed)
             ? parsed
-            : throw MailServiceException.InvalidRequest(
+            : throw GraphServiceException.InvalidRequest(
                 $"{what} '{value}' is not a valid date/time.",
                 "use ISO format, e.g. \"2026-09-14T00:00:00\"");
     }

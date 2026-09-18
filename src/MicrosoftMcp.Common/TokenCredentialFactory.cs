@@ -52,12 +52,12 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
     {
         if (string.IsNullOrWhiteSpace(options.TenantId))
         {
-            throw MailServiceException.AuthMisconfigured("Graph:TenantId is required for delegated auth.");
+            throw GraphServiceException.AuthMisconfigured("Graph:TenantId is required for delegated auth.");
         }
 
         if (string.IsNullOrWhiteSpace(options.ClientId))
         {
-            throw MailServiceException.AuthMisconfigured("Graph:ClientId is required for delegated auth.");
+            throw GraphServiceException.AuthMisconfigured("Graph:ClientId is required for delegated auth.");
         }
 
         if (!options.EnableTokenCache)
@@ -104,7 +104,7 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
                 return _credentialFactory(options, null, null);
             }
 
-            throw MailServiceException.AuthCacheUnavailable(ex);
+            throw GraphServiceException.AuthCacheUnavailable(ex);
         }
     }
 
@@ -197,18 +197,18 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
     {
         if (string.IsNullOrWhiteSpace(options.TenantId))
         {
-            throw MailServiceException.AuthMisconfigured("Graph:TenantId is required for app-only auth.");
+            throw GraphServiceException.AuthMisconfigured("Graph:TenantId is required for app-only auth.");
         }
 
         if (string.IsNullOrWhiteSpace(options.ClientId))
         {
-            throw MailServiceException.AuthMisconfigured("Graph:ClientId is required for app-only auth.");
+            throw GraphServiceException.AuthMisconfigured("Graph:ClientId is required for app-only auth.");
         }
 
         return options.AppCredential switch
         {
             AppCredentialKind.ClientSecret => string.IsNullOrWhiteSpace(options.ClientSecret)
-                ? throw MailServiceException.AuthMisconfigured("Graph:ClientSecret is required (use Graph__ClientSecret env var or user-secrets).")
+                ? throw GraphServiceException.AuthMisconfigured("Graph:ClientSecret is required (use Graph__ClientSecret env var or user-secrets).")
                 : new ClientSecretCredential(options.TenantId, options.ClientId, options.ClientSecret),
             AppCredentialKind.ManagedIdentity => new ManagedIdentityCredential(options.ClientId),
             AppCredentialKind.Certificate => throw new NotSupportedException(
