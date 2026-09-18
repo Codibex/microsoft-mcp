@@ -26,14 +26,14 @@ public sealed class CalendarTools(IGraphCalendarService calendar, ILogger<Calend
         {
             return ToolResult.Ok(await call().ConfigureAwait(false));
         }
-        catch (MailServiceException ex)
+        catch (GraphServiceException ex)
         {
             log.LogWarning(ex, "Tool {Operation} failed with {Code}", operation, ex.Code);
             return ToolResult.Fail(ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            var mapped = GraphErrorMapper.ToMailServiceException(ex, operation, resource);
+            var mapped = GraphErrorMapper.ToGraphServiceException(ex, operation, resource);
             log.LogError(ex, "Tool {Operation} failed unexpectedly ({Code})", operation, mapped.Code);
             return ToolResult.Fail(mapped);
         }

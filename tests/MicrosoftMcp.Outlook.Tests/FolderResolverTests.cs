@@ -30,7 +30,7 @@ public sealed class FolderResolverTests
     [Fact]
     public void Unknown_folder_throws_coded_error_with_hint()
     {
-        var ex = Assert.Throws<MailServiceException>(() => FolderResolver.Resolve("gibts-nicht", Folders));
+        var ex = Assert.Throws<GraphServiceException>(() => FolderResolver.Resolve("gibts-nicht", Folders));
         ex.Code.Should().Be("folder-not-found");
         ex.Message.Should().Contain("Next:");
     }

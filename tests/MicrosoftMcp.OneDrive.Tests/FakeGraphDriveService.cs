@@ -60,7 +60,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
                 current = _nodes.Values.FirstOrDefault(n =>
                         string.Equals(n.ParentId, current.Id, StringComparison.OrdinalIgnoreCase)
                         && string.Equals(n.Name, part, StringComparison.OrdinalIgnoreCase))
-                    ?? throw MailServiceException.DriveItemNotFound(itemRef, "fake");
+                    ?? throw GraphServiceException.DriveItemNotFound(itemRef, "fake");
             }
 
             return current;
@@ -68,7 +68,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
 
         return _nodes.TryGetValue(reference, out var node)
             ? node
-            : throw MailServiceException.DriveItemNotFound(itemRef, "fake");
+            : throw GraphServiceException.DriveItemNotFound(itemRef, "fake");
     }
 
     private static DriveItemSummary ToSummary(Node n) => new(
@@ -92,7 +92,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
         var folder = Get(folderRef);
         if (!folder.IsFolder)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"Drive item '{folder.Name}' is a folder expected.",
                 "pass a folder id or /path");
         }
@@ -107,7 +107,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
     {
         if (string.IsNullOrWhiteSpace(query))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "Query must not be empty.", "pass a filename or keyword");
         }
 
@@ -125,7 +125,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
         var node = Get(itemRef);
         if (node.IsFolder)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"Drive item '{node.Name}' is a folder.",
                 "download files only; use onedrive_list_children to browse folders");
         }
@@ -133,7 +133,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
         int cap = Math.Clamp(maxBytes, 1, 2097152);
         if (node.Content.Length > cap)
         {
-            throw MailServiceException.AttachmentTooLarge(node.Name, node.Content.Length, cap);
+            throw GraphServiceException.AttachmentTooLarge(node.Name, node.Content.Length, cap);
         }
 
         if (IsText(node.MimeType))
@@ -155,7 +155,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
     {
         if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['/', '\\']) >= 0)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "Folder name must be non-empty and contain no slashes.",
                 "pass a plain name, e.g. \"Belege\"");
         }
@@ -181,7 +181,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
     {
         if (string.IsNullOrWhiteSpace(fileName) || fileName.IndexOfAny(['/', '\\']) >= 0)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "File name must be non-empty and contain no slashes.",
                 "pass a plain file name, e.g. \"notiz.txt\"");
         }
@@ -193,20 +193,20 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
                 ? System.Text.Encoding.UTF8.GetBytes(contentText)
                 : contentBase64 is not null
                     ? Convert.FromBase64String(contentBase64)
-                    : throw MailServiceException.InvalidRequest(
+                    : throw GraphServiceException.InvalidRequest(
                         "Either contentText or contentBase64 is required.",
                         "pass text directly or base64 for binary files");
         }
         catch (FormatException)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "contentBase64 is not valid base64.",
                 "pass correctly padded base64, or use contentText for text files");
         }
 
         if (bytes.Length > 4_194_304)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"File is {bytes.Length} bytes, above the 4194304 byte simple-upload limit.",
                 "split the file or upload it via OneDrive UI");
         }
@@ -232,12 +232,12 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
-            throw MailServiceException.MissingRef("itemId");
+            throw GraphServiceException.MissingRef("itemId");
         }
 
         if (newParentRef is null && newName is null)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "Nothing to do: provide newParentRef and/or newName.",
                 "pass a destination folder and/or a new file name");
         }

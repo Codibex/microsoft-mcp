@@ -7,7 +7,7 @@ namespace MicrosoftMcp.Outlook;
 
 /// <summary>
 /// Builds tool results. Success serializes the payload as JSON text;
-/// failures return the coded MailServiceException message with IsError=true,
+/// failures return the coded GraphServiceException message with IsError=true,
 /// so the agent always receives code + Next-hint (thrown exceptions are
 /// reduced to "An error occurred invoking ..." by the SDK and lose detail).
 /// </summary>
@@ -27,7 +27,7 @@ internal static class ToolResult
         }]
     };
 
-    internal static CallToolResult Fail(MailServiceException error) => new()
+    internal static CallToolResult Fail(GraphServiceException error) => new()
     {
         Content = [new TextContentBlock { Text = error.Message }],
         IsError = true

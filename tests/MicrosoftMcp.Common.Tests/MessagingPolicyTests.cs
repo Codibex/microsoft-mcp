@@ -64,7 +64,7 @@ public sealed class MessagingPolicyTests
     [Fact]
     public void Guard_blocks_external_recipients()
     {
-        var ex = Assert.Throws<MailServiceException>(() =>
+        var ex = Assert.Throws<GraphServiceException>(() =>
             RecipientGuard.ValidateRecipients(["a@firma.de", "b@gmail.com"], InternalPolicy()));
 
         Assert.Contains("[invalid-request]", ex.Message);
@@ -73,7 +73,7 @@ public sealed class MessagingPolicyTests
     [Fact]
     public void Guard_rejects_malformed_addresses()
     {
-        Assert.Throws<MailServiceException>(() =>
+        Assert.Throws<GraphServiceException>(() =>
             RecipientGuard.ValidateRecipients(["keine-domain"], InternalPolicy()));
     }
 
@@ -81,7 +81,7 @@ public sealed class MessagingPolicyTests
     public void Guard_rejects_double_at_smuggling()
     {
         // LastIndexOf would read firma.de and pass; exactly one '@' is required.
-        var ex = Assert.Throws<MailServiceException>(() =>
+        var ex = Assert.Throws<GraphServiceException>(() =>
             RecipientGuard.ValidateRecipients(["a@extern.example@firma.de"], InternalPolicy()));
 
         Assert.Contains("[invalid-request]", ex.Message);

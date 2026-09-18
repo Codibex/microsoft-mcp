@@ -14,7 +14,10 @@ public static class ServerSelection
             ["outlook"] = ["Mail.Read", "Mail.ReadWrite"],
             ["onedrive"] = ["Files.Read", "Files.ReadWrite"],
             ["calendar"] = ["Calendars.Read"],
-            ["teams"] = ["Team.ReadBasic.All", "ChannelMessage.Read.All", "Chat.ReadBasic", "Chat.Read"]
+            ["teams"] = [
+                "Team.ReadBasic.All", "ChannelMessage.Read.All", "Chat.ReadBasic", "Chat.Read",
+                "OnlineMeetingTranscript.Read.All", "OnlineMeetingAiInsight.Read.All"
+            ]
         };
 
     /// <summary>Parses "--servers outlook,calendar" / MCP_SERVERS. Null or

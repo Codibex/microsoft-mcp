@@ -26,14 +26,14 @@ public sealed class TeamsTools(IGraphTeamsService teams, ILogger<TeamsTools> log
         {
             return ToolResult.Ok(await call().ConfigureAwait(false));
         }
-        catch (MailServiceException ex)
+        catch (GraphServiceException ex)
         {
             log.LogWarning(ex, "Tool {Operation} failed with {Code}", operation, ex.Code);
             return ToolResult.Fail(ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            var mapped = GraphErrorMapper.ToMailServiceException(ex, operation, resource);
+            var mapped = GraphErrorMapper.ToGraphServiceException(ex, operation, resource);
             log.LogError(ex, "Tool {Operation} failed unexpectedly ({Code})", operation, mapped.Code);
             return ToolResult.Fail(mapped);
         }
@@ -101,4 +101,44 @@ public sealed class TeamsTools(IGraphTeamsService teams, ILogger<TeamsTools> log
         [Description("Message id")] string messageId,
         CancellationToken ct = default) =>
         InvokeAsync("teams_read_chat_message", () => teams.ReadChatMessageAsync(chatId, messageId, ct));
+
+    [McpServerTool, Description("List transcripts of a scheduled online meeting. Read-only, available after transcription.")]
+    public Task<CallToolResult> teams_list_meeting_transcripts(
+        [Description("Online meeting id from Microsoft Graph")] string meetingId,
+        [Description("Max transcripts 1-100")] int top = 25,
+        CancellationToken ct = default) =>
+        InvokeAsync(
+            "teams_list_meeting_transcripts",
+            () => teams.ListMeetingTranscriptsAsync(meetingId, top, ct),
+            "meeting-transcript");
+
+    [McpServerTool, Description("Read the VTT transcript of a scheduled online meeting. Read-only.")]
+    public Task<CallToolResult> teams_read_meeting_transcript(
+        [Description("Online meeting id")] string meetingId,
+        [Description("Transcript id from teams_list_meeting_transcripts")] string transcriptId,
+        CancellationToken ct = default) =>
+        InvokeAsync(
+            "teams_read_meeting_transcript",
+            () => teams.ReadMeetingTranscriptAsync(meetingId, transcriptId, ct),
+            "meeting-transcript");
+
+    [McpServerTool, Description("List AI-generated insights for a completed online meeting. Requires Microsoft 365 Copilot.")]
+    public Task<CallToolResult> teams_list_meeting_insights(
+        [Description("Online meeting id from Microsoft Graph")] string meetingId,
+        [Description("Max insights 1-100")] int top = 25,
+        CancellationToken ct = default) =>
+        InvokeAsync(
+            "teams_list_meeting_insights",
+            () => teams.ListMeetingInsightsAsync(meetingId, top, ct),
+            "meeting-insight");
+
+    [McpServerTool, Description("Read AI-generated notes, action items and mentions for a completed online meeting.")]
+    public Task<CallToolResult> teams_read_meeting_insight(
+        [Description("Online meeting id")] string meetingId,
+        [Description("Insight id from teams_list_meeting_insights")] string insightId,
+        CancellationToken ct = default) =>
+        InvokeAsync(
+            "teams_read_meeting_insight",
+            () => teams.ReadMeetingInsightAsync(meetingId, insightId, ct),
+            "meeting-insight");
 }

@@ -42,7 +42,7 @@ public sealed class GraphMailService(
                 c.QueryParameters.Select = [.. SummarySelect, "body"], ct).ConfigureAwait(false);
 
         return msg is null
-            ? throw MailServiceException.MessageNotFound(messageId, "outlook_read_email")
+            ? throw GraphServiceException.MessageNotFound(messageId, "outlook_read_email")
             : EmailMapper.MapDetail(msg);
     }
 
@@ -71,7 +71,7 @@ public sealed class GraphMailService(
                 .PostAsync(folder, cancellationToken: ct).ConfigureAwait(false);
 
         return created is null
-            ? throw MailServiceException.GraphError(0, null, "Folder creation returned no result.")
+            ? throw GraphServiceException.GraphError(0, null, "Folder creation returned no result.")
             : MapFolder(created);
     }
 
@@ -85,7 +85,7 @@ public sealed class GraphMailService(
             var body = new Microsoft.Graph.Me.Messages.Item.Move.MovePostRequestBody { DestinationId = destId };
             var moved = await client.Me.Messages[messageId].Move.PostAsync(body, cancellationToken: ct).ConfigureAwait(false);
             return moved is null
-                ? throw MailServiceException.MessageNotFound(messageId, "outlook_move_email")
+                ? throw GraphServiceException.MessageNotFound(messageId, "outlook_move_email")
                 : EmailMapper.MapSummary(moved);
         }
 
@@ -93,7 +93,7 @@ public sealed class GraphMailService(
         var userMoved = await client.Users[_options.UserIdOrUpn].Messages[messageId].Move
             .PostAsync(userBody, cancellationToken: ct).ConfigureAwait(false);
         return userMoved is null
-            ? throw MailServiceException.MessageNotFound(messageId, "outlook_move_email")
+            ? throw GraphServiceException.MessageNotFound(messageId, "outlook_move_email")
             : EmailMapper.MapSummary(userMoved);
     }
 
@@ -134,7 +134,7 @@ public sealed class GraphMailService(
             : await client.Users[_options.UserIdOrUpn].Messages.PostAsync(msg, cancellationToken: ct).ConfigureAwait(false);
 
         return draft is null
-            ? throw MailServiceException.GraphError(0, null, "Draft creation returned no result.")
+            ? throw GraphServiceException.GraphError(0, null, "Draft creation returned no result.")
             : EmailMapper.MapDetail(draft);
     }
 
@@ -152,7 +152,7 @@ public sealed class GraphMailService(
             IReadOnlyList<string> targets = await GetReplyTargetsAsync(messageId, ct).ConfigureAwait(false);
             if (targets.Count == 0)
             {
-                throw MailServiceException.InvalidRequest(
+                throw GraphServiceException.InvalidRequest(
                     $"Cannot verify the reply recipient of message '{messageId}' (no sender address).",
                     "pick a mail with a sender address, or ask your admin about policy.json");
             }
@@ -171,7 +171,7 @@ public sealed class GraphMailService(
             var draft = await client.Me.Messages[messageId].CreateReply
                 .PostAsync(body, cancellationToken: ct).ConfigureAwait(false);
             return draft is null
-                ? throw MailServiceException.MessageNotFound(messageId, "outlook_create_reply_draft")
+                ? throw GraphServiceException.MessageNotFound(messageId, "outlook_create_reply_draft")
                 : EmailMapper.MapDetail(draft);
         }
 
@@ -182,7 +182,7 @@ public sealed class GraphMailService(
         var userDraft = await client.Users[_options.UserIdOrUpn].Messages[messageId].CreateReply
             .PostAsync(userBody, cancellationToken: ct).ConfigureAwait(false);
         return userDraft is null
-            ? throw MailServiceException.MessageNotFound(messageId, "outlook_create_reply_draft")
+            ? throw GraphServiceException.MessageNotFound(messageId, "outlook_create_reply_draft")
             : EmailMapper.MapDetail(userDraft);
     }
 
@@ -208,7 +208,7 @@ public sealed class GraphMailService(
             var draft = await client.Me.Messages[messageId].CreateForward
                 .PostAsync(body, cancellationToken: ct).ConfigureAwait(false);
             return draft is null
-                ? throw MailServiceException.MessageNotFound(messageId, "outlook_create_forward_draft")
+                ? throw GraphServiceException.MessageNotFound(messageId, "outlook_create_forward_draft")
                 : EmailMapper.MapDetail(draft);
         }
 
@@ -220,7 +220,7 @@ public sealed class GraphMailService(
         var userDraft = await client.Users[_options.UserIdOrUpn].Messages[messageId].CreateForward
             .PostAsync(userBody, cancellationToken: ct).ConfigureAwait(false);
         return userDraft is null
-            ? throw MailServiceException.MessageNotFound(messageId, "outlook_create_forward_draft")
+            ? throw GraphServiceException.MessageNotFound(messageId, "outlook_create_forward_draft")
             : EmailMapper.MapDetail(userDraft);
     }
 
@@ -235,7 +235,7 @@ public sealed class GraphMailService(
         RequireId(messageId);
         if (subject is null && body is null && to is null)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "Nothing to update: provide at least one of subject, body or to.",
                 "pass subject and/or body and/or to, then retry");
         }
@@ -298,14 +298,14 @@ public sealed class GraphMailService(
             var updated = await client.Me.Messages[messageId]
                 .PatchAsync(patch, cancellationToken: ct).ConfigureAwait(false);
             return updated is null
-                ? throw MailServiceException.MessageNotFound(messageId, "outlook_update_draft")
+                ? throw GraphServiceException.MessageNotFound(messageId, "outlook_update_draft")
                 : EmailMapper.MapDetail(updated);
         }
 
         var userUpdated = await client.Users[_options.UserIdOrUpn].Messages[messageId]
             .PatchAsync(patch, cancellationToken: ct).ConfigureAwait(false);
         return userUpdated is null
-            ? throw MailServiceException.MessageNotFound(messageId, "outlook_update_draft")
+            ? throw GraphServiceException.MessageNotFound(messageId, "outlook_update_draft")
             : EmailMapper.MapDetail(userUpdated);
     }
 
@@ -337,7 +337,7 @@ public sealed class GraphMailService(
         RequireId(messageId);
         if (string.IsNullOrWhiteSpace(attachmentId))
         {
-            throw MailServiceException.MissingId("attachmentId");
+            throw GraphServiceException.MissingId("attachmentId");
         }
 
         int cap = Math.Clamp(maxBytes, 1, 2097152);
@@ -352,7 +352,7 @@ public sealed class GraphMailService(
 
         if (att is null)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"Attachment '{attachmentId}' was not found on message '{messageId}'.",
                 "call outlook_list_attachments to get valid attachment ids");
         }
@@ -377,7 +377,7 @@ public sealed class GraphMailService(
         byte[] bytes = file.ContentBytes ?? [];
         if (bytes.Length > cap)
         {
-            throw MailServiceException.AttachmentTooLarge(file.Name ?? "?", bytes.Length, cap);
+            throw GraphServiceException.AttachmentTooLarge(file.Name ?? "?", bytes.Length, cap);
         }
 
         if (IsTextContent(file.ContentType))
@@ -442,14 +442,14 @@ public sealed class GraphMailService(
         {
             var updated = await client.Me.Messages[messageId].PatchAsync(patch, cancellationToken: ct).ConfigureAwait(false);
             return updated is null
-                ? throw MailServiceException.MessageNotFound(messageId, "outlook_set_categories")
+                ? throw GraphServiceException.MessageNotFound(messageId, "outlook_set_categories")
                 : EmailMapper.MapDetail(updated);
         }
 
         var userUpdated = await client.Users[_options.UserIdOrUpn].Messages[messageId]
             .PatchAsync(patch, cancellationToken: ct).ConfigureAwait(false);
         return userUpdated is null
-            ? throw MailServiceException.MessageNotFound(messageId, "outlook_set_categories")
+            ? throw GraphServiceException.MessageNotFound(messageId, "outlook_set_categories")
             : EmailMapper.MapDetail(userUpdated);
     }
 
@@ -472,7 +472,7 @@ public sealed class GraphMailService(
         RequireId(messageId);
         if (!Enum.TryParse<Importance>(importance, ignoreCase: true, out var level))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"Invalid importance '{importance}'.",
                 "use low, normal or high");
         }
@@ -620,7 +620,7 @@ public sealed class GraphMailService(
                 c.QueryParameters.Select = ["from", "replyTo", "toRecipients", "body"], ct).ConfigureAwait(false);
 
         return msg is null
-            ? throw MailServiceException.MessageNotFound(messageId, "policy-check")
+            ? throw GraphServiceException.MessageNotFound(messageId, "policy-check")
             : msg;
     }
 
@@ -639,7 +639,7 @@ public sealed class GraphMailService(
     {
         if (string.IsNullOrWhiteSpace(messageId))
         {
-            throw MailServiceException.MissingId();
+            throw GraphServiceException.MissingId();
         }
     }
 
@@ -647,7 +647,7 @@ public sealed class GraphMailService(
     {
         if (to.Count == 0 || to.Any(string.IsNullOrWhiteSpace))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "At least one valid recipient address is required.",
                 "pass non-empty 'to' addresses, e.g. [\"a@example.com\"]");
         }
@@ -657,7 +657,7 @@ public sealed class GraphMailService(
     {
         if (string.IsNullOrWhiteSpace(body))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 "Body must not be empty.",
                 "provide the mail text (or html with isHtml=true)");
         }

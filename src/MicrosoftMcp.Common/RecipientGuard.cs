@@ -17,7 +17,7 @@ public static class RecipientGuard
             string domain = DomainOf(recipient);
             if (!IsAllowed(domain, policy.AllowedRecipientDomains))
             {
-                throw MailServiceException.InvalidRequest(
+                throw GraphServiceException.InvalidRequest(
                     $"Recipient '{recipient}' is outside the allowed domains ({string.Join(", ", policy.AllowedRecipientDomains)}).",
                     "use an internal recipient address, or ask your admin to extend policy.json");
             }
@@ -29,7 +29,7 @@ public static class RecipientGuard
         // Exactly one '@': LastIndexOf would let 'a@external@firma.de' pass as internal.
         if (address.Count(c => c == '@') != 1)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"Recipient '{address}' is not a valid email address.",
                 "pass addresses like \"name@firma.de\"");
         }
@@ -37,7 +37,7 @@ public static class RecipientGuard
         int at = address.IndexOf('@');
         if (at <= 0 || at == address.Length - 1)
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"Recipient '{address}' is not a valid email address.",
                 "pass addresses like \"name@firma.de\"");
         }
@@ -45,7 +45,7 @@ public static class RecipientGuard
         string domain = address[(at + 1)..].Trim().ToLowerInvariant();
         if (domain.Length == 0 || domain.Contains(' ') || domain.Contains('@') || !domain.Contains('.'))
         {
-            throw MailServiceException.InvalidRequest(
+            throw GraphServiceException.InvalidRequest(
                 $"Recipient '{address}' is not a valid email address.",
                 "pass addresses like \"name@firma.de\"");
         }

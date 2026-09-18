@@ -16,7 +16,14 @@ In the **same app registration** (or a new one), add the delegated
 permissions (no admin needed in most tenants, otherwise ask yours):
 
 **API permissions → Add → Microsoft Graph → Delegated:**
-`Team.ReadBasic.All`, `ChannelMessage.Read.All`, `Chat.ReadBasic`, `Chat.Read`.
+`Team.ReadBasic.All`, `ChannelMessage.Read.All`, `Chat.ReadBasic`, `Chat.Read`,
+`OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All`.
+
+`OnlineMeetingAiInsight.Read.All` accesses the Meeting AI Insights API. The
+signed-in user must have a Microsoft 365 Copilot license. The transcript and
+insight APIs are for work/school accounts; personal Microsoft accounts are not
+supported. Transcription must be enabled for the meeting, and the tenant must
+allow Graph transcript access.
 
 No redirect URI is needed for device-code flow; for browser login add
 the **Mobile and desktop applications** platform with `http://localhost`
@@ -35,7 +42,8 @@ dotnet user-secrets set "Graph:ClientId" "<client-id>" \
   --project src/MicrosoftMcp.Teams.Host
 ```
 
-The host template defaults `DelegatedScopes` to the Teams scopes.
+The host template defaults `DelegatedScopes` to the Teams, transcript and
+Meeting AI Insights scopes.
 For supported personal-account scenarios, use `Graph:TenantId=consumers` with
 a personal-only app, or `common` with an org + personal app (see
 [Outlook troubleshooting](outlook.md#9-troubleshooting)). Headless:
@@ -68,7 +76,7 @@ fails fast on missing values with a `Next:` hint.
 
 For production use take the published binary (or a release asset).
 
-## 6. Tools (9, read-only)
+## 6. Tools (13, read-only)
 
 - `teams_list_teams` – joined teams with id and name
 - `teams_list_channels` – channels of a team
@@ -80,22 +88,33 @@ For production use take the published binary (or a release asset).
 - `teams_list_chat_messages` – messages of a chat
 - `teams_list_chat_replies` – thread replies to a chat message
 - `teams_read_chat_message` – full chat message
+- `teams_list_meeting_transcripts` – transcripts of a scheduled online meeting
+- `teams_read_meeting_transcript` – VTT content of a transcript
+- `teams_list_meeting_insights` – AI insight metadata for a completed meeting
+- `teams_read_meeting_insight` – AI-generated notes, action items and mentions
 
 Message previews are plain text (HTML stripped, truncated at 500 chars).
 Example prompt: “What happened in #general today
 (`teams_list_channel_messages`)? Show the thread (`teams_list_message_replies`).”
 
+Meeting example: “Read the transcript for meeting `<meetingId>` using
+`teams_list_meeting_transcripts` and `teams_read_meeting_transcript`, then
+summarize its action items from `teams_read_meeting_insight`.” Insights are
+available only after the meeting and may take up to four hours to appear.
+
 ## 7. Error codes (returned as `isError` results with a `Next:` hint)
 
 `team-not-found`, `channel-not-found`, `chat-not-found`,
-`channel-message-not-found`, `invalid-request`,
+`channel-message-not-found`, `meeting-transcript-not-found`,
+`meeting-insight-not-found`, `invalid-request`,
 `auth-misconfigured`, `auth-failed`, `access-denied`, `throttled`,
 `conflict`, `service-unavailable`, `graph-error`.
 Details + stack traces go to the server log (stderr) only, never to the client.
 
 ## 8. Troubleshooting
-- `[access-denied]` → check the Teams consent/scopes from section 2
-  (all four delegated scopes, consent again after adding permissions)
+- `[access-denied]` → check the Teams/meeting consent/scopes from section 2
+  (all six delegated scopes, consent again after adding permissions). For
+  insights also verify the Microsoft 365 Copilot license.
 - `[auth-failed]` headless → `Graph__DelegatedFlow=DeviceCode`
 - App-Only configured → switch to delegated; this host rejects
   `AuthMode: AppOnly` at startup with a hint

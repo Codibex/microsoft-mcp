@@ -38,6 +38,6 @@ internal static class FolderResolver
             return byName.Id;
         }
 
-        throw MailServiceException.FolderNotFound(destination);
+        throw GraphServiceException.FolderNotFound(destination);
     }
 }

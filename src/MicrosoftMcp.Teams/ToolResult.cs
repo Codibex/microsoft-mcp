@@ -23,7 +23,7 @@ internal static class ToolResult
         }]
     };
 
-    internal static CallToolResult Fail(MailServiceException error) => new()
+    internal static CallToolResult Fail(GraphServiceException error) => new()
     {
         Content = [new TextContentBlock { Text = error.Message }],
         IsError = true

@@ -25,6 +25,6 @@ public sealed class PathResolverTests
 
     [Fact]
     public void Blank_ref_throws_coded_error() =>
-        Assert.Throws<MicrosoftMcp.Common.MailServiceException>(
+        Assert.Throws<MicrosoftMcp.Common.GraphServiceException>(
             () => PathResolver.RequireRef("  ")).Code.Should().Be("invalid-request");
 }
