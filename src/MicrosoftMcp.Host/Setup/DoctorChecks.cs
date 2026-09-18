@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MicrosoftMcp.Common;
 
 namespace MicrosoftMcp.Host.Setup;
@@ -15,7 +16,8 @@ public static class DoctorChecks
         IReadOnlyList<string> servers,
         GraphAuthOptions options,
         string? policyPath,
-        string? policyError)
+        string? policyError,
+        Func<bool>? secretServiceAvailable = null)
     {
         List<SetupCheck> checks = [];
 
@@ -74,6 +76,8 @@ public static class DoctorChecks
             ? new SetupCheck("authmode", true, $"AuthMode {options.AuthMode} fits servers {string.Join(",", servers)}.", null)
             : new SetupCheck("authmode", false, $"AuthMode {options.AuthMode} does not fit servers {string.Join(",", servers)}.", comboError));
 
+        checks.Add(CacheCheck(options, secretServiceAvailable ?? IsSecretServiceAvailable));
+
         if (options.AuthMode == AuthMode.AppOnly)
         {
             if (string.Equals(options.UserIdOrUpn, "me", StringComparison.OrdinalIgnoreCase))
@@ -114,5 +118,107 @@ public static class DoctorChecks
                 : "Next (headless only): set Graph__DelegatedFlow=DeviceCode."));
 
         return checks;
+    }
+
+    private static SetupCheck CacheCheck(GraphAuthOptions options, Func<bool> secretServiceAvailable)
+    {
+        if (options.AuthMode == AuthMode.AppOnly)
+        {
+            return new SetupCheck(
+                "cache",
+                true,
+                "Token cache is not used for AppOnly auth.",
+                null);
+        }
+
+        if (!options.EnableTokenCache)
+        {
+            return new SetupCheck(
+                "cache",
+                true,
+                "Persistent token cache disabled; a new login is required after each process start.",
+                null);
+        }
+
+        if (options.UnsafeAllowUnencryptedTokenCache)
+        {
+            return new SetupCheck(
+                "cache",
+                true,
+                "WARNING: token cache may be stored unencrypted on disk.",
+                "Next: prefer the encrypted OS cache, or set Graph__EnableTokenCache=false.");
+        }
+
+        if (options.FallbackToMemoryTokenCache)
+        {
+            return new SetupCheck(
+                "cache",
+                true,
+                "Encrypted OS token cache preferred; in-memory fallback enabled if Secret Service is unavailable.",
+                "Next (optional): install GNOME Keyring/libsecret for persistence across restarts.");
+        }
+
+        if (OperatingSystem.IsLinux() && !secretServiceAvailable())
+        {
+            return new SetupCheck(
+                "cache",
+                false,
+                "Persistent token cache requires a reachable Linux Secret Service, but org.freedesktop.secrets is unavailable.",
+                "Next: enable GNOME Keyring/libsecret, or set Graph__FallbackToMemoryTokenCache=true.");
+        }
+
+        return new SetupCheck(
+            "cache",
+            true,
+            "Encrypted OS token cache required; Secret Service is reachable.",
+            "Next: set Graph__FallbackToMemoryTokenCache=true unless persistence is guaranteed.");
+    }
+
+    private static bool IsSecretServiceAvailable()
+    {
+        if (!OperatingSystem.IsLinux()
+            || string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS")))
+        {
+            return false;
+        }
+
+        try
+        {
+            using Process process = new()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "dbus-send",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                }
+            };
+            process.StartInfo.ArgumentList.Add("--session");
+            process.StartInfo.ArgumentList.Add("--print-reply=literal");
+            process.StartInfo.ArgumentList.Add("--dest=org.freedesktop.DBus");
+            process.StartInfo.ArgumentList.Add("/org/freedesktop/DBus");
+            process.StartInfo.ArgumentList.Add("org.freedesktop.DBus.NameHasOwner");
+            process.StartInfo.ArgumentList.Add("string:org.freedesktop.secrets");
+
+            if (!process.Start() || !process.WaitForExit(1000))
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+
+                return false;
+            }
+
+            string output = process.StandardOutput.ReadToEnd();
+            return process.ExitCode == 0
+                && output.Contains("true", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 }

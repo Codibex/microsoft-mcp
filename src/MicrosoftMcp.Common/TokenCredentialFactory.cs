@@ -5,6 +5,22 @@ namespace MicrosoftMcp.Common;
 
 public sealed class TokenCredentialFactory : ITokenCredentialProvider
 {
+    private readonly Action<string> _warningSink;
+    private readonly Func<GraphAuthOptions, TokenCachePersistenceOptions?, TokenCredential> _credentialFactory;
+    private int _unsafeCacheWarningWritten;
+
+    public TokenCredentialFactory() : this(Console.Error.WriteLine, null)
+    {
+    }
+
+    internal TokenCredentialFactory(
+        Action<string> warningSink,
+        Func<GraphAuthOptions, TokenCachePersistenceOptions?, TokenCredential>? credentialFactory = null)
+    {
+        _warningSink = warningSink ?? throw new ArgumentNullException(nameof(warningSink));
+        _credentialFactory = credentialFactory ?? CreateDelegatedCredential;
+    }
+
     public TokenCredential GetCredential(GraphAuthOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -17,7 +33,7 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
         };
     }
 
-    private static TokenCredential CreateDelegated(GraphAuthOptions options)
+    private TokenCredential CreateDelegated(GraphAuthOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.TenantId))
         {
@@ -29,10 +45,46 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
             throw MailServiceException.AuthMisconfigured("Graph:ClientId is required for delegated auth.");
         }
 
-        TokenCachePersistenceOptions? cache = options.EnableTokenCache
-            ? new TokenCachePersistenceOptions { Name = "microsoft-mcp-outlook" }
-            : null;
+        if (!options.EnableTokenCache)
+        {
+            return CreateDelegatedCredential(options, cache: null);
+        }
 
+        if (options.UnsafeAllowUnencryptedTokenCache)
+        {
+            WarnUnencryptedTokenCache();
+        }
+
+        TokenCachePersistenceOptions cache = new()
+        {
+            Name = "microsoft-mcp-graph",
+            UnsafeAllowUnencryptedStorage = options.UnsafeAllowUnencryptedTokenCache
+        };
+
+        try
+        {
+            TokenCredential persistent = _credentialFactory(options, cache);
+            TokenCredential? memory = options.FallbackToMemoryTokenCache
+                ? _credentialFactory(options, null)
+                : null;
+            return new TokenCacheCredential(persistent, memory, _warningSink);
+        }
+        catch (Exception ex) when (IsTokenCachePersistenceFailure(ex))
+        {
+            if (options.FallbackToMemoryTokenCache)
+            {
+                WarnMemoryCacheFallback();
+                return _credentialFactory(options, null);
+            }
+
+            throw MailServiceException.AuthCacheUnavailable(ex);
+        }
+    }
+
+    private static TokenCredential CreateDelegatedCredential(
+        GraphAuthOptions options,
+        TokenCachePersistenceOptions? cache)
+    {
         if (options.DelegatedFlow == DelegatedFlow.DeviceCode)
         {
             return new DeviceCodeCredential(new DeviceCodeCredentialOptions
@@ -56,6 +108,34 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
             ClientId = options.ClientId,
             TokenCachePersistenceOptions = cache
         });
+    }
+
+    internal static bool IsTokenCachePersistenceFailure(Exception ex)
+    {
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            string message = current.Message;
+            if (message.Contains("Persistence check failed", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("libsecret", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Secret Service", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("keyring", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void WarnMemoryCacheFallback() =>
+        _warningSink("[auth] Persistent token cache unavailable; using an in-memory cache. Tokens will not survive a process restart. Install a Secret Service or set Graph__UnsafeAllowUnencryptedTokenCache=true to persist an unencrypted cache.");
+
+    private void WarnUnencryptedTokenCache()
+    {
+        if (Interlocked.Exchange(ref _unsafeCacheWarningWritten, 1) == 0)
+        {
+            _warningSink("[auth] WARNING: unencrypted token-cache storage is enabled. Protect the cache file and prefer the encrypted OS cache or the in-memory fallback.");
+        }
     }
 
     private static TokenCredential CreateAppOnly(GraphAuthOptions options)

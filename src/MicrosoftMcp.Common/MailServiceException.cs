@@ -86,6 +86,12 @@ public sealed class MailServiceException : Exception
         hint ?? "re-authenticate (delete the token cache), verify TenantId/ClientId, and for headless hosts use DelegatedFlow=DeviceCode",
         inner);
 
+    public static MailServiceException AuthCacheUnavailable(Exception? inner = null) => Create(
+        "auth-cache-unavailable",
+        "Persistent token cache unavailable; the Linux Secret Service/GNOME Keyring is not reachable.",
+        "install and start a Secret Service, set Graph__FallbackToMemoryTokenCache=true, or disable persistence with Graph__EnableTokenCache=false",
+        inner);
+
     public static MailServiceException AccessDenied(int status, string? graphCode, string? detail) => Create(
         "access-denied",
         $"Graph denied access (HTTP {status}{(graphCode is null ? string.Empty : $", {graphCode}")}). {detail ?? "No detail."}",

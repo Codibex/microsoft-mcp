@@ -41,6 +41,76 @@ public sealed class DoctorChecksTests
     }
 
     [Fact]
+    public void Delegated_cache_uses_memory_fallback_by_default()
+    {
+        var cache = DoctorChecks.Run(["calendar"], Delegated(), policyPath: null, policyError: null)
+            .First(c => c.Id == "cache");
+
+        cache.Ok.Should().BeTrue();
+        cache.Message.Should().Contain("in-memory fallback");
+    }
+
+    [Fact]
+    public void Unencrypted_cache_is_explicitly_reported()
+    {
+        var options = Delegated();
+        options.UnsafeAllowUnencryptedTokenCache = true;
+
+        var cache = DoctorChecks.Run(["calendar"], options, policyPath: null, policyError: null)
+            .First(c => c.Id == "cache");
+
+        cache.Ok.Should().BeTrue();
+        cache.Message.Should().Contain("unencrypted");
+        cache.Next.Should().Contain("Graph__EnableTokenCache=false");
+    }
+
+    [Fact]
+    public void Apponly_cache_never_reports_delegated_login_requirement()
+    {
+        var options = Delegated();
+        options.AuthMode = AuthMode.AppOnly;
+        options.EnableTokenCache = false;
+        options.UserIdOrUpn = "mailbox@example.com";
+        options.ClientSecret = "secret";
+
+        var cache = DoctorChecks.Run(
+                ["outlook"],
+                options,
+                policyPath: null,
+                policyError: null,
+                secretServiceAvailable: () => false)
+            .First(c => c.Id == "cache");
+
+        cache.Ok.Should().BeTrue();
+        cache.Message.Should().Contain("not used for AppOnly");
+        cache.Message.Should().NotContain("new login");
+    }
+
+    [Fact]
+    public void Strict_delegated_cache_fails_when_secret_service_is_unavailable()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        var options = Delegated();
+        options.FallbackToMemoryTokenCache = false;
+
+        var cache = DoctorChecks.Run(
+                ["calendar"],
+                options,
+                policyPath: null,
+                policyError: null,
+                secretServiceAvailable: () => false)
+            .First(c => c.Id == "cache");
+
+        cache.Ok.Should().BeFalse();
+        cache.Message.Should().Contain("Secret Service");
+        cache.Next.Should().Contain("FallbackToMemoryTokenCache=true");
+    }
+
+    [Fact]
     public void Bad_tenant_format_fails()
     {
         var checks = DoctorChecks.Run(["outlook"], Delegated(tenant: "not-a-tenant"), policyPath: null, policyError: null);
