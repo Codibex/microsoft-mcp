@@ -1,6 +1,9 @@
 using Azure.Core;
+using Azure.Identity;
 using AwesomeAssertions;
 using MicrosoftMcp.Common;
+using NSubstitute;
+using System.IO.Abstractions;
 
 namespace MicrosoftMcp.Common.Tests;
 
@@ -148,6 +151,113 @@ public sealed class TokenCredentialFactoryTests
     }
 
     [Fact]
+    public void Token_cache_authenticates_and_saves_record_when_silent_authentication_is_required()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"microsoft-mcp-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "authentication-record.json");
+        AuthenticationRecord record = CreateAuthenticationRecord();
+        var persistent = new AuthenticationRequiredCredential();
+        int authenticateCalls = 0;
+        try
+        {
+            var store = new AuthenticationRecordStore(path);
+            List<string> warnings = [];
+            var credential = new TokenCacheCredential(
+                persistent,
+                memory: null,
+                _ => { },
+                _ =>
+                {
+                    authenticateCalls++;
+                    persistent.Authenticated = true;
+                    return Task.FromResult(record);
+                },
+                authenticatedRecord => store.Save(authenticatedRecord, warnings.Add));
+
+            AccessToken token = credential.GetToken(new TokenRequestContext(["scope"]), CancellationToken.None);
+
+            token.Token.Should().Be("token");
+            authenticateCalls.Should().Be(1);
+            warnings.Should().BeEmpty();
+
+            AuthenticationRecord? restored = new AuthenticationRecordStore(path).Load();
+            restored.Should().NotBeNull();
+            restored!.ClientId.Should().Be(record.ClientId);
+            restored.HomeAccountId.Should().Be(record.HomeAccountId);
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(directory);
+        }
+    }
+
+    [Fact]
+    public void New_factory_instance_restores_record_for_persistent_credential()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"microsoft-mcp-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "authentication-record.json");
+        AuthenticationRecord record = CreateAuthenticationRecord();
+        AuthenticationRecord? observed = null;
+        try
+        {
+            var store = new AuthenticationRecordStore(path);
+            List<string> warnings = [];
+            store.Save(record, warnings.Add);
+            warnings.Should().BeEmpty();
+
+            var factory = new TokenCredentialFactory(
+                _ => { },
+                (options, cache, authenticationRecord) =>
+                {
+                    observed = authenticationRecord;
+                    cache.Should().NotBeNull();
+                    return new CountingCredential();
+                },
+                new AuthenticationRecordStore(path));
+
+            factory.GetCredential(new GraphAuthOptions
+            {
+                AuthMode = AuthMode.Delegated,
+                TenantId = record.TenantId,
+                ClientId = record.ClientId,
+                FallbackToMemoryTokenCache = false
+            });
+
+            observed.Should().NotBeNull();
+            observed!.Username.Should().Be(record.Username);
+            observed.HomeAccountId.Should().Be(record.HomeAccountId);
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(directory);
+        }
+    }
+
+    [Fact]
+    public void Authentication_record_store_reads_through_file_system_abstraction()
+    {
+        const string path = "/tmp/authentication-record.json";
+        var fileSystem = Substitute.For<IFileSystem>();
+        var file = Substitute.For<IFile>();
+        fileSystem.File.Returns(file);
+        file.Exists(path).Returns(false);
+        var store = new AuthenticationRecordStore(path, fileSystem);
+
+        store.Load().Should().BeNull();
+        file.Received().Exists(path);
+    }
+
+    private static AuthenticationRecord CreateAuthenticationRecord() =>
+        IdentityModelFactory.AuthenticationRecord(
+            "user@example.test",
+            "https://login.microsoftonline.com/",
+            "home-account-id",
+            "tenant-id",
+            "client-id");
+
+    [Fact]
     public void Unencrypted_cache_warning_is_written_once()
     {
         List<string> warnings = [];
@@ -191,5 +301,27 @@ public sealed class TokenCredentialFactoryTests
             Calls++;
             return ValueTask.FromResult(new AccessToken("token", DateTimeOffset.UtcNow.AddMinutes(5)));
         }
+    }
+
+    private sealed class AuthenticationRequiredCredential : TokenCredential
+    {
+        public bool Authenticated { get; set; }
+
+        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken)
+        {
+            if (!Authenticated)
+            {
+                throw new AuthenticationRequiredException("Authentication required.", requestContext);
+            }
+
+            return new AccessToken("token", DateTimeOffset.UtcNow.AddMinutes(5));
+        }
+
+        public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+            Authenticated
+                ? ValueTask.FromResult(new AccessToken("token", DateTimeOffset.UtcNow.AddMinutes(5)))
+                : ValueTask.FromException<AccessToken>(new AuthenticationRequiredException(
+                    "Authentication required.",
+                    requestContext));
     }
 }

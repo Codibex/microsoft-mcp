@@ -1,11 +1,14 @@
 using Azure.Core;
+using Azure.Identity;
 
 namespace MicrosoftMcp.Common;
 
 internal sealed class TokenCacheCredential(
     TokenCredential persistent,
     TokenCredential? memory,
-    Action<string> warningSink) : TokenCredential
+    Action<string> warningSink,
+    Func<CancellationToken, Task<AuthenticationRecord>>? authenticateAsync = null,
+    Action<AuthenticationRecord>? authenticationRecordSink = null) : TokenCredential
 {
     private int _useMemory;
     private int _warningWritten;
@@ -21,6 +24,12 @@ internal sealed class TokenCacheCredential(
 
         try
         {
+            return persistent.GetToken(requestContext, cancellationToken);
+        }
+        catch (AuthenticationRequiredException) when (authenticateAsync is not null)
+        {
+            AuthenticationRecord record = authenticateAsync(cancellationToken).GetAwaiter().GetResult();
+            authenticationRecordSink?.Invoke(record);
             return persistent.GetToken(requestContext, cancellationToken);
         }
         catch (Exception ex) when (TokenCredentialFactory.IsTokenCachePersistenceFailure(ex))
@@ -40,6 +49,12 @@ internal sealed class TokenCacheCredential(
 
         try
         {
+            return await persistent.GetTokenAsync(requestContext, cancellationToken);
+        }
+        catch (AuthenticationRequiredException) when (authenticateAsync is not null)
+        {
+            AuthenticationRecord record = await authenticateAsync(cancellationToken);
+            authenticationRecordSink?.Invoke(record);
             return await persistent.GetTokenAsync(requestContext, cancellationToken);
         }
         catch (Exception ex) when (TokenCredentialFactory.IsTokenCachePersistenceFailure(ex))

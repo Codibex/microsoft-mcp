@@ -6,7 +6,8 @@ namespace MicrosoftMcp.Common;
 public sealed class TokenCredentialFactory : ITokenCredentialProvider
 {
     private readonly Action<string> _warningSink;
-    private readonly Func<GraphAuthOptions, TokenCachePersistenceOptions?, TokenCredential> _credentialFactory;
+    private readonly Func<GraphAuthOptions, TokenCachePersistenceOptions?, AuthenticationRecord?, TokenCredential> _credentialFactory;
+    private readonly AuthenticationRecordStore _authenticationRecordStore;
     private int _unsafeCacheWarningWritten;
 
     public TokenCredentialFactory() : this(Console.Error.WriteLine, null)
@@ -15,10 +16,24 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
 
     internal TokenCredentialFactory(
         Action<string> warningSink,
-        Func<GraphAuthOptions, TokenCachePersistenceOptions?, TokenCredential>? credentialFactory = null)
+        Func<GraphAuthOptions, TokenCachePersistenceOptions?, TokenCredential>? credentialFactory = null,
+        AuthenticationRecordStore? authenticationRecordStore = null)
     {
         _warningSink = warningSink ?? throw new ArgumentNullException(nameof(warningSink));
-        _credentialFactory = credentialFactory ?? CreateDelegatedCredential;
+        _credentialFactory = credentialFactory is null
+            ? CreateDelegatedCredential
+            : (options, cache, _) => credentialFactory(options, cache);
+        _authenticationRecordStore = authenticationRecordStore ?? new AuthenticationRecordStore();
+    }
+
+    internal TokenCredentialFactory(
+        Action<string> warningSink,
+        Func<GraphAuthOptions, TokenCachePersistenceOptions?, AuthenticationRecord?, TokenCredential> credentialFactory,
+        AuthenticationRecordStore authenticationRecordStore)
+    {
+        _warningSink = warningSink ?? throw new ArgumentNullException(nameof(warningSink));
+        _credentialFactory = credentialFactory ?? throw new ArgumentNullException(nameof(credentialFactory));
+        _authenticationRecordStore = authenticationRecordStore ?? throw new ArgumentNullException(nameof(authenticationRecordStore));
     }
 
     public TokenCredential GetCredential(GraphAuthOptions options)
@@ -47,7 +62,7 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
 
         if (!options.EnableTokenCache)
         {
-            return CreateDelegatedCredential(options, cache: null);
+            return _credentialFactory(options, null, null);
         }
 
         if (options.UnsafeAllowUnencryptedTokenCache)
@@ -61,20 +76,32 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
             UnsafeAllowUnencryptedStorage = options.UnsafeAllowUnencryptedTokenCache
         };
 
+        AuthenticationRecord? authenticationRecord = _authenticationRecordStore.Load();
+        if (authenticationRecord is not null
+            && !string.Equals(authenticationRecord.ClientId, options.ClientId, StringComparison.OrdinalIgnoreCase))
+        {
+            authenticationRecord = null;
+        }
+
         try
         {
-            TokenCredential persistent = _credentialFactory(options, cache);
+            TokenCredential persistent = _credentialFactory(options, cache, authenticationRecord);
             TokenCredential? memory = options.FallbackToMemoryTokenCache
-                ? _credentialFactory(options, null)
+                ? _credentialFactory(options, null, null)
                 : null;
-            return new TokenCacheCredential(persistent, memory, _warningSink);
+            return new TokenCacheCredential(
+                persistent,
+                memory,
+                _warningSink,
+                GetAuthenticationHandler(persistent),
+                record => _authenticationRecordStore.Save(record, _warningSink));
         }
         catch (Exception ex) when (IsTokenCachePersistenceFailure(ex))
         {
             if (options.FallbackToMemoryTokenCache)
             {
                 WarnMemoryCacheFallback();
-                return _credentialFactory(options, null);
+                return _credentialFactory(options, null, null);
             }
 
             throw MailServiceException.AuthCacheUnavailable(ex);
@@ -83,7 +110,8 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
 
     private static TokenCredential CreateDelegatedCredential(
         GraphAuthOptions options,
-        TokenCachePersistenceOptions? cache)
+        TokenCachePersistenceOptions? cache,
+        AuthenticationRecord? authenticationRecord)
     {
         if (options.DelegatedFlow == DelegatedFlow.DeviceCode)
         {
@@ -91,6 +119,8 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
             {
                 TenantId = options.TenantId,
                 ClientId = options.ClientId,
+                AuthenticationRecord = authenticationRecord,
+                DisableAutomaticAuthentication = cache is not null,
                 DeviceCodeCallback = (info, _) =>
                 {
                     Console.Error.WriteLine($"[auth] {info.Message}");
@@ -106,9 +136,19 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
         {
             TenantId = options.TenantId,
             ClientId = options.ClientId,
+            AuthenticationRecord = authenticationRecord,
+            DisableAutomaticAuthentication = cache is not null,
             TokenCachePersistenceOptions = cache
         });
     }
+
+    private static Func<CancellationToken, Task<AuthenticationRecord>>? GetAuthenticationHandler(TokenCredential credential) =>
+        credential switch
+        {
+            DeviceCodeCredential deviceCode => deviceCode.AuthenticateAsync,
+            InteractiveBrowserCredential browser => browser.AuthenticateAsync,
+            _ => null
+        };
 
     internal static bool IsTokenCachePersistenceFailure(Exception ex)
     {
