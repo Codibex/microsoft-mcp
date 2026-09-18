@@ -74,6 +74,10 @@ Persistenz laesst sich mit `Graph__EnableTokenCache=false` vollstaendig
 deaktivieren. Nur wenn unverschluesselte Speicherung auf der Festplatte
 akzeptabel ist, `Graph__UnsafeAllowUnencryptedTokenCache=true` setzen; das wird
 nicht empfohlen.
+Wenn diese Option aktiviert ist, schreibt der Server beim Start eine Warnung
+auf stderr. Wenn `Graph__FallbackToMemoryTokenCache=false` gesetzt ist und der
+Cache nicht geöffnet werden kann, liefert der Server `auth-cache-unavailable`
+mit den möglichen Wiederherstellungsoptionen.
 
 ## 3. Client verdrahten
 
@@ -165,5 +169,6 @@ headless → `DeviceCode`, leere Tool-Liste → stderr auf
 Cache-Einstellungen: `Graph__FallbackToMemoryTokenCache` ist standardmaessig
 `true` und haelt Delegated-Auth ohne Keyring nutzbar. Nur wenn persistenter,
 verschluesselter Speicher zwingend erforderlich ist, auf `false` setzen; auf
-headless Linux schlaegt `doctor` dann ohne erkannte D-Bus-Session fehl. Eine
-Aenderung des Cache-Namens kann eine einmalige neue Anmeldung erfordern.
+Linux prueft `doctor` dann, ob `org.freedesktop.secrets` erreichbar ist, und
+schlaegt fehl, wenn der Dienst nicht erreichbar ist. Eine Aenderung des
+Cache-Namens kann eine einmalige neue Anmeldung erfordern.

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MicrosoftMcp.Common;
 
 namespace MicrosoftMcp.Host.Setup;
@@ -15,7 +16,8 @@ public static class DoctorChecks
         IReadOnlyList<string> servers,
         GraphAuthOptions options,
         string? policyPath,
-        string? policyError)
+        string? policyError,
+        Func<bool>? secretServiceAvailable = null)
     {
         List<SetupCheck> checks = [];
 
@@ -74,7 +76,7 @@ public static class DoctorChecks
             ? new SetupCheck("authmode", true, $"AuthMode {options.AuthMode} fits servers {string.Join(",", servers)}.", null)
             : new SetupCheck("authmode", false, $"AuthMode {options.AuthMode} does not fit servers {string.Join(",", servers)}.", comboError));
 
-        checks.Add(CacheCheck(options));
+        checks.Add(CacheCheck(options, secretServiceAvailable ?? IsSecretServiceAvailable));
 
         if (options.AuthMode == AuthMode.AppOnly)
         {
@@ -118,16 +120,23 @@ public static class DoctorChecks
         return checks;
     }
 
-    private static SetupCheck CacheCheck(GraphAuthOptions options)
+    private static SetupCheck CacheCheck(GraphAuthOptions options, Func<bool> secretServiceAvailable)
     {
-        if (options.AuthMode == AuthMode.AppOnly || !options.EnableTokenCache)
+        if (options.AuthMode == AuthMode.AppOnly)
         {
             return new SetupCheck(
                 "cache",
                 true,
-                options.EnableTokenCache
-                    ? "Token cache is not used for AppOnly auth."
-                    : "Persistent token cache disabled; a new login is required after each process start.",
+                "Token cache is not used for AppOnly auth.",
+                null);
+        }
+
+        if (!options.EnableTokenCache)
+        {
+            return new SetupCheck(
+                "cache",
+                true,
+                "Persistent token cache disabled; a new login is required after each process start.",
                 null);
         }
 
@@ -149,18 +158,67 @@ public static class DoctorChecks
                 "Next (optional): install GNOME Keyring/libsecret for persistence across restarts.");
         }
 
-        bool likelyHeadlessLinux = OperatingSystem.IsLinux()
-            && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS"));
-        return likelyHeadlessLinux
-            ? new SetupCheck(
+        if (OperatingSystem.IsLinux() && !secretServiceAvailable())
+        {
+            return new SetupCheck(
                 "cache",
                 false,
-                "Persistent token cache requires a Linux Secret Service, but no D-Bus session was detected.",
-                "Next: enable GNOME Keyring/libsecret, or set Graph__FallbackToMemoryTokenCache=true.")
-            : new SetupCheck(
-                "cache",
-                true,
-                "Encrypted OS token cache required; Secret Service availability is not verified offline.",
-                "Next: set Graph__FallbackToMemoryTokenCache=true unless persistence is guaranteed.");
+                "Persistent token cache requires a reachable Linux Secret Service, but org.freedesktop.secrets is unavailable.",
+                "Next: enable GNOME Keyring/libsecret, or set Graph__FallbackToMemoryTokenCache=true.");
+        }
+
+        return new SetupCheck(
+            "cache",
+            true,
+            "Encrypted OS token cache required; Secret Service is reachable.",
+            "Next: set Graph__FallbackToMemoryTokenCache=true unless persistence is guaranteed.");
+    }
+
+    private static bool IsSecretServiceAvailable()
+    {
+        if (!OperatingSystem.IsLinux()
+            || string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS")))
+        {
+            return false;
+        }
+
+        try
+        {
+            using Process process = new()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "dbus-send",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                }
+            };
+            process.StartInfo.ArgumentList.Add("--session");
+            process.StartInfo.ArgumentList.Add("--print-reply=literal");
+            process.StartInfo.ArgumentList.Add("--dest=org.freedesktop.DBus");
+            process.StartInfo.ArgumentList.Add("/org/freedesktop/DBus");
+            process.StartInfo.ArgumentList.Add("org.freedesktop.DBus.NameHasOwner");
+            process.StartInfo.ArgumentList.Add("string:org.freedesktop.secrets");
+
+            if (!process.Start() || !process.WaitForExit(1000))
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+
+                return false;
+            }
+
+            string output = process.StandardOutput.ReadToEnd();
+            return process.ExitCode == 0
+                && output.Contains("true", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 }

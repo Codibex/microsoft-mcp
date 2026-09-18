@@ -72,6 +72,9 @@ For persistence on a headless Linux host, install and run GNOME Keyring/libsecre
 with a D-Bus session. To disable persistence explicitly, set
 `Graph__EnableTokenCache=false`. Only if unencrypted disk storage is acceptable,
 set `Graph__UnsafeAllowUnencryptedTokenCache=true`; this is not recommended.
+When that option is enabled, the server writes a warning to stderr at startup.
+If `Graph__FallbackToMemoryTokenCache=false` and the cache cannot be opened, the
+server returns `auth-cache-unavailable` with the available recovery options.
 
 ## 3. Wire up the client
 
@@ -162,5 +165,6 @@ headless → `DeviceCode`, empty tool list → check stderr for
 
 Cache settings: `Graph__FallbackToMemoryTokenCache` defaults to `true` and keeps
 delegated auth usable without a keyring. Set it to `false` only when persistent
-encrypted storage is required; on headless Linux, `doctor` then fails if no
-D-Bus session is detected. Changing the cache name can require one new login.
+encrypted storage is required; on Linux, `doctor` then checks whether
+`org.freedesktop.secrets` is reachable and fails when it is not. Changing the
+cache name can require one new login.

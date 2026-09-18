@@ -5,6 +5,18 @@ namespace MicrosoftMcp.Common;
 
 public sealed class TokenCredentialFactory : ITokenCredentialProvider
 {
+    private readonly Action<string> _warningSink;
+    private int _unsafeCacheWarningWritten;
+
+    public TokenCredentialFactory() : this(Console.Error.WriteLine)
+    {
+    }
+
+    internal TokenCredentialFactory(Action<string> warningSink)
+    {
+        _warningSink = warningSink ?? throw new ArgumentNullException(nameof(warningSink));
+    }
+
     public TokenCredential GetCredential(GraphAuthOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -17,7 +29,7 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
         };
     }
 
-    private static TokenCredential CreateDelegated(GraphAuthOptions options)
+    private TokenCredential CreateDelegated(GraphAuthOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.TenantId))
         {
@@ -34,6 +46,11 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
             return CreateDelegatedCredential(options, cache: null);
         }
 
+        if (options.UnsafeAllowUnencryptedTokenCache)
+        {
+            WarnUnencryptedTokenCache();
+        }
+
         TokenCachePersistenceOptions cache = new()
         {
             Name = "microsoft-mcp-graph",
@@ -43,19 +60,20 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
         try
         {
             TokenCredential persistent = CreateDelegatedCredential(options, cache);
-            if (!options.FallbackToMemoryTokenCache)
+            TokenCredential? memory = options.FallbackToMemoryTokenCache
+                ? CreateDelegatedCredential(options, cache: null)
+                : null;
+            return new TokenCacheCredential(persistent, memory, _warningSink);
+        }
+        catch (Exception ex) when (IsTokenCachePersistenceFailure(ex))
+        {
+            if (options.FallbackToMemoryTokenCache)
             {
-                return persistent;
+                WarnMemoryCacheFallback();
+                return CreateDelegatedCredential(options, cache: null);
             }
 
-            return new CacheFallbackCredential(
-                persistent,
-                CreateDelegatedCredential(options, cache: null));
-        }
-        catch (Exception ex) when (options.FallbackToMemoryTokenCache && IsTokenCachePersistenceFailure(ex))
-        {
-            WarnMemoryCacheFallback();
-            return CreateDelegatedCredential(options, cache: null);
+            throw MailServiceException.AuthCacheUnavailable(ex);
         }
     }
 
@@ -88,7 +106,7 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
         });
     }
 
-    private static bool IsTokenCachePersistenceFailure(Exception ex)
+    internal static bool IsTokenCachePersistenceFailure(Exception ex)
     {
         for (Exception? current = ex; current is not null; current = current.InnerException)
         {
@@ -105,63 +123,14 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
         return false;
     }
 
-    private static void WarnMemoryCacheFallback() =>
-        Console.Error.WriteLine("[auth] Persistent token cache unavailable; using an in-memory cache. Tokens will not survive a process restart. Install a Secret Service or set Graph__UnsafeAllowUnencryptedTokenCache=true to persist an unencrypted cache.");
+    private void WarnMemoryCacheFallback() =>
+        _warningSink("[auth] Persistent token cache unavailable; using an in-memory cache. Tokens will not survive a process restart. Install a Secret Service or set Graph__UnsafeAllowUnencryptedTokenCache=true to persist an unencrypted cache.");
 
-    private sealed class CacheFallbackCredential(
-        TokenCredential persistent,
-        TokenCredential memory) : TokenCredential
+    private void WarnUnencryptedTokenCache()
     {
-        private int _useMemory;
-        private int _warningWritten;
-
-        public override AccessToken GetToken(
-            TokenRequestContext requestContext,
-            CancellationToken cancellationToken)
+        if (Interlocked.Exchange(ref _unsafeCacheWarningWritten, 1) == 0)
         {
-            if (Volatile.Read(ref _useMemory) != 0)
-            {
-                return memory.GetToken(requestContext, cancellationToken);
-            }
-
-            try
-            {
-                return persistent.GetToken(requestContext, cancellationToken);
-            }
-            catch (Exception ex) when (IsTokenCachePersistenceFailure(ex))
-            {
-                SwitchToMemory();
-                return memory.GetToken(requestContext, cancellationToken);
-            }
-        }
-
-        public override async ValueTask<AccessToken> GetTokenAsync(
-            TokenRequestContext requestContext,
-            CancellationToken cancellationToken)
-        {
-            if (Volatile.Read(ref _useMemory) != 0)
-            {
-                return await memory.GetTokenAsync(requestContext, cancellationToken);
-            }
-
-            try
-            {
-                return await persistent.GetTokenAsync(requestContext, cancellationToken);
-            }
-            catch (Exception ex) when (IsTokenCachePersistenceFailure(ex))
-            {
-                SwitchToMemory();
-                return await memory.GetTokenAsync(requestContext, cancellationToken);
-            }
-        }
-
-        private void SwitchToMemory()
-        {
-            Interlocked.Exchange(ref _useMemory, 1);
-            if (Interlocked.Exchange(ref _warningWritten, 1) == 0)
-            {
-                WarnMemoryCacheFallback();
-            }
+            _warningSink("[auth] WARNING: unencrypted token-cache storage is enabled. Protect the cache file and prefer the encrypted OS cache or the in-memory fallback.");
         }
     }
 
