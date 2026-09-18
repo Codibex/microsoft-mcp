@@ -48,7 +48,7 @@ public static class SetupGuide
     public static string TenantHint(string account)
     {
         return account.Equals("personal", StringComparison.OrdinalIgnoreCase)
-            ? "common"
+            ? "consumers"
             : "<tenant-guid>";
     }
 

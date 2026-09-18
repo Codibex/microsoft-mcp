@@ -7,7 +7,9 @@ Quelle der Wahrheit für Agenten und CLI: diese Datei
 
 ## 0. Drei Fragen zuerst (nicht raten)
 
-1. **Konto:** Arbeit (Org-Tenant, GUID) oder Personal (`outlook.com` etc., `common`)?
+1. **Konto:** Arbeit (Org-Tenant, GUID) oder Personal (`outlook.com` etc.)?
+  Für eine reine Personal-App `TenantId=consumers` verwenden; für eine App
+  für Organisations- und persönliche Konten `TenantId=common`.
 2. **Domains:** welche von `outlook,onedrive,calendar,teams`?
    Unified host: `microsoft-mcp --servers outlook,calendar` (oder `MCP_SERVERS`),
    ohne Angabe alle.
@@ -44,7 +46,8 @@ microsoft-mcp doctor --servers outlook,calendar
 1. Entra Admin Center → App registrations → New registration
    (Name z. B. `microsoft-mcp`, Account-Typ passend zum Konto).
 2. Overview → **Application (client) ID** + **Directory (tenant) ID** notieren.
-   Personal: `TenantId` = `common` (oder `consumers`).
+  Nur persönliche Konten: `TenantId` = `consumers`; Organisations- und
+  persönliche Konten: `TenantId` = `common`.
 3. Authentication → Add a platform → Mobile and desktop applications →
    `http://localhost` aktivieren (Browser-Login; Device-Code braucht das nicht).
    Public-Client-Flows zulassen (sonst `AADSTS7000218`).
@@ -61,8 +64,10 @@ microsoft-mcp doctor --servers outlook,calendar
    Danach consentieren (selbst oder Admin). App-Only (nur Outlook):
    Application-Permission `Mail.ReadWrite` + Admin-Consent + Client-Secret.
 
-Persönliche Konten brauchen Token-Version 2 + `AzureADandPersonalMicrosoftAccount`
-(siehe `outlook.md` Troubleshooting). Headless ohne Browser:
+Reine Personal-Apps brauchen Token-Version 2 + `PersonalMicrosoftAccount`
+und `TenantId=consumers`. Apps für Organisations- und persönliche Konten
+brauchen Token-Version 2 + `AzureADandPersonalMicrosoftAccount` und
+`TenantId=common` (siehe `outlook.md` Troubleshooting). Headless ohne Browser:
 `Graph__DelegatedFlow=DeviceCode`.
 
 Der Token-Cache ist standardmaessig sicher: Der Server bevorzugt den

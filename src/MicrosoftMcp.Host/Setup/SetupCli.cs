@@ -107,7 +107,7 @@ public static class SetupCli
         }
 
         Console.Out.WriteLine($"Servers: {string.Join(",", servers)} | account: {account} | auth: {auth}");
-        Console.Out.WriteLine($"TenantId: {(account.Equals("personal", StringComparison.OrdinalIgnoreCase) ? "common" : "<tenant-guid>")} | ClientId: <client-id from Entra overview>");
+        Console.Out.WriteLine($"TenantId: {tenantHint} | ClientId: <client-id from Entra overview>");
         Console.Out.WriteLine($"Delegated scopes to consent: {string.Join(" ", scopes)}"
             + (auth == AuthMode.AppOnly ? " (+ application Mail.ReadWrite, admin consent, client secret)" : ""));
         if (headless)
@@ -116,7 +116,7 @@ public static class SetupCli
         }
 
         Console.Out.WriteLine("Entra (once): app registration → Mobile+desktop http://localhost → API permissions above → consent.");
-        Console.Out.WriteLine("Personal accounts: token v2 + AzureADandPersonalMicrosoftAccount (see outlook.md troubleshooting).");
+        Console.Out.WriteLine("Personal accounts: token v2; personal-only -> TenantId=consumers + PersonalMicrosoftAccount; mixed org+personal -> TenantId=common + AzureADandPersonalMicrosoftAccount (see outlook.md troubleshooting).");
         Console.Out.WriteLine();
         Console.Out.WriteLine($"Client file: {SetupGuide.ConfigFile(client)} (key {SetupGuide.TopLevelKey(client)})");
         Console.Out.WriteLine(snippet);

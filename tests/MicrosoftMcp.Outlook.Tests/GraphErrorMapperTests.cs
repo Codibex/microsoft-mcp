@@ -104,6 +104,19 @@ public sealed class GraphErrorMapperTests
     }
 
     [Fact]
+    public void Personal_only_app_hint_for_2346()
+    {
+        var ex = new AuthenticationFailedException(
+            "AADSTS2346: The app is configured for personal Microsoft accounts only.");
+
+        var mapped = GraphErrorMapper.ToMailServiceException(ex, "outlook_search_emails");
+
+        mapped.Code.Should().Be("auth-failed");
+        mapped.Message.Should().Contain("TenantId=consumers");
+        mapped.Message.Should().Contain("AzureADandPersonalMicrosoftAccount");
+    }
+
+    [Fact]
     public void MailServiceException_passes_through_untouched()
     {
         var original = MailServiceException.FolderNotFound("x");

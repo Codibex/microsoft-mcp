@@ -32,7 +32,7 @@ public sealed class SetupGuideTests
     [Fact]
     public void Tenant_hint_depends_on_account()
     {
-        SetupGuide.TenantHint("personal").Should().Be("common");
+        SetupGuide.TenantHint("personal").Should().Be("consumers");
         SetupGuide.TenantHint("work").Should().Be("<tenant-guid>");
     }
 

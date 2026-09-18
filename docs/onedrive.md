@@ -37,8 +37,10 @@ dotnet user-secrets set "Graph:ClientId" "<client-id>" \
 ```
 
 The host template defaults `DelegatedScopes` to the Files scopes, so no
-scope config is needed. Personal accounts: `Graph:TenantId` = `common`
-(see [Outlook troubleshooting](outlook.md#9-troubleshooting)). Headless:
+scope config is needed. For supported personal-account scenarios, use
+`Graph:TenantId=consumers` with a personal-only app, or `common` with an org
+and personal app (see [Outlook troubleshooting](outlook.md#9-troubleshooting)).
+Headless:
 `Graph:DelegatedFlow` = `DeviceCode`.
 
 ## 4. Run

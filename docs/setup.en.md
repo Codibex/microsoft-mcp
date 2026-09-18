@@ -7,7 +7,9 @@ Source of truth for agents and the CLI: this file
 
 ## 0. Three questions first (don't guess)
 
-1. **Account:** work (org tenant, GUID) or personal (`outlook.com` etc., `common`)?
+1. **Account:** work (org tenant, GUID) or personal (`outlook.com` etc.)?
+  For a personal-only app use `TenantId=consumers`; for an app supporting
+  both org and personal accounts use `TenantId=common`.
 2. **Domains:** which of `outlook,onedrive,calendar,teams`?
    Unified host: `microsoft-mcp --servers outlook,calendar` (or `MCP_SERVERS`),
    no argument means all.
@@ -44,7 +46,8 @@ microsoft-mcp doctor --servers outlook,calendar
 1. Entra Admin Center → App registrations → New registration
    (name e.g. `microsoft-mcp`, account type matching your account).
 2. Overview → note down **Application (client) ID** + **Directory (tenant) ID**.
-   Personal: `TenantId` = `common` (or `consumers`).
+  Personal-only: `TenantId` = `consumers`; org + personal app:
+  `TenantId` = `common`.
 3. Authentication → Add a platform → Mobile and desktop applications →
    enable `http://localhost` (browser login; device code doesn't need it).
    Allow public client flows (otherwise `AADSTS7000218`).
@@ -61,7 +64,9 @@ microsoft-mcp doctor --servers outlook,calendar
    Then consent (yourself or your admin). App-Only (Outlook only):
    application permission `Mail.ReadWrite` + admin consent + client secret.
 
-Personal accounts need token version 2 + `AzureADandPersonalMicrosoftAccount`
+Personal-only apps use token version 2 + `PersonalMicrosoftAccount` and
+`TenantId=consumers`. Apps supporting org + personal accounts use token
+version 2 + `AzureADandPersonalMicrosoftAccount` and `TenantId=common`
 (see `outlook.md` troubleshooting). Headless without browser:
 `Graph__DelegatedFlow=DeviceCode`.
 

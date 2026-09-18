@@ -45,7 +45,7 @@ public static class DoctorChecks
         if (string.IsNullOrWhiteSpace(options.TenantId)
             || options.TenantId.Contains("YOUR-", StringComparison.OrdinalIgnoreCase))
         {
-            checks.Add(new SetupCheck("tenant", false, "Graph:TenantId is missing or still a placeholder.", "Next: set Graph__TenantId (work: tenant GUID, personal: common)."));
+            checks.Add(new SetupCheck("tenant", false, "Graph:TenantId is missing or still a placeholder.", "Next: set Graph__TenantId (work: tenant GUID, personal-only: consumers, mixed org+personal app: common)."));
         }
         else if (SpecialTenants.Contains(options.TenantId, StringComparer.OrdinalIgnoreCase)
             || Guid.TryParse(options.TenantId, out _))
@@ -54,7 +54,7 @@ public static class DoctorChecks
         }
         else
         {
-            checks.Add(new SetupCheck("tenant", false, $"TenantId '{options.TenantId}' is neither a GUID nor common/consumers/organizations.", "Next: work → tenant GUID, personal → common."));
+            checks.Add(new SetupCheck("tenant", false, $"TenantId '{options.TenantId}' is neither a GUID nor common/consumers/organizations.", "Next: work → tenant GUID, personal-only → consumers, mixed org+personal app → common."));
         }
 
         if (string.IsNullOrWhiteSpace(options.ClientId)
