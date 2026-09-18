@@ -157,6 +157,7 @@ public sealed class TokenCredentialFactoryTests
         string path = Path.Combine(directory, "authentication-record.json");
         AuthenticationRecord record = CreateAuthenticationRecord();
         var persistent = new AuthenticationRequiredCredential();
+        TokenRequestContext? observedContext = null;
         int authenticateCalls = 0;
         try
         {
@@ -166,8 +167,9 @@ public sealed class TokenCredentialFactoryTests
                 persistent,
                 memory: null,
                 _ => { },
-                _ =>
+                (context, _) =>
                 {
+                    observedContext = context;
                     authenticateCalls++;
                     persistent.Authenticated = true;
                     return Task.FromResult(record);
@@ -178,6 +180,8 @@ public sealed class TokenCredentialFactoryTests
 
             token.Token.Should().Be("token");
             authenticateCalls.Should().Be(1);
+            observedContext.Should().NotBeNull();
+            observedContext!.Value.Scopes.Should().Contain("scope");
             warnings.Should().BeEmpty();
 
             AuthenticationRecord? restored = new AuthenticationRecordStore(path).Load();
@@ -202,7 +206,7 @@ public sealed class TokenCredentialFactoryTests
             persistent,
             memory,
             warnings.Add,
-            _ => throw new InvalidOperationException("Persistence check failed: libsecret"));
+            (_, _) => throw new InvalidOperationException("Persistence check failed: libsecret"));
 
         AccessToken token = credential.GetToken(new TokenRequestContext(["scope"]), CancellationToken.None);
 
@@ -215,14 +219,16 @@ public sealed class TokenCredentialFactoryTests
     public async Task Token_cache_async_authenticates_and_saves_record_when_silent_authentication_is_required()
     {
         var persistent = new AuthenticationRequiredCredential();
+        TokenRequestContext? observedContext = null;
         int authenticateCalls = 0;
         int savedRecords = 0;
         var credential = new TokenCacheCredential(
             persistent,
             memory: null,
             _ => { },
-            _ =>
+            (context, _) =>
             {
+                observedContext = context;
                 authenticateCalls++;
                 persistent.Authenticated = true;
                 return Task.FromResult(CreateAuthenticationRecord());
@@ -233,6 +239,8 @@ public sealed class TokenCredentialFactoryTests
 
         token.Token.Should().Be("token");
         authenticateCalls.Should().Be(1);
+        observedContext.Should().NotBeNull();
+        observedContext!.Value.Scopes.Should().Contain("scope");
         savedRecords.Should().Be(1);
     }
 
@@ -246,7 +254,7 @@ public sealed class TokenCredentialFactoryTests
             persistent,
             memory,
             warnings.Add,
-            _ => Task.FromException<AuthenticationRecord>(
+            (_, _) => Task.FromException<AuthenticationRecord>(
                 new InvalidOperationException("Persistence check failed: libsecret")));
 
         AccessToken token = await credential.GetTokenAsync(new TokenRequestContext(["scope"]), CancellationToken.None);
@@ -269,7 +277,7 @@ public sealed class TokenCredentialFactoryTests
             persistent,
             memory,
             warnings.Add,
-            _ =>
+            (_, _) =>
             {
                 persistent.Authenticated = true;
                 return Task.FromResult(CreateAuthenticationRecord());
@@ -295,7 +303,7 @@ public sealed class TokenCredentialFactoryTests
             persistent,
             memory,
             warnings.Add,
-            _ =>
+            (_, _) =>
             {
                 persistent.Authenticated = true;
                 return Task.FromResult(CreateAuthenticationRecord());
