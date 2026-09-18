@@ -42,6 +42,10 @@ public sealed class GraphAuthOptions
 
     public bool EnableTokenCache { get; set; } = true;
 
+    public bool FallbackToMemoryTokenCache { get; set; } = true;
+
+    public bool UnsafeAllowUnencryptedTokenCache { get; set; }
+
     public AppCredentialKind AppCredential { get; set; } = AppCredentialKind.ClientSecret;
 
     /// <summary>Via Graph__ClientSecret env var or user-secrets. Never commit.</summary>

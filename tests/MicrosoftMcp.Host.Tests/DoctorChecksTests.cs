@@ -41,6 +41,30 @@ public sealed class DoctorChecksTests
     }
 
     [Fact]
+    public void Delegated_cache_uses_memory_fallback_by_default()
+    {
+        var cache = DoctorChecks.Run(["calendar"], Delegated(), policyPath: null, policyError: null)
+            .First(c => c.Id == "cache");
+
+        cache.Ok.Should().BeTrue();
+        cache.Message.Should().Contain("in-memory fallback");
+    }
+
+    [Fact]
+    public void Unencrypted_cache_is_explicitly_reported()
+    {
+        var options = Delegated();
+        options.UnsafeAllowUnencryptedTokenCache = true;
+
+        var cache = DoctorChecks.Run(["calendar"], options, policyPath: null, policyError: null)
+            .First(c => c.Id == "cache");
+
+        cache.Ok.Should().BeTrue();
+        cache.Message.Should().Contain("unencrypted");
+        cache.Next.Should().Contain("Graph__EnableTokenCache=false");
+    }
+
+    [Fact]
     public void Bad_tenant_format_fails()
     {
         var checks = DoctorChecks.Run(["outlook"], Delegated(tenant: "not-a-tenant"), policyPath: null, policyError: null);

@@ -65,6 +65,14 @@ Personal accounts need token version 2 + `AzureADandPersonalMicrosoftAccount`
 (see `outlook.md` troubleshooting). Headless without browser:
 `Graph__DelegatedFlow=DeviceCode`.
 
+Token caching is secure by default: the server prefers the encrypted OS cache
+and falls back to an in-memory cache when Linux Secret Service is unavailable.
+The fallback keeps the process usable, but requires a new login after restart.
+For persistence on a headless Linux host, install and run GNOME Keyring/libsecret
+with a D-Bus session. To disable persistence explicitly, set
+`Graph__EnableTokenCache=false`. Only if unencrypted disk storage is acceptable,
+set `Graph__UnsafeAllowUnencryptedTokenCache=true`; this is not recommended.
+
 ## 3. Wire up the client
 
 Secrets go into `env`, never into the repo. Generate a template:
@@ -151,3 +159,8 @@ headless → `DeviceCode`, empty tool list → check stderr for
   `ClientId` GUID, AuthMode vs. domains, scopes vs. selection,
   `DelegatedFlow`, `policy.json` found/protected (warning only if missing).
   No network, no token. `--json` → `{ "checks": [{ "id", "ok", "message", "next" }] }`.
+
+Cache settings: `Graph__FallbackToMemoryTokenCache` defaults to `true` and keeps
+delegated auth usable without a keyring. Set it to `false` only when persistent
+encrypted storage is required; on headless Linux, `doctor` then fails if no
+D-Bus session is detected. Changing the cache name can require one new login.

@@ -74,6 +74,8 @@ public static class DoctorChecks
             ? new SetupCheck("authmode", true, $"AuthMode {options.AuthMode} fits servers {string.Join(",", servers)}.", null)
             : new SetupCheck("authmode", false, $"AuthMode {options.AuthMode} does not fit servers {string.Join(",", servers)}.", comboError));
 
+        checks.Add(CacheCheck(options));
+
         if (options.AuthMode == AuthMode.AppOnly)
         {
             if (string.Equals(options.UserIdOrUpn, "me", StringComparison.OrdinalIgnoreCase))
@@ -114,5 +116,51 @@ public static class DoctorChecks
                 : "Next (headless only): set Graph__DelegatedFlow=DeviceCode."));
 
         return checks;
+    }
+
+    private static SetupCheck CacheCheck(GraphAuthOptions options)
+    {
+        if (options.AuthMode == AuthMode.AppOnly || !options.EnableTokenCache)
+        {
+            return new SetupCheck(
+                "cache",
+                true,
+                options.EnableTokenCache
+                    ? "Token cache is not used for AppOnly auth."
+                    : "Persistent token cache disabled; a new login is required after each process start.",
+                null);
+        }
+
+        if (options.UnsafeAllowUnencryptedTokenCache)
+        {
+            return new SetupCheck(
+                "cache",
+                true,
+                "WARNING: token cache may be stored unencrypted on disk.",
+                "Next: prefer the encrypted OS cache, or set Graph__EnableTokenCache=false.");
+        }
+
+        if (options.FallbackToMemoryTokenCache)
+        {
+            return new SetupCheck(
+                "cache",
+                true,
+                "Encrypted OS token cache preferred; in-memory fallback enabled if Secret Service is unavailable.",
+                "Next (optional): install GNOME Keyring/libsecret for persistence across restarts.");
+        }
+
+        bool likelyHeadlessLinux = OperatingSystem.IsLinux()
+            && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS"));
+        return likelyHeadlessLinux
+            ? new SetupCheck(
+                "cache",
+                false,
+                "Persistent token cache requires a Linux Secret Service, but no D-Bus session was detected.",
+                "Next: enable GNOME Keyring/libsecret, or set Graph__FallbackToMemoryTokenCache=true.")
+            : new SetupCheck(
+                "cache",
+                true,
+                "Encrypted OS token cache required; Secret Service availability is not verified offline.",
+                "Next: set Graph__FallbackToMemoryTokenCache=true unless persistence is guaranteed.");
     }
 }

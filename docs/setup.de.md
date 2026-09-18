@@ -65,6 +65,16 @@ Persönliche Konten brauchen Token-Version 2 + `AzureADandPersonalMicrosoftAccou
 (siehe `outlook.md` Troubleshooting). Headless ohne Browser:
 `Graph__DelegatedFlow=DeviceCode`.
 
+Der Token-Cache ist standardmaessig sicher: Der Server bevorzugt den
+verschluesselten OS-Cache und wechselt auf einen In-Memory-Cache, wenn der Linux
+Secret Service nicht verfuegbar ist. Der Prozess bleibt dadurch nutzbar, nach
+einem Neustart ist jedoch eine neue Anmeldung noetig. Fuer Persistenz auf einem
+headless Linux-Host GNOME Keyring/libsecret mit einer D-Bus-Session einrichten.
+Persistenz laesst sich mit `Graph__EnableTokenCache=false` vollstaendig
+deaktivieren. Nur wenn unverschluesselte Speicherung auf der Festplatte
+akzeptabel ist, `Graph__UnsafeAllowUnencryptedTokenCache=true` setzen; das wird
+nicht empfohlen.
+
 ## 3. Client verdrahten
 
 Secrets gehören in `env`, nie ins Repo. Template generieren:
@@ -151,3 +161,9 @@ headless → `DeviceCode`, leere Tool-Liste → stderr auf
   `ClientId`-GUID, AuthMode vs. Domains, Scopes vs. Auswahl,
   `DelegatedFlow`, `policy.json`-Fund/Schutz (nur Warnung wenn fehlend).
   Kein Netzwerk, kein Token. `--json` → `{ "checks": [{ "id", "ok", "message", "next" }] }`.
+
+Cache-Einstellungen: `Graph__FallbackToMemoryTokenCache` ist standardmaessig
+`true` und haelt Delegated-Auth ohne Keyring nutzbar. Nur wenn persistenter,
+verschluesselter Speicher zwingend erforderlich ist, auf `false` setzen; auf
+headless Linux schlaegt `doctor` dann ohne erkannte D-Bus-Session fehl. Eine
+Aenderung des Cache-Namens kann eine einmalige neue Anmeldung erfordern.

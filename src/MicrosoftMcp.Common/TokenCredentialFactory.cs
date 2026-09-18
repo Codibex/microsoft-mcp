@@ -29,10 +29,40 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
             throw MailServiceException.AuthMisconfigured("Graph:ClientId is required for delegated auth.");
         }
 
-        TokenCachePersistenceOptions? cache = options.EnableTokenCache
-            ? new TokenCachePersistenceOptions { Name = "microsoft-mcp-outlook" }
-            : null;
+        if (!options.EnableTokenCache)
+        {
+            return CreateDelegatedCredential(options, cache: null);
+        }
 
+        TokenCachePersistenceOptions cache = new()
+        {
+            Name = "microsoft-mcp-graph",
+            UnsafeAllowUnencryptedStorage = options.UnsafeAllowUnencryptedTokenCache
+        };
+
+        try
+        {
+            TokenCredential persistent = CreateDelegatedCredential(options, cache);
+            if (!options.FallbackToMemoryTokenCache)
+            {
+                return persistent;
+            }
+
+            return new CacheFallbackCredential(
+                persistent,
+                CreateDelegatedCredential(options, cache: null));
+        }
+        catch (Exception ex) when (options.FallbackToMemoryTokenCache && IsTokenCachePersistenceFailure(ex))
+        {
+            WarnMemoryCacheFallback();
+            return CreateDelegatedCredential(options, cache: null);
+        }
+    }
+
+    private static TokenCredential CreateDelegatedCredential(
+        GraphAuthOptions options,
+        TokenCachePersistenceOptions? cache)
+    {
         if (options.DelegatedFlow == DelegatedFlow.DeviceCode)
         {
             return new DeviceCodeCredential(new DeviceCodeCredentialOptions
@@ -56,6 +86,83 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
             ClientId = options.ClientId,
             TokenCachePersistenceOptions = cache
         });
+    }
+
+    private static bool IsTokenCachePersistenceFailure(Exception ex)
+    {
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            string message = current.Message;
+            if (message.Contains("Persistence check failed", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("libsecret", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Secret Service", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("keyring", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void WarnMemoryCacheFallback() =>
+        Console.Error.WriteLine("[auth] Persistent token cache unavailable; using an in-memory cache. Tokens will not survive a process restart. Install a Secret Service or set Graph__UnsafeAllowUnencryptedTokenCache=true to persist an unencrypted cache.");
+
+    private sealed class CacheFallbackCredential(
+        TokenCredential persistent,
+        TokenCredential memory) : TokenCredential
+    {
+        private int _useMemory;
+        private int _warningWritten;
+
+        public override AccessToken GetToken(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken)
+        {
+            if (Volatile.Read(ref _useMemory) != 0)
+            {
+                return memory.GetToken(requestContext, cancellationToken);
+            }
+
+            try
+            {
+                return persistent.GetToken(requestContext, cancellationToken);
+            }
+            catch (Exception ex) when (IsTokenCachePersistenceFailure(ex))
+            {
+                SwitchToMemory();
+                return memory.GetToken(requestContext, cancellationToken);
+            }
+        }
+
+        public override async ValueTask<AccessToken> GetTokenAsync(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken)
+        {
+            if (Volatile.Read(ref _useMemory) != 0)
+            {
+                return await memory.GetTokenAsync(requestContext, cancellationToken);
+            }
+
+            try
+            {
+                return await persistent.GetTokenAsync(requestContext, cancellationToken);
+            }
+            catch (Exception ex) when (IsTokenCachePersistenceFailure(ex))
+            {
+                SwitchToMemory();
+                return await memory.GetTokenAsync(requestContext, cancellationToken);
+            }
+        }
+
+        private void SwitchToMemory()
+        {
+            Interlocked.Exchange(ref _useMemory, 1);
+            if (Interlocked.Exchange(ref _warningWritten, 1) == 0)
+            {
+                WarnMemoryCacheFallback();
+            }
+        }
     }
 
     private static TokenCredential CreateAppOnly(GraphAuthOptions options)

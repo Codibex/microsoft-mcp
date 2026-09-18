@@ -182,8 +182,6 @@ Details + stack traces go to the server log (stderr) only, never to the client.
 - `AADSTS7000218` (client_assertion/client_secret required) → in the
   app registration go to **Authentication → Allow public client flows
   → Yes** (device code / browser are public-client flows)
-- Token cache errors (Linux without keyring) →
-  `Graph__EnableTokenCache=false`
 - `[access-denied]` → check consent/scopes from section 2
   (delegated: `Mail.ReadWrite`; app-only: `Mail.ReadWrite` + admin consent)
 - `[throttled]` → wait ~60 s, smaller `top`
@@ -282,4 +280,3 @@ Precedence: user-secrets / env override `appsettings.json`.
 | `Graph:DelegatedScopes` | `Graph__DelegatedScopes` | (host template) | Outlook template: `Mail.Read,Mail.ReadWrite`. Only change for special tenants |
 | `Graph:ClientSecret` | `Graph__ClientSecret` | – | Recipe B only |
 | `Graph:AppCredential` | `Graph__AppCredential` | `ClientSecret` | `ClientSecret`, `ManagedIdentity` (`Certificate`: not wired yet) |
-| `Graph:EnableTokenCache` | `Graph__EnableTokenCache` | `true` | Set to `false` on keyring issues |
