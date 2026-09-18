@@ -6,15 +6,19 @@ namespace MicrosoftMcp.Common;
 public sealed class TokenCredentialFactory : ITokenCredentialProvider
 {
     private readonly Action<string> _warningSink;
+    private readonly Func<GraphAuthOptions, TokenCachePersistenceOptions?, TokenCredential> _credentialFactory;
     private int _unsafeCacheWarningWritten;
 
-    public TokenCredentialFactory() : this(Console.Error.WriteLine)
+    public TokenCredentialFactory() : this(Console.Error.WriteLine, null)
     {
     }
 
-    internal TokenCredentialFactory(Action<string> warningSink)
+    internal TokenCredentialFactory(
+        Action<string> warningSink,
+        Func<GraphAuthOptions, TokenCachePersistenceOptions?, TokenCredential>? credentialFactory = null)
     {
         _warningSink = warningSink ?? throw new ArgumentNullException(nameof(warningSink));
+        _credentialFactory = credentialFactory ?? CreateDelegatedCredential;
     }
 
     public TokenCredential GetCredential(GraphAuthOptions options)
@@ -59,9 +63,9 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
 
         try
         {
-            TokenCredential persistent = CreateDelegatedCredential(options, cache);
+            TokenCredential persistent = _credentialFactory(options, cache);
             TokenCredential? memory = options.FallbackToMemoryTokenCache
-                ? CreateDelegatedCredential(options, cache: null)
+                ? _credentialFactory(options, null)
                 : null;
             return new TokenCacheCredential(persistent, memory, _warningSink);
         }
@@ -70,7 +74,7 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
             if (options.FallbackToMemoryTokenCache)
             {
                 WarnMemoryCacheFallback();
-                return CreateDelegatedCredential(options, cache: null);
+                return _credentialFactory(options, null);
             }
 
             throw MailServiceException.AuthCacheUnavailable(ex);

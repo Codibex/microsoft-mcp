@@ -109,6 +109,30 @@ public sealed class TokenCredentialFactoryTests
     }
 
     [Fact]
+    public void Token_cache_construction_failure_falls_back_to_memory()
+    {
+        List<string> warnings = [];
+        var factory = new TokenCredentialFactory(
+            warnings.Add,
+            (_, cache) => cache is null
+                ? new CountingCredential()
+                : throw new InvalidOperationException("Persistence check failed: libsecret"));
+        var options = new GraphAuthOptions
+        {
+            AuthMode = AuthMode.Delegated,
+            TenantId = "t",
+            ClientId = "c"
+        };
+
+        TokenCredential credential = factory.GetCredential(options);
+        credential.GetToken(new TokenRequestContext(["scope"]), CancellationToken.None).Token
+            .Should().Be("token");
+
+        warnings.Count.Should().Be(1);
+        warnings[0].Should().Contain("in-memory cache");
+    }
+
+    [Fact]
     public void Token_cache_strict_mode_throws_actionable_cache_error()
     {
         var credential = new TokenCacheCredential(
