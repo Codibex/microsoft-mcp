@@ -73,6 +73,12 @@ version 2 + `AzureADandPersonalMicrosoftAccount` and `TenantId=common`
 Token caching is secure by default: the server prefers the encrypted OS cache
 and falls back to an in-memory cache when Linux Secret Service is unavailable.
 The fallback keeps the process usable, but requires a new login after restart.
+With persistent caching enabled, the server also stores the non-secret Azure
+Identity authentication record needed to select the cached account after a
+restart. It is stored in the current user's local application data directory:
+normally `%LOCALAPPDATA%\\microsoft-mcp\\authentication-record.json` on
+Windows and `~/.local/share/microsoft-mcp/authentication-record.json` on Linux.
+The Windows token cache is protected by DPAPI; on Linux it uses Secret Service.
 For persistence on a headless Linux host, install and run GNOME Keyring/libsecret
 with a D-Bus session. To disable persistence explicitly, set
 `Graph__EnableTokenCache=false`. Only if unencrypted disk storage is acceptable,

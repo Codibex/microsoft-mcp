@@ -73,8 +73,16 @@ brauchen Token-Version 2 + `AzureADandPersonalMicrosoftAccount` und
 Der Token-Cache ist standardmaessig sicher: Der Server bevorzugt den
 verschluesselten OS-Cache und wechselt auf einen In-Memory-Cache, wenn der Linux
 Secret Service nicht verfuegbar ist. Der Prozess bleibt dadurch nutzbar, nach
-einem Neustart ist jedoch eine neue Anmeldung noetig. Fuer Persistenz auf einem
-headless Linux-Host GNOME Keyring/libsecret mit einer D-Bus-Session einrichten.
+einem Neustart ist jedoch eine neue Anmeldung noetig. Bei aktivierter
+Persistenz speichert der Server zusaetzlich den nicht geheimen Azure-Identity-
+Authentifizierungsdatensatz, damit das zwischengespeicherte Konto ausgewaehlt
+werden kann. Er liegt im lokalen Anwendungsdatenverzeichnis des aktuellen
+Benutzers: unter Windows normalerweise `%LOCALAPPDATA%\\microsoft-mcp\\authentication-record.json`
+und unter Linux `~/.local/share/microsoft-mcp/authentication-record.json`.
+Der Windows-Token-Cache wird durch DPAPI
+geschuetzt, unter Linux durch Secret Service.
+Fuer Persistenz auf einem headless Linux-Host GNOME Keyring/libsecret mit einer
+D-Bus-Session einrichten.
 Persistenz laesst sich mit `Graph__EnableTokenCache=false` vollstaendig
 deaktivieren. Nur wenn unverschluesselte Speicherung auf der Festplatte
 akzeptabel ist, `Graph__UnsafeAllowUnencryptedTokenCache=true` setzen; das wird

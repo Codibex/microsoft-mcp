@@ -1,6 +1,9 @@
 using Azure.Core;
+using Azure.Identity;
 using AwesomeAssertions;
 using MicrosoftMcp.Common;
+using NSubstitute;
+using System.IO.Abstractions;
 
 namespace MicrosoftMcp.Common.Tests;
 
@@ -148,6 +151,327 @@ public sealed class TokenCredentialFactoryTests
     }
 
     [Fact]
+    public void Token_cache_authenticates_and_saves_record_when_silent_authentication_is_required()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"microsoft-mcp-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "authentication-record.json");
+        AuthenticationRecord record = CreateAuthenticationRecord();
+        var persistent = new AuthenticationRequiredCredential();
+        int authenticateCalls = 0;
+        try
+        {
+            var store = new AuthenticationRecordStore(path);
+            List<string> warnings = [];
+            var credential = new TokenCacheCredential(
+                persistent,
+                memory: null,
+                _ => { },
+                _ =>
+                {
+                    authenticateCalls++;
+                    persistent.Authenticated = true;
+                    return Task.FromResult(record);
+                },
+                authenticatedRecord => store.Save(authenticatedRecord, warnings.Add));
+
+            AccessToken token = credential.GetToken(new TokenRequestContext(["scope"]), CancellationToken.None);
+
+            token.Token.Should().Be("token");
+            authenticateCalls.Should().Be(1);
+            warnings.Should().BeEmpty();
+
+            AuthenticationRecord? restored = new AuthenticationRecordStore(path).Load();
+            restored.Should().NotBeNull();
+            restored!.ClientId.Should().Be(record.ClientId);
+            restored.HomeAccountId.Should().Be(record.HomeAccountId);
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(directory);
+        }
+    }
+
+    [Fact]
+    public void Token_cache_authentication_persistence_failure_falls_back_to_memory()
+    {
+        List<string> warnings = [];
+        var persistent = new AuthenticationRequiredCredential();
+        var memory = new CountingCredential();
+        var credential = new TokenCacheCredential(
+            persistent,
+            memory,
+            warnings.Add,
+            _ => throw new InvalidOperationException("Persistence check failed: libsecret"));
+
+        AccessToken token = credential.GetToken(new TokenRequestContext(["scope"]), CancellationToken.None);
+
+        token.Token.Should().Be("token");
+        memory.Calls.Should().Be(1);
+        warnings.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Token_cache_async_authenticates_and_saves_record_when_silent_authentication_is_required()
+    {
+        var persistent = new AuthenticationRequiredCredential();
+        int authenticateCalls = 0;
+        int savedRecords = 0;
+        var credential = new TokenCacheCredential(
+            persistent,
+            memory: null,
+            _ => { },
+            _ =>
+            {
+                authenticateCalls++;
+                persistent.Authenticated = true;
+                return Task.FromResult(CreateAuthenticationRecord());
+            },
+            _ => savedRecords++);
+
+        AccessToken token = await credential.GetTokenAsync(new TokenRequestContext(["scope"]), CancellationToken.None);
+
+        token.Token.Should().Be("token");
+        authenticateCalls.Should().Be(1);
+        savedRecords.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Token_cache_async_authentication_persistence_failure_falls_back_to_memory()
+    {
+        List<string> warnings = [];
+        var persistent = new AuthenticationRequiredCredential();
+        var memory = new CountingCredential();
+        var credential = new TokenCacheCredential(
+            persistent,
+            memory,
+            warnings.Add,
+            _ => Task.FromException<AuthenticationRecord>(
+                new InvalidOperationException("Persistence check failed: libsecret")));
+
+        AccessToken token = await credential.GetTokenAsync(new TokenRequestContext(["scope"]), CancellationToken.None);
+
+        token.Token.Should().Be("token");
+        memory.Calls.Should().Be(1);
+        warnings.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public void Token_cache_retry_persistence_failure_falls_back_to_memory()
+    {
+        List<string> warnings = [];
+        var persistent = new AuthenticationRequiredCredential
+        {
+            FailureAfterAuthentication = "Persistence check failed: libsecret"
+        };
+        var memory = new CountingCredential();
+        var credential = new TokenCacheCredential(
+            persistent,
+            memory,
+            warnings.Add,
+            _ =>
+            {
+                persistent.Authenticated = true;
+                return Task.FromResult(CreateAuthenticationRecord());
+            });
+
+        AccessToken token = credential.GetToken(new TokenRequestContext(["scope"]), CancellationToken.None);
+
+        token.Token.Should().Be("token");
+        memory.Calls.Should().Be(1);
+        warnings.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Token_cache_async_retry_persistence_failure_falls_back_to_memory()
+    {
+        List<string> warnings = [];
+        var persistent = new AuthenticationRequiredCredential
+        {
+            FailureAfterAuthentication = "Persistence check failed: libsecret"
+        };
+        var memory = new CountingCredential();
+        var credential = new TokenCacheCredential(
+            persistent,
+            memory,
+            warnings.Add,
+            _ =>
+            {
+                persistent.Authenticated = true;
+                return Task.FromResult(CreateAuthenticationRecord());
+            });
+
+        AccessToken token = await credential.GetTokenAsync(new TokenRequestContext(["scope"]), CancellationToken.None);
+
+        token.Token.Should().Be("token");
+        memory.Calls.Should().Be(1);
+        warnings.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public void New_factory_instance_restores_record_for_persistent_credential()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"microsoft-mcp-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "authentication-record.json");
+        AuthenticationRecord record = CreateAuthenticationRecord();
+        AuthenticationRecord? observed = null;
+        try
+        {
+            var store = new AuthenticationRecordStore(path);
+            List<string> warnings = [];
+            store.Save(record, warnings.Add);
+            warnings.Should().BeEmpty();
+
+            var factory = new TokenCredentialFactory(
+                _ => { },
+                (options, cache, authenticationRecord) =>
+                {
+                    observed = authenticationRecord;
+                    cache.Should().NotBeNull();
+                    return new CountingCredential();
+                },
+                new AuthenticationRecordStore(path));
+
+            factory.GetCredential(new GraphAuthOptions
+            {
+                AuthMode = AuthMode.Delegated,
+                TenantId = record.TenantId,
+                ClientId = record.ClientId,
+                FallbackToMemoryTokenCache = false
+            });
+
+            observed.Should().NotBeNull();
+            observed!.Username.Should().Be(record.Username);
+            observed.HomeAccountId.Should().Be(record.HomeAccountId);
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(directory);
+        }
+    }
+
+    [Fact]
+    public void New_factory_instance_rejects_record_from_different_concrete_tenant()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"microsoft-mcp-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "authentication-record.json");
+        AuthenticationRecord record = CreateAuthenticationRecord();
+        AuthenticationRecord? observed = null;
+        try
+        {
+            new AuthenticationRecordStore(path).Save(record, _ => { });
+            var factory = new TokenCredentialFactory(
+                _ => { },
+                (_, _, authenticationRecord) =>
+                {
+                    observed = authenticationRecord;
+                    return new CountingCredential();
+                },
+                new AuthenticationRecordStore(path));
+
+            factory.GetCredential(new GraphAuthOptions
+            {
+                AuthMode = AuthMode.Delegated,
+                TenantId = "different-tenant-id",
+                ClientId = record.ClientId,
+                FallbackToMemoryTokenCache = false
+            });
+
+            observed.Should().BeNull();
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(directory);
+        }
+    }
+
+    [Theory]
+    [InlineData("common")]
+    [InlineData("consumers")]
+    [InlineData("organizations")]
+    public void New_factory_instance_accepts_special_tenant_aliases(string tenantId)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"microsoft-mcp-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "authentication-record.json");
+        AuthenticationRecord record = CreateAuthenticationRecord();
+        AuthenticationRecord? observed = null;
+        try
+        {
+            new AuthenticationRecordStore(path).Save(record, _ => { });
+            var factory = new TokenCredentialFactory(
+                _ => { },
+                (_, _, authenticationRecord) =>
+                {
+                    observed = authenticationRecord;
+                    return new CountingCredential();
+                },
+                new AuthenticationRecordStore(path));
+
+            factory.GetCredential(new GraphAuthOptions
+            {
+                AuthMode = AuthMode.Delegated,
+                TenantId = tenantId,
+                ClientId = record.ClientId,
+                FallbackToMemoryTokenCache = false
+            });
+
+            observed.Should().NotBeNull();
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(directory);
+        }
+    }
+
+    [Fact]
+    public void Authentication_record_store_reads_through_file_system_abstraction()
+    {
+        const string path = "/tmp/authentication-record.json";
+        var fileSystem = Substitute.For<IFileSystem>();
+        var file = Substitute.For<IFile>();
+        fileSystem.File.Returns(file);
+        file.Exists(path).Returns(false);
+        var store = new AuthenticationRecordStore(path, fileSystem);
+
+        store.Load().Should().BeNull();
+        file.Received().Exists(path);
+    }
+
+    [Fact]
+    public void Authentication_record_store_injects_unix_permission_changes()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"microsoft-mcp-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "authentication-record.json");
+        List<(string Path, UnixFileMode Mode)> permissionChanges = [];
+        try
+        {
+            var store = new AuthenticationRecordStore(
+                path,
+                setUnixFileMode: (permissionPath, mode) => permissionChanges.Add((permissionPath, mode)));
+
+            store.Save(CreateAuthenticationRecord(), _ => { });
+
+            permissionChanges.Count.Should().Be(OperatingSystem.IsWindows() ? 0 : 3);
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(directory);
+        }
+    }
+
+    private static AuthenticationRecord CreateAuthenticationRecord() =>
+        IdentityModelFactory.AuthenticationRecord(
+            "user@example.test",
+            "https://login.microsoftonline.com/",
+            "home-account-id",
+            "tenant-id",
+            "client-id");
+
+    [Fact]
     public void Unencrypted_cache_warning_is_written_once()
     {
         List<string> warnings = [];
@@ -190,6 +514,41 @@ public sealed class TokenCredentialFactoryTests
         {
             Calls++;
             return ValueTask.FromResult(new AccessToken("token", DateTimeOffset.UtcNow.AddMinutes(5)));
+        }
+    }
+
+    private sealed class AuthenticationRequiredCredential : TokenCredential
+    {
+        public bool Authenticated { get; set; }
+        public string? FailureAfterAuthentication { get; set; }
+
+        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken)
+        {
+            if (!Authenticated)
+            {
+                throw new AuthenticationRequiredException("Authentication required.", requestContext);
+            }
+
+            if (FailureAfterAuthentication is not null)
+            {
+                throw new InvalidOperationException(FailureAfterAuthentication);
+            }
+
+            return new AccessToken("token", DateTimeOffset.UtcNow.AddMinutes(5));
+        }
+
+        public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken)
+        {
+            if (!Authenticated)
+            {
+                return ValueTask.FromException<AccessToken>(new AuthenticationRequiredException(
+                    "Authentication required.",
+                    requestContext));
+            }
+
+            return FailureAfterAuthentication is null
+                ? ValueTask.FromResult(new AccessToken("token", DateTimeOffset.UtcNow.AddMinutes(5)))
+                : ValueTask.FromException<AccessToken>(new InvalidOperationException(FailureAfterAuthentication));
         }
     }
 }
