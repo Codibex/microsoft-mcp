@@ -105,7 +105,7 @@ public sealed class GraphServiceException : Exception
     public static GraphServiceException AccessDenied(int status, string? graphCode, string? detail) => Create(
         "access-denied",
         $"Graph denied access (HTTP {status}{(graphCode is null ? string.Empty : $", {graphCode}")}). {detail ?? "No detail."}",
-        "verify Entra consent and scopes (delegated: Mail.Read/Mail.ReadWrite; app-only: Mail.ReadWrite + admin consent)");
+        "verify Entra consent and the Graph permission required by this operation; application permissions require admin consent");
 
     public static GraphServiceException MailboxUnavailable(string? graphCode, string? detail) => Create(
         "mailbox-unavailable",

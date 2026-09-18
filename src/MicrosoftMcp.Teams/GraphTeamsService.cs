@@ -174,9 +174,19 @@ public sealed class GraphTeamsService : IGraphTeamsService
 
         using Stream? stream = await _client.Me.OnlineMeetings[meetingId.Trim()].Transcripts[transcriptId.Trim()]
             .Content.GetAsync(c => c.Headers.Add("Accept", "text/vtt"), ct).ConfigureAwait(false);
-        string content = stream is null
-            ? string.Empty
-            : await new StreamReader(stream).ReadToEndAsync(ct).ConfigureAwait(false);
+        if (stream is null)
+        {
+            throw GraphServiceException.GraphError(
+                200, null, "Graph returned no meeting transcript content.");
+        }
+
+        string content = await new StreamReader(stream).ReadToEndAsync(ct).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw GraphServiceException.GraphError(
+                200, null, "Graph returned an empty meeting transcript response.");
+        }
+
         return TeamsMapper.MapTranscriptDetail(transcript, content);
     }
 

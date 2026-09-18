@@ -81,8 +81,8 @@ public sealed class TeamsMapperTests
                             "id": "i1",
                             "callId": "c1",
                             "contentCorrelationId": "corr1",
-                            "createdDateTime": "2026-09-19T10:00:00Z",
-                            "endDateTime": "2026-09-19T10:30:00Z",
+                            "createdDateTime": "2025-01-15T10:00:00Z",
+                            "endDateTime": "2025-01-15T10:30:00Z",
                             "meetingNotes": [{
                                 "title": "Decision",
                                 "text": "Use Graph",
@@ -90,7 +90,7 @@ public sealed class TeamsMapperTests
                             }],
                             "actionItems": [{"title": "Implement", "text": "Add tools", "ownerDisplayName": "Alice"}],
                             "viewpoint": {"mentionEvents": [{
-                                "eventDateTime": "2026-09-19T10:10:00Z",
+                                "eventDateTime": "2025-01-15T10:10:00Z",
                                 "transcriptUtterance": "Alice mentioned Bob.",
                                 "speaker": {"user": {"displayName": "Alice"}}
                             }]}
