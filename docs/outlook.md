@@ -163,9 +163,9 @@ folder; omit it or use `null` for a top-level folder.
 `outlook_read_attachment` returns text files decoded (truncated at 20000 chars)
 and binary files as base64; downloads above `maxBytes` (default 768 KB,
 max 2097152) are rejected with `attachment-too-large`. Nested messages
-and reference attachments are reported, not downloaded. Graph v1.0 does not
-guarantee a source URL for reference attachments; `SourceUrl` is populated
-only when Graph returns compatible extra metadata.
+and reference attachments are reported, not downloaded. Graph v1.0 reference
+attachments do not expose a source URL; `SourceUrl` is always `null` for this
+v1.0 client.
 
 Mail drafts can also be created and edited without a `policy.json`; no
 administrative recipient or AI-disclosure rules apply in that case. This is
@@ -181,6 +181,7 @@ Message category updates through `outlook_set_categories` use `Mail.ReadWrite`.
 
 `message-not-found`, `folder-not-found`, `mailbox-unavailable`, `invalid-request`,
 `attachment-too-large`,
+`attachment-not-found`,
 `auth-misconfigured`, `auth-failed`, `access-denied`, `throttled`,
 
 ## 9. Troubleshooting
@@ -392,6 +393,6 @@ Precedence: user-secrets / env override `appsettings.json`.
 | `Graph:ClientId` | `Graph__ClientId` | – (required) | From section 2 |
 | `Graph:UserIdOrUpn` | `Graph__UserIdOrUpn` | `me` | Recipe B: mailbox UPN (required) |
 | `Graph:DelegatedFlow` | `Graph__DelegatedFlow` | `Auto` | Recipe A: `Auto` (= browser), `InteractiveBrowser`, `DeviceCode` (headless) |
-| `Graph:DelegatedScopes` | `Graph__DelegatedScopes` | (host template) | Outlook template: `Mail.Read,Mail.ReadWrite`. Only change for special tenants |
+| `Graph:DelegatedScopes` | `Graph__DelegatedScopes` | (host template) | Outlook template: `Mail.Read,Mail.ReadWrite,MailboxSettings.Read`. Only change for special tenants |
 | `Graph:ClientSecret` | `Graph__ClientSecret` | – | Recipe B only |
 | `Graph:AppCredential` | `Graph__AppCredential` | `ClientSecret` | `ClientSecret`, `ManagedIdentity` (`Certificate`: not wired yet) |

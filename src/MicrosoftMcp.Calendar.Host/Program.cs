@@ -40,7 +40,15 @@ var app = builder.Build();
 // Fail fast on misconfiguration (validator runs here) and print the
 // effective mode to stderr (always visible: the file log level is Warning).
 var graph = app.Services.GetRequiredService<IOptions<GraphAuthOptions>>().Value;
+if (graph.AuthMode == AuthMode.AppOnly)
+{
+    Console.Error.WriteLine(
+        "[startup] AppOnly is not supported by the Calendar host. Next: set Graph:AuthMode=Delegated.");
+    return 1;
+}
+
 Console.Error.WriteLine(
     $"[startup] Calendar auth mode: {graph.AuthMode} (writes require delegated auth, flow {graph.DelegatedFlow})");
 
 await app.RunAsync();
+return 0;

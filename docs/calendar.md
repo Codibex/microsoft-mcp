@@ -2,8 +2,8 @@
 
 Local MCP server (Stdio) for **calendar access** via Microsoft Graph.
 Same pattern as the [Outlook server](outlook.md): Stdio, `isError`
-results with `[code]` hints, delegated or app-only auth via the shared
-`Common` library. Create and update are delegated-only; no delete or move
+results with `[code]` hints, delegated auth via the shared `Common` library.
+The dedicated Calendar host requires delegated auth; no delete or move
 operation is exposed.
 
 ## 1. Prerequisites
@@ -33,8 +33,8 @@ dotnet user-secrets set "Graph:ClientId" "<client-id>" \
 ```
 
 The host template defaults `DelegatedScopes` to `Calendars.Read` and
-`Calendars.ReadWrite`. Create/update require delegated auth; App-Only remains
-available for read operations only.
+`Calendars.ReadWrite`. The dedicated Calendar host requires delegated auth;
+App-Only is not supported.
 If an admin-owned `policy.json` is present, its `calendar` policy applies to
 event attendees. Domains in `allowedAttendeeDomains` are allowed including
 subdomains; exact exceptions can be listed in `allowedAttendeeAddresses`.
