@@ -31,7 +31,6 @@ internal sealed class FakeGraphMailService : IGraphMailService
         /// <summary>file, nested or reference (mirrors Graph attachment types).</summary>
         public required string Kind { get; init; }
         public byte[] Content { get; init; } = [];
-        public string? Url { get; init; }
     }
 
     private readonly List<StoredAttachment> _contents = [];
@@ -91,7 +90,7 @@ internal sealed class FakeGraphMailService : IGraphMailService
         _contents.Add(new StoredAttachment
         {
             Id = "a5", MessageId = "m1", Name = "Budget.xlsx",
-            Kind = "reference", Url = "https://example.sharepoint.com/budget"
+            Kind = "reference"
         });
     }
 
@@ -113,14 +112,17 @@ internal sealed class FakeGraphMailService : IGraphMailService
             : throw GraphServiceException.MessageNotFound(id, "fake");
     }
 
-    private static EmailSummary ToSummary(Stored m) => new(
-        m.Id, m.Subject, new EmailAddressDto("Boss", m.From), [],
-        DateTimeOffset.UtcNow, m.IsRead, m.HasAttachments, m.Categories,
-        m.Importance, "preview");
+    private static EmailSummary ToSummary(Stored message) => new(
+        message.Id, message.Subject, new EmailAddressDto("Boss", message.From), MapRecipients(message),
+        DateTimeOffset.UtcNow, message.IsRead, message.HasAttachments, message.Categories,
+        message.Importance, "preview");
 
-    private static EmailDetail ToDetail(Stored m) => new(
-        m.Id, m.Subject, new EmailAddressDto("Boss", m.From), [],
-        DateTimeOffset.UtcNow, m.IsRead, m.Categories, "preview", m.Body, null);
+    private static EmailDetail ToDetail(Stored message) => new(
+        message.Id, message.Subject, new EmailAddressDto("Boss", message.From), MapRecipients(message),
+        DateTimeOffset.UtcNow, message.IsRead, message.Categories, "preview", message.Body, null);
+
+    private static IReadOnlyList<EmailAddressDto> MapRecipients(Stored message) =>
+        [.. message.ToRecipients.Select(address => new EmailAddressDto(string.Empty, address))];
 
     private void RefreshCounts()
     {
@@ -320,7 +322,7 @@ internal sealed class FakeGraphMailService : IGraphMailService
         if (att.Kind == "reference")
         {
             return Task.FromResult(new AttachmentContent(
-                att.Id, att.Name, att.ContentType, 0, "reference", null, null, att.Url, false));
+                att.Id, att.Name, att.ContentType, 0, "reference", null, null, null, false));
         }
 
         if (att.Content.Length > cap)

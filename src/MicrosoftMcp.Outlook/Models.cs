@@ -89,8 +89,9 @@ public sealed record CategoryInfo(
     string? Color);
 
 /// <summary>Attachment content. Encoding is text, base64, reference (a
-/// OneDrive or other storage link, not downloaded; Graph v1.0 may not expose
-/// the URL) or nested (message/event attachment, not downloaded).</summary>
+/// OneDrive or other storage link, not downloaded; the documented Graph v1.0
+/// read response does not expose its URL) or nested (message/event attachment,
+/// not downloaded).</summary>
 public sealed record AttachmentContent(
     string Id,
     string Name,

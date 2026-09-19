@@ -187,6 +187,22 @@ public sealed class GraphMailServiceTests
     }
 
     [Fact]
+    public async Task ReadAttachment_does_not_map_undocumented_reference_source_url()
+    {
+        var setup = Create(Response("""
+            {"@odata.type":"#microsoft.graph.referenceAttachment","id":"a5","name":"Budget.xlsx","contentType":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","size":1060,"isInline":false,"sourceUrl":"https://example.sharepoint.com/budget"}
+            """));
+
+        var attachment = await setup.Service.ReadAttachmentAsync("m1", "a5");
+
+        attachment.Encoding.Should().Be("reference");
+        attachment.SourceUrl.Should().BeNull();
+        setup.Handler.Requests.Should().ContainSingle();
+        Uri.UnescapeDataString(setup.Handler.Requests[0].RequestUri!.Query)
+            .Should().NotContain("sourceUrl");
+    }
+
+    [Fact]
     public async Task CreateFolder_with_parent_uses_child_folders_endpoint()
     {
         var setup = Create(Response("""

@@ -175,7 +175,8 @@ messages and drafts, but `Mail.ReadWrite` is required for
 `outlook_create_forward_draft`, and `outlook_update_draft` because they write
 to the mailbox. `Mail.Send` is not required because this server does not send
 messages. `MailboxSettings.Read` is required for
-`outlook_list_categories` and category updates.
+`outlook_list_categories`, which reads the Outlook master category list.
+Message category updates through `outlook_set_categories` use `Mail.ReadWrite`.
 
 
 `message-not-found`, `folder-not-found`, `mailbox-unavailable`, `invalid-request`,

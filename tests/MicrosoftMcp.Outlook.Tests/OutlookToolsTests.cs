@@ -84,15 +84,19 @@ public sealed class OutlookToolsTests
 
         var draft = ToolResults.Ok<EmailDetail>(await tools.outlook_create_draft(["a@x.y"], "Betreff", "Hallo"));
         draft.Id.Should().StartWith("draft-");
+        draft.ToRecipients.Select(recipient => recipient.Address).Should().Equal("a@x.y");
 
         var reply = ToolResults.Ok<EmailDetail>(await tools.outlook_create_reply_draft("m1", "Bin dabei"));
         reply.Subject.Should().StartWith("Re:");
 
         var fwd = ToolResults.Ok<EmailDetail>(await tools.outlook_create_forward_draft("m1", ["b@x.y"], "FYI"));
         fwd.Subject.Should().StartWith("Fwd:");
+        fwd.ToRecipients.Select(recipient => recipient.Address).Should().Equal("b@x.y");
 
-        var updated = ToolResults.Ok<EmailDetail>(await tools.outlook_update_draft(draft.Id, subject: "Neu"));
+        var updated = ToolResults.Ok<EmailDetail>(
+            await tools.outlook_update_draft(draft.Id, subject: "Neu", to: ["c@x.y"]));
         updated.Subject.Should().Be("Neu");
+        updated.ToRecipients.Select(recipient => recipient.Address).Should().Equal("c@x.y");
     }
 
     [Fact]
@@ -153,7 +157,7 @@ public sealed class OutlookToolsTests
 
         var reference = ToolResults.Ok<AttachmentContent>(await tools.outlook_read_attachment("m1", "a5"));
         reference.Encoding.Should().Be("reference");
-        reference.SourceUrl.Should().Contain("sharepoint");
+        reference.SourceUrl.Should().BeNull();
     }
 
     [Fact]

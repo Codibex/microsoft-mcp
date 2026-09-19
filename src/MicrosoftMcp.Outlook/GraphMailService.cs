@@ -412,7 +412,7 @@ public sealed class GraphMailService(
                 item.Size ?? 0, "nested", null, null, null, false),
             ReferenceAttachment reference => new AttachmentContent(
                 reference.Id ?? string.Empty, reference.Name ?? string.Empty, reference.ContentType,
-                reference.Size ?? 0, "reference", null, null, ReferenceUrl(reference), false),
+                reference.Size ?? 0, "reference", null, null, null, false),
             _ => new AttachmentContent(
                 att.Id ?? string.Empty, att.Name ?? string.Empty, att.ContentType,
                 att.Size ?? 0, "unknown", null, null, null, false)
@@ -442,9 +442,6 @@ public sealed class GraphMailService(
             file.Id ?? string.Empty, file.Name ?? string.Empty, file.ContentType,
             bytes.Length, "base64", null, Convert.ToBase64String(bytes), null, false);
     }
-
-    private static string? ReferenceUrl(ReferenceAttachment reference) =>
-        reference.AdditionalData.TryGetValue("sourceUrl", out var url) ? url?.ToString() : null;
 
     private static bool IsTextContent(string? contentType)
     {
