@@ -10,11 +10,11 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
         public required string Id { get; init; }
         public required string CalendarId { get; init; }
         public string Subject { get; set; } = string.Empty;
-        public DateTimeOffset Start { get; init; }
-        public DateTimeOffset End { get; init; }
-        public bool IsAllDay { get; init; }
+        public DateTimeOffset Start { get; set; }
+        public DateTimeOffset End { get; set; }
+        public bool IsAllDay { get; set; }
         public bool IsCancelled { get; init; }
-        public string? Location { get; init; }
+        public string? Location { get; set; }
     }
 
     private readonly Dictionary<string, CalendarInfo> _calendars = new(StringComparer.OrdinalIgnoreCase);
@@ -133,6 +133,113 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
                 : throw GraphServiceException.EventNotFound(eventId, "fake"));
     }
 
+    public Task<EventDetail> CreateEventAsync(
+        string subject,
+        string start,
+        string end,
+        string? calendarId = null,
+        string? body = null,
+        string? location = null,
+        IReadOnlyList<string>? attendees = null,
+        bool isAllDay = false,
+        int? reminderMinutesBeforeStart = null,
+        CancellationToken ct = default)
+    {
+        var calendar = Calendar(calendarId);
+        if (string.IsNullOrWhiteSpace(subject))
+        {
+            throw GraphServiceException.InvalidRequest("Subject must not be empty.", "pass a title for the event");
+        }
+
+        DateTimeOffset startValue = ParseRequired(start, "start");
+        DateTimeOffset endValue = ParseRequired(end, "end");
+        if (endValue <= startValue)
+        {
+            throw GraphServiceException.InvalidRequest(
+                "Event end must be after event start.", "pass an end time later than the start time");
+        }
+
+        ValidateReminder(reminderMinutesBeforeStart);
+        var created = new StoredEvent
+        {
+            Id = $"e-created-{_events.Count}",
+            CalendarId = calendar.Id,
+            Subject = subject.Trim(),
+            Start = startValue,
+            End = endValue,
+            IsAllDay = isAllDay,
+            Location = location
+        };
+        Add(created);
+        return Task.FromResult(ToDetail(created));
+    }
+
+    public Task<EventDetail> UpdateEventAsync(
+        string eventId,
+        string? calendarId = null,
+        string? subject = null,
+        string? start = null,
+        string? end = null,
+        string? body = null,
+        string? location = null,
+        IReadOnlyList<string>? attendees = null,
+        bool? isAllDay = null,
+        int? reminderMinutesBeforeStart = null,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(eventId))
+        {
+            throw GraphServiceException.InvalidRequest("eventId must not be empty.", "use an event id");
+        }
+
+        var calendar = Calendar(calendarId);
+        if (!_events.TryGetValue(eventId.Trim(), out var existing) || existing.CalendarId != calendar.Id)
+        {
+            throw GraphServiceException.EventNotFound(eventId, "fake");
+        }
+
+        if (subject is null && start is null && end is null && body is null
+            && location is null && attendees is null && isAllDay is null
+            && reminderMinutesBeforeStart is null)
+        {
+            throw GraphServiceException.InvalidRequest(
+                "At least one event field must be supplied.", "pass a field to update");
+        }
+
+        if (subject is not null)
+        {
+            if (string.IsNullOrWhiteSpace(subject))
+            {
+                throw GraphServiceException.InvalidRequest("Subject must not be empty.", "pass a title for the event");
+            }
+
+            existing.Subject = subject.Trim();
+        }
+
+        DateTimeOffset newStart = start is null ? existing.Start : ParseRequired(start, "start");
+        DateTimeOffset newEnd = end is null ? existing.End : ParseRequired(end, "end");
+        if (end is not null && newEnd <= newStart || start is not null && newEnd <= newStart)
+        {
+            throw GraphServiceException.InvalidRequest(
+                "Event end must be after event start.", "pass an end time later than the start time");
+        }
+
+        existing.Start = newStart;
+        existing.End = newEnd;
+        if (location is not null)
+        {
+            existing.Location = location;
+        }
+
+        if (isAllDay is not null)
+        {
+            existing.IsAllDay = isAllDay.Value;
+        }
+
+        ValidateReminder(reminderMinutesBeforeStart);
+        return Task.FromResult(ToDetail(existing));
+    }
+
     private static DateTimeOffset? ParseBound(string? value, string what)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -145,5 +252,19 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
             : throw GraphServiceException.InvalidRequest(
                 $"{what} '{value}' is not a valid date/time.",
                 "use ISO format, e.g. \"2026-09-14T00:00:00\"");
+    }
+
+    private static DateTimeOffset ParseRequired(string value, string what) =>
+        ParseBound(value, what) ?? throw GraphServiceException.InvalidRequest(
+            $"{what} must not be empty.", "use an ISO date/time");
+
+    private static void ValidateReminder(int? reminderMinutesBeforeStart)
+    {
+        if (reminderMinutesBeforeStart < 0)
+        {
+            throw GraphServiceException.InvalidRequest(
+                "reminderMinutesBeforeStart must not be negative.",
+                "pass zero or a positive number of minutes");
+        }
     }
 }

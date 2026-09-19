@@ -58,7 +58,7 @@ microsoft-mcp doctor --servers outlook,calendar
    |---|---|
    | `outlook` | `Mail.Read`, `Mail.ReadWrite` |
    | `onedrive` | `Files.Read`, `Files.ReadWrite` |
-   | `calendar` | `Calendars.Read` |
+  | `calendar` | `Calendars.Read`, `Calendars.ReadWrite` |
   | `teams` | `Team.ReadBasic.All`, `ChannelMessage.Read.All`, `Chat.ReadBasic`, `Chat.Read`, `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All` |
 
    Then consent (yourself or your admin). App-Only (Outlook only):
@@ -139,7 +139,7 @@ mcp_servers:
 ```
 
 App-Only additionally: `Graph__AuthMode=AppOnly`, `Graph__UserIdOrUpn`,
-`Graph__ClientSecret`. `policy.json` (Outlook/Teams only, optional):
+`Graph__ClientSecret`. `policy.json` (Outlook/Teams/Calendar, optional):
 admin-owned system path or next to the binary; `Messaging__*` env is
 ignored (see `outlook.md` §10).
 

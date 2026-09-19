@@ -28,7 +28,8 @@ public static class DoctorChecks
         else if (policyPath is null)
         {
             bool needsPolicy = servers.Contains("outlook", StringComparer.OrdinalIgnoreCase)
-                || servers.Contains("teams", StringComparer.OrdinalIgnoreCase);
+                || servers.Contains("teams", StringComparer.OrdinalIgnoreCase)
+                || servers.Contains("calendar", StringComparer.OrdinalIgnoreCase);
             checks.Add(new SetupCheck(
                 "policy",
                 true,

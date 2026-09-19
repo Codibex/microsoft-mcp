@@ -13,7 +13,7 @@ public static class ServerSelection
         {
             ["outlook"] = ["Mail.Read", "Mail.ReadWrite"],
             ["onedrive"] = ["Files.Read", "Files.ReadWrite"],
-            ["calendar"] = ["Calendars.Read"],
+            ["calendar"] = ["Calendars.Read", "Calendars.ReadWrite"],
             ["teams"] = [
                 "Team.ReadBasic.All", "ChannelMessage.Read.All", "Chat.ReadBasic", "Chat.Read",
                 "OnlineMeetingTranscript.Read.All", "OnlineMeetingAiInsight.Read.All"

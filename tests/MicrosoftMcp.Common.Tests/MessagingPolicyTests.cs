@@ -36,6 +36,18 @@ public sealed class MessagingPolicyTests
     }
 
     [Fact]
+    public void Validator_accepts_internal_with_exact_addresses_only()
+    {
+        var result = new MessagingPolicyValidator().Validate(null, new MessagingPolicyOptions
+        {
+            RequireInternalRecipients = true,
+            AllowedRecipientAddresses = ["owner@example.com"]
+        });
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
     public void Validator_rejects_disclosure_without_text()
     {
         var result = new MessagingPolicyValidator().Validate(null, new MessagingPolicyOptions
@@ -59,6 +71,18 @@ public sealed class MessagingPolicyTests
     public void Guard_allows_subdomains()
     {
         RecipientGuard.ValidateRecipients(["a@mail.firma.de"], InternalPolicy());
+    }
+
+    [Fact]
+    public void Guard_allows_exact_address_exception_to_domain_policy()
+    {
+        var policy = new MessagingPolicyOptions
+        {
+            RequireInternalRecipients = true,
+            AllowedRecipientAddresses = ["Guest@partner.example"]
+        };
+
+        RecipientGuard.ValidateRecipients(["guest@partner.example"], policy);
     }
 
     [Fact]
@@ -183,6 +207,7 @@ public sealed class MessagingPolicyTests
                   // Admin-owned policy
                   "requireInternalRecipients": true,
                   "allowedRecipientDomains": [ "firma.de", ],
+                  "allowedRecipientAddresses": [ "owner@partner.example", ],
                   "aiDisclosureEnabled": true,
                   "aiDisclosureText": "KI-Hinweis.",
                 }
@@ -193,6 +218,8 @@ public sealed class MessagingPolicyTests
             Assert.True(policy.RequireInternalRecipients);
             Assert.Single(policy.AllowedRecipientDomains);
             Assert.Equal("firma.de", policy.AllowedRecipientDomains[0]);
+            Assert.Single(policy.AllowedRecipientAddresses);
+            Assert.Equal("owner@partner.example", policy.AllowedRecipientAddresses[0]);
             Assert.Equal("KI-Hinweis.", policy.AiDisclosureText);
         }
         finally
@@ -207,12 +234,14 @@ public sealed class MessagingPolicyTests
         string path = Path.GetTempFileName();
         try
         {
-            File.WriteAllText(path, """{"requireInternalRecipients": false, "allowedRecipientDomains": null}""");
+            File.WriteAllText(path, """{"requireInternalRecipients": false, "allowedRecipientDomains": null, "allowedRecipientAddresses": null}""");
 
             var policy = PolicyFile.Load(path);
 
             Assert.NotNull(policy.AllowedRecipientDomains);
             Assert.Empty(policy.AllowedRecipientDomains);
+            Assert.NotNull(policy.AllowedRecipientAddresses);
+            Assert.Empty(policy.AllowedRecipientAddresses);
         }
         finally
         {

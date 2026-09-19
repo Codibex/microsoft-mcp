@@ -62,6 +62,23 @@ public sealed class CalendarToolsTests
     }
 
     [Fact]
+    public async Task Create_and_update_with_fake()
+    {
+        var tools = Create(new FakeGraphCalendarService());
+
+        var created = ToolResults.Ok<EventDetail>(await tools.calendar_create_event(
+            "Planning",
+            "2026-09-14T14:00:00Z",
+            "2026-09-14T15:00:00Z"));
+        created.Subject.Should().Be("Planning");
+
+        var updated = ToolResults.Ok<EventDetail>(await tools.calendar_update_event(
+            created.Id, subject: "Moved", location: "Room 4"));
+        updated.Subject.Should().Be("Moved");
+        updated.Location.Should().Be("Room 4");
+    }
+
+    [Fact]
     public async Task Tool_errors_carry_codes_and_hints()
     {
         var tools = Create(new FakeGraphCalendarService());

@@ -99,9 +99,11 @@ public static class PolicyFile
             UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
         }) ?? throw new JsonException($"Policy file '{path}' contains no policy object.");
 
-        // 'allowedRecipientDomains: null' deserializes over the initializer as null.
+        // Null arrays deserialize over the initializers as null.
         options.AllowedRecipientDomains ??= [];
         options.AllowedRecipientDomains = [.. options.AllowedRecipientDomains.Where(d => !string.IsNullOrWhiteSpace(d))];
+        options.AllowedRecipientAddresses ??= [];
+        options.AllowedRecipientAddresses = [.. options.AllowedRecipientAddresses.Where(a => !string.IsNullOrWhiteSpace(a))];
         return options;
     }
 

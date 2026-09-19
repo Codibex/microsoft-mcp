@@ -24,9 +24,11 @@ builder.Configuration
     .AddEnvironmentVariables()
     .AddUserSecrets<Program>();
 
+MessagingPolicyOptions policy = MessagingPolicySetup.Initialize();
+
 builder.Services
     .AddGraphCommon(builder.Configuration)
-    .AddCalendar();
+    .AddCalendar(policy);
 
 builder.Services
     .AddMcpServer()
@@ -39,6 +41,6 @@ var app = builder.Build();
 // effective mode to stderr (always visible: the file log level is Warning).
 var graph = app.Services.GetRequiredService<IOptions<GraphAuthOptions>>().Value;
 Console.Error.WriteLine(
-    $"[startup] Calendar auth mode: {graph.AuthMode} (read-only, flow {graph.DelegatedFlow})");
+    $"[startup] Calendar auth mode: {graph.AuthMode} (writes require delegated auth, flow {graph.DelegatedFlow})");
 
 await app.RunAsync();

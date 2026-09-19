@@ -3,7 +3,8 @@
 Local MCP server (Stdio) for **calendar access** via Microsoft Graph.
 Same pattern as the [Outlook server](outlook.md): Stdio, `isError`
 results with `[code]` hints, delegated or app-only auth via the shared
-`Common` library. **Read-only – no create, update, delete or move.**
+`Common` library. Create and update are delegated-only; no delete or move
+operation is exposed.
 
 ## 1. Prerequisites
 
@@ -16,7 +17,7 @@ In the **same app registration** (or a new one), add the delegated
 permission (no admin needed in most tenants, otherwise ask yours):
 
 **API permissions → Add → Microsoft Graph → Delegated:**
-`Calendars.Read`.
+`Calendars.Read`, `Calendars.ReadWrite`.
 
 No redirect URI is needed for device-code flow; for browser login add
 the **Mobile and desktop applications** platform with `http://localhost`
@@ -31,7 +32,12 @@ dotnet user-secrets set "Graph:ClientId" "<client-id>" \
   --project src/MicrosoftMcp.Calendar.Host
 ```
 
-The host template defaults `DelegatedScopes` to `Calendars.Read`.
+The host template defaults `DelegatedScopes` to `Calendars.Read` and
+`Calendars.ReadWrite`. Create/update require delegated auth; App-Only remains
+available for read operations only.
+If an admin-owned `policy.json` is present, its recipient policy also applies
+to event attendees. Domains in `allowedRecipientDomains` are allowed including
+subdomains; exact exceptions can be listed in `allowedRecipientAddresses`.
 For supported personal-account scenarios, use `Graph:TenantId=consumers` with
 a personal-only app, or `common` with an org + personal app (see
 [Outlook troubleshooting](outlook.md#9-troubleshooting)). Headless:
@@ -64,7 +70,7 @@ fails fast on missing values with a `Next:` hint.
 
 For production use take the published binary (or a release asset).
 
-## 6. Tools (4, read-only)
+## 6. Tools (6)
 
 - `calendar_list_calendars` – calendars with id, name, default flag
 - `calendar_list_events` – window view (default: default calendar, now plus 7 days).
@@ -72,6 +78,14 @@ For production use take the published binary (or a release asset).
 - `calendar_search_events` – subject/keyword search across calendars
 - `calendar_read_event` – full event (attendees, recurrence summary, body
   truncated at 8000 chars, online meeting link)
+- `calendar_create_event` – create an event with an optional plain-text body,
+  location, attendees, all-day flag and reminder
+- `calendar_update_event` – update only the supplied event fields; no delete or
+  move operation is offered
+
+Write tools accept ISO date/time values and normalize them to UTC. Attendee
+values are SMTP addresses. `calendar_update_event` requires at least one
+mutable field; an empty attendee list clears the attendees.
 
 Example prompt: “What meetings do I have tomorrow (`calendar_list_events` with
 `timeMin`/`timeMax`)? Who attends the sync (`calendar_read_event`)?”
@@ -85,8 +99,10 @@ Details + stack traces go to the server log (stderr) only, never to the client.
 
 ## 8. Troubleshooting
 
-- `[access-denied]` → check the `Calendars.Read` consent/permission
-  from section 2 (consent again after adding permissions)
+- `[access-denied]` → check the `Calendars.Read` and `Calendars.ReadWrite`
+  consent/permissions from section 2 (writes require delegated auth)
+- `[auth-misconfigured]` on create/update → set `Graph:AuthMode` to
+  `Delegated`; App-Only cannot write calendar events
 - `[auth-failed]` headless → `Graph__DelegatedFlow=DeviceCode`
 - Auth/account-type issues (personal accounts, token version, public
   client flows) → same fixes as in the

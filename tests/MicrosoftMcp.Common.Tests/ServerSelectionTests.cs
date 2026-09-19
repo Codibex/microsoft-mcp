@@ -26,6 +26,6 @@ public sealed class ServerSelectionTests
         ServerSelection.DefaultScopesFor(["teams"]).Should().Contain("Chat.Read");
         ServerSelection.DefaultScopesFor(["outlook"]).Should()
             .NotContain(s => s.StartsWith("Files", StringComparison.Ordinal));
-        ServerSelection.DefaultScopesFor(ServerSelection.All).Should().HaveCount(2 + 2 + 1 + 6);
+        ServerSelection.DefaultScopesFor(ServerSelection.All).Should().HaveCount(2 + 2 + 2 + 6);
     }
 }
