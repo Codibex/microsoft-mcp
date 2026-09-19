@@ -146,6 +146,15 @@ permission needed), hard-delete, or download attachments larger than
 
 ## 7. Tools (17)
 
+`outlook_list_folders` lists all visible mail folders recursively. Each entry
+contains its Graph `id`, `parentId`, display name, item counts and a derived
+`path`, for example `School/Kids/Sophie`. Search and move tools accept a
+well-known folder name, a Graph id, a unique display name or such a path.
+Paths follow the Outlook folder hierarchy; the Graph id remains the canonical
+way to address a folder when names are ambiguous.
+When calling `outlook_create_folder`, pass the parent folder id explicitly;
+use `null` for a top-level folder.
+
 `outlook_list_attachments`, `outlook_read_attachment`, `outlook_list_categories` · Organize:
 `outlook_move_email`, `outlook_archive_email`, `outlook_delete_email` (trash), `outlook_create_folder`,
 `outlook_set_categories`, `outlook_mark_read`, `outlook_set_importance` · Draft:

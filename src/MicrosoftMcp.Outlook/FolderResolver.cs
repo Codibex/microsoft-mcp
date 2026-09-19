@@ -31,13 +31,36 @@ internal static class FolderResolver
             return byId.Id;
         }
 
-        var byName = folders.FirstOrDefault(f =>
-            string.Equals(f.DisplayName, trimmed, StringComparison.OrdinalIgnoreCase));
-        if (byName is not null)
+        var byPath = folders.Where(f =>
+            !string.IsNullOrWhiteSpace(f.Path)
+            && string.Equals(f.Path, trimmed, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (byPath.Count == 1)
         {
-            return byName.Id;
+            return byPath[0].Id;
+        }
+
+        if (byPath.Count > 1)
+        {
+            throw Ambiguous(trimmed);
+        }
+
+        var byName = folders.Where(f =>
+            string.Equals(f.DisplayName, trimmed, StringComparison.OrdinalIgnoreCase));
+        if (byName.Count() == 1)
+        {
+            return byName.Single().Id;
+        }
+
+        if (byName.Count() > 1)
+        {
+            throw Ambiguous(trimmed);
         }
 
         throw GraphServiceException.FolderNotFound(destination);
     }
+
+    private static GraphServiceException Ambiguous(string destination) =>
+        GraphServiceException.InvalidRequest(
+            $"Folder destination '{destination}' is ambiguous.",
+            "use the full folder path from outlook_list_folders or the folder id");
 }

@@ -5,7 +5,7 @@ public interface IGraphMailService
     Task<IReadOnlyList<EmailSummary>> SearchAsync(EmailQuery query, CancellationToken ct = default);
     Task<EmailDetail> GetAsync(string messageId, CancellationToken ct = default);
     Task<IReadOnlyList<FolderInfo>> ListFoldersAsync(CancellationToken ct = default);
-    Task<FolderInfo> CreateFolderAsync(string displayName, string? parentFolderId = null, CancellationToken ct = default);
+    Task<FolderInfo> CreateFolderAsync(string displayName, string? parentFolderId, CancellationToken ct = default);
     Task<EmailSummary> MoveAsync(string messageId, string destination, CancellationToken ct = default);
     Task<EmailSummary> ArchiveAsync(string messageId, CancellationToken ct = default);
     Task DeleteAsync(string messageId, CancellationToken ct = default);
