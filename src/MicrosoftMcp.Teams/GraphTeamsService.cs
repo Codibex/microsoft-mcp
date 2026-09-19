@@ -31,11 +31,7 @@ public sealed class GraphTeamsService : IGraphTeamsService
 
     public async Task<IReadOnlyList<TeamInfo>> ListTeamsAsync(CancellationToken ct = default)
     {
-        var page = await _client.Me.JoinedTeams.GetAsync(c =>
-        {
-            c.QueryParameters.Top = 100;
-            c.QueryParameters.Select = ["id", "displayName", "description", "visibility", "isArchived"];
-        }, ct).ConfigureAwait(false);
+        var page = await _client.Me.JoinedTeams.GetAsync(cancellationToken: ct).ConfigureAwait(false);
         return [.. (page?.Value ?? []).Select(TeamsMapper.MapTeam)];
     }
 
