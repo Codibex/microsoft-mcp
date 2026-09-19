@@ -11,11 +11,11 @@ namespace MicrosoftMcp.Calendar;
 public static class CalendarServiceRegistration
 {
     public static IServiceCollection AddCalendar(
-        this IServiceCollection services, MessagingPolicyOptions? policy = null)
+        this IServiceCollection services, CalendarPolicyOptions? policy = null)
     {
         services.AddSingleton<IGraphCalendarService, GraphCalendarService>();
-        services.AddSingleton<IOptions<MessagingPolicyOptions>>(
-            Options.Create(policy ?? new MessagingPolicyOptions()));
+        services.AddSingleton<IOptions<CalendarPolicyOptions>>(
+            Options.Create(policy ?? new CalendarPolicyOptions()));
         return services;
     }
 }

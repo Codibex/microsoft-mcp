@@ -8,7 +8,7 @@ public static class MessageDisclosure
 {
     /// <summary>Applies the disclosure, auto-detecting HTML vs. text bodies
     /// (reply/forward comments may contain either).</summary>
-    public static string ApplyAuto(string body, MessagingPolicyOptions policy) =>
+    public static string ApplyAuto(string body, OutlookPolicyOptions policy) =>
         Apply(body, LooksLikeHtml(body), policy);
 
     /// <summary>Heuristic: true when the text contains a tag-like construct
@@ -38,7 +38,7 @@ public static class MessageDisclosure
         return false;
     }
 
-    public static string Apply(string body, bool isHtml, MessagingPolicyOptions policy)
+    public static string Apply(string body, bool isHtml, OutlookPolicyOptions policy)
     {
         if (!policy.AiDisclosureEnabled || string.IsNullOrWhiteSpace(policy.AiDisclosureText))
         {

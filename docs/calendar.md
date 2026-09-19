@@ -35,9 +35,11 @@ dotnet user-secrets set "Graph:ClientId" "<client-id>" \
 The host template defaults `DelegatedScopes` to `Calendars.Read` and
 `Calendars.ReadWrite`. Create/update require delegated auth; App-Only remains
 available for read operations only.
-If an admin-owned `policy.json` is present, its recipient policy also applies
-to event attendees. Domains in `allowedRecipientDomains` are allowed including
-subdomains; exact exceptions can be listed in `allowedRecipientAddresses`.
+If an admin-owned `policy.json` is present, its `calendar` policy applies to
+event attendees. Domains in `allowedAttendeeDomains` are allowed including
+subdomains; exact exceptions can be listed in `allowedAttendeeAddresses`.
+Legacy flat policies remain compatible and are mapped to these attendee fields;
+Outlook AI-disclosure settings are never applied to Calendar.
 For supported personal-account scenarios, use `Graph:TenantId=consumers` with
 a personal-only app, or `common` with an org + personal app (see
 [Outlook troubleshooting](outlook.md#9-troubleshooting)). Headless:

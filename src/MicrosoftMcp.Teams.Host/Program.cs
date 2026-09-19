@@ -26,12 +26,11 @@ builder.Configuration
 
 builder.Services
     .AddGraphCommon(builder.Configuration)
-    .AddTeams();
+    .AddTeams(MessagingPolicySetup.InitializePolicies().Teams);
 
 // Shared messaging policy (policy.json) is validated here so a broken admin
 // policy fails fast on every messaging host. Enforcement for Teams lands with
 // the future send tools (read-only today: nothing to enforce).
-_ = MessagingPolicySetup.Initialize();
 
 builder.Services
     .AddMcpServer()

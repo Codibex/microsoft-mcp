@@ -146,36 +146,43 @@ permission needed), hard-delete, or download attachments larger than
 
 ## 7. Tools (17)
 
-Search/read: `outlook_search_emails`, `outlook_read_email`, `outlook_list_folders`,
 `outlook_list_attachments`, `outlook_read_attachment`, `outlook_list_categories` · Organize:
 `outlook_move_email`, `outlook_archive_email`, `outlook_delete_email` (trash), `outlook_create_folder`,
 `outlook_set_categories`, `outlook_mark_read`, `outlook_set_importance` · Draft:
 `outlook_create_draft`, `outlook_create_reply_draft`, `outlook_create_forward_draft`,
 `outlook_update_draft`.
-
 `outlook_read_attachment` returns text files decoded (truncated at 20000 chars)
 and binary files as base64; downloads above `maxBytes` (default 768 KB,
 max 2097152) are rejected with `attachment-too-large`. Nested messages
 and OneDrive links are reported, not downloaded.
 
-## 8. Error codes (returned as `isError` results with a `Next:` hint)
 
 `message-not-found`, `folder-not-found`, `mailbox-unavailable`, `invalid-request`,
 `attachment-too-large`,
 `auth-misconfigured`, `auth-failed`, `access-denied`, `throttled`,
-`conflict`, `service-unavailable`, `graph-error`.
-Details + stack traces go to the server log (stderr) only, never to the client.
 
 ## 9. Troubleshooting
-
 - Cannot switch account type: open the app **Manifest** and **first**
-  set `"requestedAccessTokenVersion"` to `2`, save, **then** set
-  `"signInAudience"` to `"AzureADandPersonalMicrosoftAccount"` and save.
   (Background: multi-tenant/personal audience requires access-token
   version 2; the new Authentication UI reports this only cryptically.)
-  Recommended: org + personal, not “personal only”.
 - Personal account (`outlook.com` etc.): use `Graph:TenantId=consumers`
   with a personal-only app (`signInAudience=PersonalMicrosoftAccount`). Use
+
+### 10.3 Migration nach einem Update
+
+Ein neues Binary liest das flache Legacy-Format weiterhin kompatibel im
+Speicher. Die persistente Aufteilung wird nach dem Binary-Update explizit
+ausgeführt:
+
+```bash
+microsoft-mcp policy migrate --json --write
+microsoft-mcp doctor --json
+```
+
+Die Migration erstellt ein Backup und ersetzt die Datei atomar. Sie benötigt
+Administrator-/Root-Rechte; ein Agent darf diese Rechte nicht selbst
+beschaffen. Ohne Schreibrechte bleibt die Legacy-Datei gültig und kann später
+erneut migriert werden.
   `Graph:TenantId=common` only with an app that supports both org and personal
   accounts (`signInAudience=AzureADandPersonalMicrosoftAccount`). Confirm the
   device flow with the mailbox account.
@@ -199,17 +206,27 @@ Details + stack traces go to the server log (stderr) only, never to the client.
 
 Drafts an externe Adressen werden mit `[invalid-request]` abgelehnt, und jeder
 Draft-Body bekommt server-seitig (nicht vom LLM, daher nicht weglassbar) den
-Hinweis-Text angehängt. Kalender-Einladungen prüfen dieselbe Empfänger-Policy;
-der KI-Hinweis gilt dort nicht. Beides steuert die **admin-owned `policy.json`**
-(Format: `docs/policy.example.json`, Deployment per Skript — siehe 10.1):
+Hinweis-Text angehängt. Kalender-Einladungen prüfen ihre eigene
+Teilnehmer-Policy; der KI-Hinweis gilt dort nicht. Alles steuert die eine
+**admin-owned `policy.json`** (Format: `docs/policy.example.json`, Deployment
+per Skript — siehe 10.1):
 
 ```jsonc
 {
-  "requireInternalRecipients": true,
-  "allowedRecipientDomains": ["firma.de"],
-  "allowedRecipientAddresses": ["partner@firma.example"],
-  "aiDisclosureEnabled": true,
-  "aiDisclosureText": "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+  "version": 1,
+  "outlook": {
+    "requireInternalRecipients": true,
+    "allowedRecipientDomains": ["firma.de"],
+    "allowedRecipientAddresses": ["partner@firma.example"],
+    "aiDisclosureEnabled": true,
+    "aiDisclosureText": "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+  },
+  "calendar": {
+    "requireInternalAttendees": true,
+    "allowedAttendeeDomains": ["firma.de"],
+    "allowedAttendeeAddresses": ["partner@firma.example"]
+  },
+  "teams": {}
 }
 ```
 
@@ -217,7 +234,8 @@ Regeln: Subdomains sind eingeschlossen (`mail.firma.de` passt zu `firma.de`),
 Groß-/Kleinschreibung egal, genau ein `@` erforderlich. Eine exakte Adresse in
 `allowedRecipientAddresses` ist zusätzlich erlaubt, auch wenn ihre Domain nicht
 in `allowedRecipientDomains` steht. Beide Listen werden als OR-Allowlist
-behandelt. Die Prüfung gilt für Mail-Empfänger und Kalender-Attendees.
+behandelt. Die Outlook-Prüfung gilt für Mail-Empfänger; Calendar verwendet die
+entsprechenden Attendee-Felder.
 Antworten prüfen
 server-seitig das tatsächliche Reply-Ziel (`Reply-To`, sonst Absender) und
 scheitern geschlossen ohne Absender; Weiterleitungen prüfen die expliziten
@@ -248,10 +266,10 @@ sudo ./deploy/deploy-policy.sh --domains firma.de,tochter.firma.de \
 ```
 
 Beide Skripte validieren die Eingaben (keine Restriktion ohne Domains, kein
-Hinweis ohne Text), legen die Datei admin-owned + read-only ab und verifizieren
-den Schutz (PS: ACL-Audit auf Users-Schreibrechte; sh: `test -w` als aufrufender
-User). Danach Binary ebenfalls schützen (sonst wird der Code statt der Config
-gepatcht).
+Hinweis ohne Text), schreiben das v1-Dokument atomar, legen es admin-owned +
+read-only ab und verifizieren den Schutz (PS: ACL-Audit auf Users-Schreibrechte;
+sh: `test -w` als aufrufender User). Danach Binary ebenfalls schützen (sonst
+wird der Code statt der Config gepatcht).
 
 ### 10.2 Manuelle Ablage + Schutz (Fallback ohne Skript)
 

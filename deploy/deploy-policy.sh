@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Deploys the admin-owned recipient policy.json (domains/addresses + AI disclosure).
+# Deploys the admin-owned versioned policy.json (Outlook recipients, Calendar
+# attendees + Outlook AI disclosure).
 #
-# Builds policy.json from parameters, writes it to the admin-owned system location
+# Builds policy.json from parameters, atomically writes it to the admin-owned system location
 # (Linux: /etc/microsoft-mcp/policy.json, macOS: /Library/Application Support/...)
 # as root:root mode 644, so a user-level LLM with file access can neither rewrite
 # nor delete it. The MCP server reads this file as its ONLY policy source
@@ -62,24 +63,44 @@ if [ -z "$POLICY_PATH" ]; then
 fi
 
 mkdir -p "$(dirname "$POLICY_PATH")"
+TEMP_PATH="$(mktemp "${POLICY_PATH}.tmp.XXXXXX")"
+trap 'rm -f "$TEMP_PATH"' EXIT
 DOMAINS="$DOMAINS" ADDRESSES="$ADDRESSES" DISCLOSURE_TEXT="$DISCLOSURE_TEXT" \
 REQUIRE_INTERNAL="$REQUIRE_INTERNAL" DISCLOSURE_ENABLED="$DISCLOSURE_ENABLED" \
-POLICY_PATH="$POLICY_PATH" python3 - <<'EOF'
+POLICY_PATH="$TEMP_PATH" python3 - <<'EOF'
 import json, os
 
 domains = [d.strip() for d in os.environ["DOMAINS"].split(",") if d.strip()]
 addresses = [a.strip() for a in os.environ["ADDRESSES"].split(",") if a.strip()]
 policy = {
+  "version": 1,
+  "outlook": {
     "requireInternalRecipients": os.environ["REQUIRE_INTERNAL"].lower() == "true",
     "allowedRecipientDomains": domains,
     "allowedRecipientAddresses": addresses,
     "aiDisclosureEnabled": os.environ["DISCLOSURE_ENABLED"].lower() == "true",
     "aiDisclosureText": os.environ["DISCLOSURE_TEXT"],
+  },
+  "calendar": {
+    "requireInternalAttendees": os.environ["REQUIRE_INTERNAL"].lower() == "true",
+    "allowedAttendeeDomains": domains,
+    "allowedAttendeeAddresses": addresses,
+  },
+  "teams": {},
 }
 with open(os.environ["POLICY_PATH"], "w", encoding="utf-8") as f:
     json.dump(policy, f, ensure_ascii=False, indent=2)
     f.write("\n")
 EOF
+
+if [ "$(uname -s)" = "Darwin" ]; then
+  chown root:wheel "$TEMP_PATH"
+else
+  chown root:root "$TEMP_PATH"
+fi
+chmod 644 "$TEMP_PATH"
+mv -f "$TEMP_PATH" "$POLICY_PATH"
+trap - EXIT
 
 if [ "$(uname -s)" = "Darwin" ]; then
   chown root:wheel "$POLICY_PATH"

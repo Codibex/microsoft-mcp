@@ -10,13 +10,13 @@ namespace MicrosoftMcp.Outlook;
 
 public static class OutlookServiceRegistration
 {
-    /// <param name="policy">Admin-owned messaging policy from
+    /// <param name="policy">Admin-owned Outlook policy from
     /// <see cref="MessagingPolicySetup.Initialize"/> (policy.json only, never env).
     /// Null = unrestricted defaults (no policy.json found).</param>
-    public static IServiceCollection AddOutlook(this IServiceCollection services, MessagingPolicyOptions? policy = null)
+    public static IServiceCollection AddOutlook(this IServiceCollection services, OutlookPolicyOptions? policy = null)
     {
         services.AddSingleton<IGraphMailService, GraphMailService>();
-        services.AddSingleton<IOptions<MessagingPolicyOptions>>(Options.Create(policy ?? new MessagingPolicyOptions()));
+        services.AddSingleton<IOptions<OutlookPolicyOptions>>(Options.Create(policy ?? new OutlookPolicyOptions()));
         return services;
     }
 }

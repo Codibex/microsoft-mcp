@@ -1,10 +1,10 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-  Deploys the admin-owned recipient policy.json (domains/addresses + AI disclosure).
+  Deploys the admin-owned versioned policy.json (Outlook, Calendar + AI disclosure).
 
 .DESCRIPTION
-  Builds policy.json from parameters, writes it to the admin-owned system location
+  Builds policy.json, atomically writes it to the admin-owned system location
   (%ProgramData%\microsoft-mcp\policy.json) and locks it down (Administrators/SYSTEM
   full, Users read-only), so a user-level LLM with file access can neither rewrite
   nor delete it. The MCP server reads this file as its ONLY policy source
@@ -46,28 +46,44 @@ if ($AiDisclosureEnabled -and [string]::IsNullOrWhiteSpace($AiDisclosureText)) {
 }
 
 $policy = [ordered]@{
-  requireInternalRecipients = $RequireInternalRecipients
-  allowedRecipientDomains   = @($AllowedRecipientDomains | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-  allowedRecipientAddresses = @($AllowedRecipientAddresses | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-  aiDisclosureEnabled       = $AiDisclosureEnabled
-  aiDisclosureText          = $AiDisclosureText
+  version  = 1
+  outlook  = [ordered]@{
+    requireInternalRecipients = $RequireInternalRecipients
+    allowedRecipientDomains   = @($AllowedRecipientDomains | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    allowedRecipientAddresses = @($AllowedRecipientAddresses | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    aiDisclosureEnabled       = $AiDisclosureEnabled
+    aiDisclosureText          = $AiDisclosureText
+  }
+  calendar = [ordered]@{
+    requireInternalAttendees = $RequireInternalRecipients
+    allowedAttendeeDomains   = @($AllowedRecipientDomains | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    allowedAttendeeAddresses = @($AllowedRecipientAddresses | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  }
+  teams = [ordered]@{}
 }
 
 $dir = Split-Path -Parent $PolicyPath
 if (-not (Test-Path $dir)) {
   New-Item -ItemType Directory -Path $dir | Out-Null
 }
-$policy | ConvertTo-Json -Depth 3 | Set-Content -Path $PolicyPath -Encoding utf8NoBOM
-Write-Host "Wrote $PolicyPath"
+$tempPath = "$PolicyPath.tmp.$([guid]::NewGuid().ToString('N'))"
+$policy | ConvertTo-Json -Depth 4 | Set-Content -Path $tempPath -Encoding utf8NoBOM
 
 # Lock down file AND directory (a writable directory allows delete-and-replace
 # of even a read-only file). SID form: locale-proof.
 # S-1-5-32-544 Administrators, S-1-5-18 SYSTEM, S-1-5-32-545 Users.
 icacls $dir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
-icacls $PolicyPath /inheritance:r /grant:r '*S-1-5-32-544:F' '*S-1-5-18:F' '*S-1-5-32-545:R' | Out-Null
+icacls $tempPath /inheritance:r /grant:r '*S-1-5-32-544:F' '*S-1-5-18:F' '*S-1-5-32-545:R' | Out-Null
 if ($LASTEXITCODE -ne 0) {
-  throw "icacls failed for $PolicyPath."
+  throw "icacls failed for $tempPath."
 }
+
+if (Test-Path $PolicyPath) {
+  [System.IO.File]::Replace($tempPath, $PolicyPath, $null, $true)
+} else {
+  [System.IO.File]::Move($tempPath, $PolicyPath)
+}
+Write-Host "Wrote $PolicyPath"
 
 # Verify: Users must not hold any Write-ish right.
 $bad = (Get-Acl -Path $PolicyPath).Access | Where-Object {

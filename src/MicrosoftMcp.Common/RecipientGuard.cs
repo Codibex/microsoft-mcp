@@ -1,11 +1,13 @@
 namespace MicrosoftMcp.Common;
 
 /// <summary>Server-side recipient check. Runs in code (not via prompt), so the
-/// LLM cannot talk its way around it. Pure and unit-tested. Teams send and
-/// calendar attendees reuse the same policy.</summary>
+/// LLM cannot talk its way around it. Pure and unit-tested.</summary>
 public static class RecipientGuard
 {
-    public static void ValidateRecipients(IReadOnlyList<string> recipients, MessagingPolicyOptions policy)
+    public static void ValidateRecipients(
+        IReadOnlyList<string> recipients,
+        RecipientPolicyOptions policy,
+        string noun = "recipient")
     {
         if (!policy.RequireInternalRecipients)
         {
@@ -18,8 +20,8 @@ public static class RecipientGuard
             if (!IsAllowedRecipient(recipient, domain, policy))
             {
                 throw GraphServiceException.InvalidRequest(
-                    $"Recipient '{recipient}' is outside the allowed domains and exact addresses configured by policy.json.",
-                    "use an internal recipient address, or ask your admin to extend policy.json");
+                    $"{noun} '{recipient}' is outside the allowed domains and exact addresses configured by policy.json.",
+                    $"use an internal {noun} address, or ask your admin to extend policy.json");
             }
         }
     }
@@ -62,7 +64,7 @@ public static class RecipientGuard
         });
 
     private static bool IsAllowedRecipient(
-        string address, string domain, MessagingPolicyOptions policy) =>
+        string address, string domain, RecipientPolicyOptions policy) =>
         policy.AllowedRecipientAddresses.Any(allowed =>
             string.Equals(allowed.Trim(), address.Trim(), StringComparison.OrdinalIgnoreCase))
         || IsAllowed(domain, policy.AllowedRecipientDomains);

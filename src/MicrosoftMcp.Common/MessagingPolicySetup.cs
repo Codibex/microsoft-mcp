@@ -9,7 +9,7 @@ namespace MicrosoftMcp.Common;
 /// (mcp.json is user-writable, so env must not override admin policy).</summary>
 public static class MessagingPolicySetup
 {
-    public static MessagingPolicyOptions Initialize()
+    public static EffectivePolicySet InitializePolicies()
     {
         string? path = PolicyFile.FindPolicyFile();
         if (path is null)
@@ -17,34 +17,53 @@ public static class MessagingPolicySetup
             Console.Error.WriteLine(
                 "[startup] No policy.json found (system path or next to the binary) – " +
                 "recipient/disclosure policy disabled.");
-            return new MessagingPolicyOptions();
+            return new EffectivePolicySet(
+                new OutlookPolicyOptions(),
+                new CalendarPolicyOptions(),
+                new TeamsPolicyOptions(),
+                null,
+                false);
         }
 
-        MessagingPolicyOptions policy;
+        EffectivePolicySet policies;
         try
         {
-            policy = PolicyFile.Load(path);
+            policies = PolicyDocument.Load(path);
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
             throw new OptionsValidationException(
-                "Messaging", typeof(MessagingPolicyOptions), [$"Policy file '{path}' could not be read: {ex.Message}"]);
+                "Messaging", typeof(EffectivePolicySet), [$"Policy file '{path}' could not be read: {ex.Message}"]);
         }
 
-        var result = new MessagingPolicyValidator().Validate(null, policy);
-        if (result.Failed)
+        string? validationError = PolicySetValidator.Validate(policies);
+        if (validationError is not null)
         {
             throw new OptionsValidationException(
-                "Messaging", typeof(MessagingPolicyOptions), [result.FailureMessage ?? "Invalid policy."]);
+                "Messaging", typeof(EffectivePolicySet), [validationError]);
         }
 
-        PolicyFile.EnsureProtected(path, policy);
+        PolicyFile.EnsureProtected(path, policies);
         Console.Error.WriteLine(
             $"[startup] Policy: {path} (sha256 {PolicyFile.ComputeHash(path)[..12]}…) | " +
-            $"internal-only: {policy.RequireInternalRecipients} " +
-            $"domains=[{string.Join(",", policy.AllowedRecipientDomains)}] " +
-            $"addresses=[{string.Join(",", policy.AllowedRecipientAddresses)}] | " +
-            $"disclosure: {policy.AiDisclosureEnabled}");
-        return policy;
+            $"format={(policies.IsLegacy ? "legacy" : "v1")} " +
+            $"outlook-internal: {policies.Outlook.RequireInternalRecipients} " +
+            $"calendar-internal: {policies.Calendar.RequireInternalAttendees} " +
+            $"disclosure: {policies.Outlook.AiDisclosureEnabled}");
+        return policies;
+    }
+
+    /// <summary>Compatibility entry point returning the effective Outlook policy.</summary>
+    public static MessagingPolicyOptions Initialize()
+    {
+        OutlookPolicyOptions outlook = InitializePolicies().Outlook;
+        return new MessagingPolicyOptions
+        {
+            RequireInternalRecipients = outlook.RequireInternalRecipients,
+            AllowedRecipientDomains = [.. outlook.AllowedRecipientDomains],
+            AllowedRecipientAddresses = [.. outlook.AllowedRecipientAddresses],
+            AiDisclosureEnabled = outlook.AiDisclosureEnabled,
+            AiDisclosureText = outlook.AiDisclosureText
+        };
     }
 }

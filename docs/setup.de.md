@@ -144,9 +144,9 @@ mcp_servers:
 ```
 
 App-Only zusätzlich: `Graph__AuthMode=AppOnly`, `Graph__UserIdOrUpn`,
-`Graph__ClientSecret`. `policy.json` (Outlook/Teams/Calendar, optional):
-admin-owned Systempfad oder neben dem Binary; `Messaging__*`-Env wird
-ignoriert (siehe `outlook.md` §10).
+`Graph__ClientSecret`. Die versionierte `policy.json` (Outlook/Calendar/Teams,
+optional) liegt im admin-owned Systempfad oder neben dem Binary;
+`Messaging__*`-Env wird ignoriert (siehe `outlook.md` §10).
 
 ## 4. Verifizieren
 
@@ -163,7 +163,27 @@ headless → `DeviceCode`, leere Tool-Liste → stderr auf
 `OptionsValidationException` prüfen. OpenClaw: zusätzlich
 `openclaw mcp doctor m365 --probe` für einen Live-Verbindungstest.
 
-## Maschinen-Vertrag (für `setup`/`doctor`)
+### Policy-Migration nach einem Update
+
+Das neue Binary liest die alte flache Policy zunächst im Speicher weiter.
+Dadurch schwächt ein Update bestehende Restriktionen nicht ab. Nach dem
+Ersetzen des Binary und vor dem Neustart des MCP-Clients kann die Datei
+persistent aufgeteilt werden:
+
+```bash
+microsoft-mcp policy migrate --json
+microsoft-mcp policy migrate --json --write
+microsoft-mcp doctor --json
+```
+
+Der erste Aufruf ist nur eine Vorschau. `--write` ist explizit, legt ein
+Backup an und ersetzt die admin-owned Datei atomar. Dafür sind Administrator-
+bzw. Root-Rechte nötig. Ein Agent wie Hermes kann den Ablauf nur ausführen,
+wenn sein Update-Prozess diese Rechte bereits besitzt. Andernfalls bleibt die
+Legacy-Datei gültig und ein Administrator muss die Migration ausführen. Nach
+einer Änderung am Binary oder an der Policy muss der MCP-Client neu starten.
+
+## Maschinen-Vertrag (für `setup`/`doctor`/`policy migrate`)
 
 - Eingaben: `--servers` (Teilmenge von `outlook,onedrive,calendar,teams`,
   leer = alle), `--account work|personal`, `--auth delegated|apponly`,
@@ -177,7 +197,11 @@ headless → `DeviceCode`, leere Tool-Liste → stderr auf
   `TenantId`-Format (GUID oder `common|consumers|organizations`),
   `ClientId`-GUID, AuthMode vs. Domains, Scopes vs. Auswahl,
   `DelegatedFlow`, `policy.json`-Fund/Schutz (nur Warnung wenn fehlend).
-  Kein Netzwerk, kein Token. `--json` → `{ "checks": [{ "id", "ok", "message", "next" }] }`.
+  Kein Netzwerk, kein Token. `--json` → `{ "checks": [{ "id", "ok", "message", "next", "migrationRequired" }] }`.
+- `policy migrate --json` prüft standardmäßig nur. Mit `--write` wird die
+  Migration explizit atomar ausgeführt. Das Ergebnis enthält
+  `migrationRequired`, `written`, `backupPath` und `targetVersion`; Secrets
+  werden weder gelesen noch geschrieben.
 
 Cache-Einstellungen: `Graph__FallbackToMemoryTokenCache` ist standardmaessig
 `true` und haelt Delegated-Auth ohne Keyring nutzbar. Persistente Token-

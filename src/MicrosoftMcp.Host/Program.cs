@@ -67,15 +67,15 @@ var mcp = builder.Services.AddMcpServer().WithStdioServerTransport();
 
 // Shared admin-owned policy (policy.json only, never env).
 // Loaded once for messaging and calendar writes; validated + audit-logged here.
-MessagingPolicyOptions? messagingPolicy = null;
+EffectivePolicySet? policies = null;
 if (enabled.Contains("outlook") || enabled.Contains("teams") || enabled.Contains("calendar"))
 {
-    messagingPolicy = MessagingPolicySetup.Initialize();
+    policies = MessagingPolicySetup.InitializePolicies();
 }
 
 if (enabled.Contains("outlook"))
 {
-    builder.Services.AddOutlook(messagingPolicy);
+    builder.Services.AddOutlook(policies?.Outlook);
     mcp.WithToolsFromAssembly(typeof(OutlookTools).Assembly);
 }
 
@@ -87,13 +87,13 @@ if (enabled.Contains("onedrive"))
 
 if (enabled.Contains("calendar"))
 {
-    builder.Services.AddCalendar(messagingPolicy);
+    builder.Services.AddCalendar(policies?.Calendar);
     mcp.WithToolsFromAssembly(typeof(CalendarTools).Assembly);
 }
 
 if (enabled.Contains("teams"))
 {
-    builder.Services.AddTeams();
+    builder.Services.AddTeams(policies?.Teams);
     mcp.WithToolsFromAssembly(typeof(TeamsTools).Assembly);
 }
 

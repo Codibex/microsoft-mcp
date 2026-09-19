@@ -4,7 +4,12 @@ using MicrosoftMcp.Common;
 namespace MicrosoftMcp.Host.Setup;
 
 /// <summary>One offline check with a fix hint.</summary>
-public sealed record SetupCheck(string Id, bool Ok, string Message, string? Next);
+public sealed record SetupCheck(
+    string Id,
+    bool Ok,
+    string Message,
+    string? Next,
+    bool MigrationRequired = false);
 
 /// <summary>Offline checks over the host config (no network, no token).</summary>
 public static class DoctorChecks
@@ -17,7 +22,9 @@ public static class DoctorChecks
         GraphAuthOptions options,
         string? policyPath,
         string? policyError,
-        Func<bool>? secretServiceAvailable = null)
+        Func<bool>? secretServiceAvailable = null,
+        bool policyMigrationRequired = false,
+        string? policyFormat = null)
     {
         List<SetupCheck> checks = [];
 
@@ -40,7 +47,14 @@ public static class DoctorChecks
         }
         else
         {
-            checks.Add(new SetupCheck("policy", true, $"Policy found: {policyPath}", null));
+            checks.Add(new SetupCheck(
+                "policy",
+                true,
+                $"Policy found: {policyPath} ({policyFormat ?? "versioned"}).",
+                policyMigrationRequired
+                    ? "Next: run microsoft-mcp policy migrate --json --write with administrator/root rights, then restart the MCP client."
+                    : null,
+                policyMigrationRequired));
         }
 
         if (string.IsNullOrWhiteSpace(options.TenantId)

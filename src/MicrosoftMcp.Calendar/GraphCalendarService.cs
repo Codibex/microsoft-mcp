@@ -15,7 +15,7 @@ namespace MicrosoftMcp.Calendar;
 public sealed class GraphCalendarService(
     GraphServiceClient client,
     IOptions<GraphAuthOptions> options,
-    IOptions<MessagingPolicyOptions> policy) : IGraphCalendarService
+    IOptions<CalendarPolicyOptions> policy) : IGraphCalendarService
 {
     private static readonly string[] EventSelect =
         ["id", "subject", "bodyPreview", "body", "start", "end", "isAllDay",
@@ -29,7 +29,7 @@ public sealed class GraphCalendarService(
     };
 
     private readonly GraphAuthOptions _options = options.Value;
-    private readonly MessagingPolicyOptions _policy = policy.Value;
+    private readonly CalendarPolicyOptions _policy = policy.Value;
     private bool IsMe => string.Equals(_options.UserIdOrUpn, "me", StringComparison.OrdinalIgnoreCase);
 
     public async Task<IReadOnlyList<CalendarInfo>> ListCalendarsAsync(CancellationToken ct = default)
@@ -196,7 +196,7 @@ public sealed class GraphCalendarService(
         ValidateReminder(reminderMinutesBeforeStart);
         if (attendees is not null)
         {
-            RecipientGuard.ValidateRecipients(attendees, _policy);
+            RecipientGuard.ValidateRecipients(attendees, ToRecipientPolicy(), "attendee");
         }
 
         var payload = BuildEventPayload(
@@ -250,10 +250,10 @@ public sealed class GraphCalendarService(
         ValidateReminder(reminderMinutesBeforeStart);
         if (attendees is not null)
         {
-            RecipientGuard.ValidateRecipients(attendees, _policy);
+            RecipientGuard.ValidateRecipients(attendees, ToRecipientPolicy(), "attendee");
         }
 
-        bool needsExistingEvent = (_policy.RequireInternalRecipients && attendees is null)
+        bool needsExistingEvent = (_policy.RequireInternalAttendees && attendees is null)
             || startValue is not null || endValue is not null || isAllDay is not null;
         Event? existing = needsExistingEvent
             ? await GetGraphEventAsync(eventId.Trim(), calendarId, ct).ConfigureAwait(false)
@@ -263,11 +263,11 @@ public sealed class GraphCalendarService(
             throw GraphServiceException.EventNotFound(eventId, "calendar_update_event");
         }
 
-        if (_policy.RequireInternalRecipients && attendees is null)
+        if (_policy.RequireInternalAttendees && attendees is null)
         {
             string[] existingAttendees = [..
                 (existing!.Attendees ?? []).Select(a => a.EmailAddress?.Address ?? string.Empty)];
-            RecipientGuard.ValidateRecipients(existingAttendees, _policy);
+            RecipientGuard.ValidateRecipients(existingAttendees, ToRecipientPolicy(), "attendee");
         }
 
         bool effectiveIsAllDay = isAllDay ?? existing?.IsAllDay ?? false;
@@ -295,6 +295,13 @@ public sealed class GraphCalendarService(
     private static bool IsDefaultCalendar(string? calendarId) =>
         string.IsNullOrWhiteSpace(calendarId)
         || string.Equals(calendarId.Trim(), "default", StringComparison.OrdinalIgnoreCase);
+
+    private RecipientPolicyOptions ToRecipientPolicy() => new()
+    {
+        RequireInternalRecipients = _policy.RequireInternalAttendees,
+        AllowedRecipientDomains = _policy.AllowedAttendeeDomains,
+        AllowedRecipientAddresses = _policy.AllowedAttendeeAddresses
+    };
 
     private async Task<Event?> SendEventWriteAsync(
         Method method, string path, IReadOnlyDictionary<string, object?> payload, CancellationToken ct)
