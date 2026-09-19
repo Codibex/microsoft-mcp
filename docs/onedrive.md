@@ -42,6 +42,8 @@ scope config is needed. For supported personal-account scenarios, use
 and personal app (see [Outlook troubleshooting](outlook.md#9-troubleshooting)).
 Headless:
 `Graph:DelegatedFlow` = `DeviceCode`.
+OneDrive has no `policy.json` section because its tools do not send to
+recipients, invite attendees or append AI disclosures.
 
 ## 4. Run
 

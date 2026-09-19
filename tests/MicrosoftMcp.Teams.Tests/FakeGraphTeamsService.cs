@@ -82,7 +82,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
     private IReadOnlyList<StoredMessage> Thread(string ownerId, string? parentId, int top) =>
         [.. _messages.Values
             .Where(m => m.OwnerId == ownerId && m.ParentId == parentId)
-            .Take(Math.Clamp(top, 1, 100))];
+            .Take(Math.Clamp(top, 1, 50))];
 
     public Task<IReadOnlyList<MessageSummary>> ListChannelMessagesAsync(
         string teamId, string channelId, int top = 25, CancellationToken ct = default)
@@ -118,7 +118,7 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
 
     public Task<IReadOnlyList<ChatInfo>> ListChatsAsync(int top = 25, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<ChatInfo>>(
-            [.. _chats.Values.Take(Math.Clamp(top, 1, 100))]);
+            [.. _chats.Values.Take(Math.Clamp(top, 1, 50))]);
 
     public Task<IReadOnlyList<MessageSummary>> ListChatMessagesAsync(
         string chatId, int top = 25, CancellationToken ct = default)
@@ -133,14 +133,6 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
             [.. Thread(chatId.Trim(), null, top).Select(ToSummary)]);
     }
 
-    public Task<IReadOnlyList<MessageSummary>> ListChatRepliesAsync(
-        string chatId, string messageId, int top = 25, CancellationToken ct = default)
-    {
-        Require(messageId, "messageId", "call teams_list_chat_messages to get valid message ids");
-        return Task.FromResult<IReadOnlyList<MessageSummary>>(
-            [.. Thread(chatId, messageId.Trim(), top).Select(ToSummary)]);
-    }
-
     public Task<MessageDetail> ReadChatMessageAsync(
         string chatId, string messageId, CancellationToken ct = default)
     {
@@ -149,6 +141,49 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
             _messages.TryGetValue(messageId.Trim(), out var m)
                 ? ToDetail(m)
                 : throw GraphServiceException.TeamsMessageNotFound(messageId, "fake"));
+    }
+
+    public Task<MessageDetail> SendChannelMessageAsync(
+        string teamId, string channelId, string body, CancellationToken ct = default)
+    {
+        Require(teamId, "teamId", "call teams_list_teams to get valid team ids");
+        Require(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
+        Require(body, "body", "pass a non-empty message body");
+        if (!_channels.TryGetValue(channelId.Trim(), out var channel) || channel.TeamId != teamId.Trim())
+        {
+            throw GraphServiceException.ChannelNotFound(channelId, "fake");
+        }
+
+        var message = new StoredMessage
+        {
+            Id = $"sent-{_messages.Count}",
+            OwnerId = channel.Channel.Id,
+            Body = body,
+            Subject = "Sent"
+        };
+        Add(message);
+        return Task.FromResult(ToDetail(message));
+    }
+
+    public Task<MessageDetail> SendChatMessageAsync(
+        string chatId, string body, CancellationToken ct = default)
+    {
+        Require(chatId, "chatId", "call teams_list_chats to get valid chat ids");
+        Require(body, "body", "pass a non-empty message body");
+        if (!_chats.ContainsKey(chatId.Trim()))
+        {
+            throw GraphServiceException.ChatNotFound(chatId, "fake");
+        }
+
+        var message = new StoredMessage
+        {
+            Id = $"sent-{_messages.Count}",
+            OwnerId = chatId.Trim(),
+            Body = body,
+            Subject = "Sent"
+        };
+        Add(message);
+        return Task.FromResult(ToDetail(message));
     }
 
     public Task<IReadOnlyList<MeetingTranscriptInfo>> ListMeetingTranscriptsAsync(

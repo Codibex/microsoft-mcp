@@ -6,6 +6,7 @@
   // This file is the ONLY source for these settings: Messaging__* env vars and
   // user-secrets are deliberately ignored (mcp.json is user-writable).
   // Comments and trailing commas are allowed.
+  // Complete field reference: docs/outlook.md section 10.
   "version": 1,
   "outlook": {
     "requireInternalRecipients": true,
@@ -19,5 +20,11 @@
     "allowedAttendeeDomains": ["firma.de", "tochter.firma.de"],
     "allowedAttendeeAddresses": []
   },
-  "teams": {}
+  "teams": {
+    "requireInternalRecipients": true,
+    "allowedRecipientDomains": ["firma.de", "tochter.firma.de"],
+    "allowedRecipientAddresses": [],
+    "aiDisclosureEnabled": true,
+    "aiDisclosureText": "Hinweis: Diese Nachricht wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+  }
 }

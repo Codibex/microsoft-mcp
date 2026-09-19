@@ -89,7 +89,7 @@ public static class PolicyDocument
         return new EffectivePolicySet(
             outlook,
             calendar,
-            hasTeams ? model.Teams! : new TeamsPolicyOptions(),
+            hasTeams ? Normalize(model.Teams!) : new TeamsPolicyOptions(),
             model.Version,
             model.Version is null || hasLegacy);
     }
@@ -116,6 +116,13 @@ public static class PolicyDocument
     {
         options.AllowedAttendeeDomains = Normalize(options.AllowedAttendeeDomains);
         options.AllowedAttendeeAddresses = Normalize(options.AllowedAttendeeAddresses);
+        return options;
+    }
+
+    private static TeamsPolicyOptions Normalize(TeamsPolicyOptions options)
+    {
+        options.AllowedRecipientDomains = Normalize(options.AllowedRecipientDomains);
+        options.AllowedRecipientAddresses = Normalize(options.AllowedRecipientAddresses);
         return options;
     }
 

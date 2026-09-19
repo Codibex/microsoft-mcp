@@ -1,6 +1,6 @@
 namespace MicrosoftMcp.Common;
 
-/// <summary>Server-side AI-disclosure injection for mail and (future) Teams messages.
+/// <summary>Server-side AI-disclosure injection for mail and Teams messages.
 /// The text is appended by the server, never supplied by the LLM, so it cannot be
 /// omitted or reworded via prompt. Idempotent: re-applying (e.g. via
 /// outlook_update_draft) does not duplicate it. Pure and unit-tested.</summary>
@@ -8,7 +8,7 @@ public static class MessageDisclosure
 {
     /// <summary>Applies the disclosure, auto-detecting HTML vs. text bodies
     /// (reply/forward comments may contain either).</summary>
-    public static string ApplyAuto(string body, OutlookPolicyOptions policy) =>
+    public static string ApplyAuto(string body, DisclosurePolicyOptions policy) =>
         Apply(body, LooksLikeHtml(body), policy);
 
     /// <summary>Heuristic: true when the text contains a tag-like construct
@@ -38,7 +38,7 @@ public static class MessageDisclosure
         return false;
     }
 
-    public static string Apply(string body, bool isHtml, OutlookPolicyOptions policy)
+    public static string Apply(string body, bool isHtml, DisclosurePolicyOptions policy)
     {
         if (!policy.AiDisclosureEnabled || string.IsNullOrWhiteSpace(policy.AiDisclosureText))
         {

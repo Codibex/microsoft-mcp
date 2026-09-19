@@ -1,9 +1,9 @@
 # Teams MCP (`microsoft-mcp-teams`)
 
-Local MCP server (Stdio) for **read-only Teams access** via Microsoft Graph.
-Same pattern as the [Outlook server](outlook.md): Stdio, `isError`
-results with `[code]` hints, delegated auth via the shared `Common`
-library. **Read-only – no send, no create/update/delete.**
+Local MCP server (Stdio) for Teams access via Microsoft Graph. Same pattern as
+the [Outlook server](outlook.md): Stdio, `isError` results with `[code]` hints,
+delegated auth via the shared `Common` library. Message sends are limited to the
+two guarded send tools described below; no other write operations are exposed.
 
 ## 1. Prerequisites
 
@@ -16,7 +16,8 @@ In the **same app registration** (or a new one), add the delegated
 permissions (no admin needed in most tenants, otherwise ask yours):
 
 **API permissions → Add → Microsoft Graph → Delegated:**
-`Team.ReadBasic.All`, `ChannelMessage.Read.All`, `Chat.ReadBasic`, `Chat.Read`,
+`User.Read`, `Team.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMember.Read.All`,
+`Channel.ReadBasic.All`, `ChannelMessage.Send`, `Chat.ReadBasic`, `Chat.Read`, `ChatMessage.Send`,
 `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All`.
 
 `OnlineMeetingAiInsight.Read.All` accesses the Meeting AI Insights API. The
@@ -76,7 +77,7 @@ fails fast on missing values with a `Next:` hint.
 
 For production use take the published binary (or a release asset).
 
-## 6. Tools (13, read-only)
+## 6. Tools (14)
 
 - `teams_list_teams` – joined teams with id and name
 - `teams_list_channels` – channels of a team
@@ -84,10 +85,11 @@ For production use take the published binary (or a release asset).
 - `teams_list_message_replies` – thread replies to a channel message
 - `teams_read_channel_message` – full message (HTML content truncated at
   8000 chars, reactions, mentions)
+- `teams_send_channel_message` – send a guarded message to an existing channel
 - `teams_list_chats` – recent 1:1 and group chats
 - `teams_list_chat_messages` – messages of a chat
-- `teams_list_chat_replies` – thread replies to a chat message
 - `teams_read_chat_message` – full chat message
+- `teams_send_chat_message` – send a guarded message to an existing chat
 - `teams_list_meeting_transcripts` – transcripts of a scheduled online meeting
 - `teams_read_meeting_transcript` – VTT content of a transcript
 - `teams_list_meeting_insights` – AI insight metadata for a completed meeting
@@ -113,7 +115,7 @@ Details + stack traces go to the server log (stderr) only, never to the client.
 
 ## 8. Troubleshooting
 - `[access-denied]` → check the Teams/meeting consent/scopes from section 2
-  (all six delegated scopes, consent again after adding permissions). For
+  (all listed delegated scopes, consent again after adding permissions). For
   insights also verify the Microsoft 365 Copilot license.
 - `[auth-failed]` headless → `Graph__DelegatedFlow=DeviceCode`
 - App-Only configured → switch to delegated; this host rejects
@@ -122,30 +124,41 @@ Details + stack traces go to the server log (stderr) only, never to the client.
   client flows) → same fixes as in the
   [Outlook troubleshooting](outlook.md#9-troubleshooting)
 
-## 9. Enterprise-Policy (Vorbereitung für Write)
+## 9. Enterprise policy
 
-Read-only today: there is no send path, so nothing to enforce — but the shared
-admin-owned versioned `policy.json` (same file and format as
-[Outlook](outlook.md#10-enterprise-policy-nur-interne-drafts--ki-hinweis-policyjson),
-loaded from the OS-specific system path, `Messaging__*` env ignored) is already
-validated at startup of every Teams host. Its `teams` section is intentionally
-empty for now, so the file stays the single source when send tools land.
+The shared admin-owned versioned `policy.json` (same file and format as
+[Outlook](outlook.md), with the complete property reference in
+[the policy reference](outlook.md#policy-v1-schema), loaded from the OS-specific system
+path, with `Messaging__*` env ignored) is validated at startup of every Teams
+host. Configure the `teams` section with the same domain/exact-address and
+disclosure fields as Outlook:
 
-Send design (to be implemented): new tools (`teams_send_channel_message`,
-`teams_send_chat_message`) plus delegated scopes `ChannelMessage.Send` and
-`ChatMessage.Send` (admin consent required). Same two guarantees as mail,
-enforced in server code via the shared blocks in `MicrosoftMcp.Common`:
+```json
+"teams": {
+  "requireInternalRecipients": true,
+  "allowedRecipientDomains": ["firma.de"],
+  "allowedRecipientAddresses": [],
+  "aiDisclosureEnabled": true,
+  "aiDisclosureText": "This message was created by AI and must be reviewed before sending."
+}
+```
 
-- **Intern only:** no mail domains in Teams — instead same-tenant members.
-  Before send, list members server-side and compare each
-  `aadUserConversationMember.tenantId` against the configured `Graph:TenantId`
-  (chat members readable with the existing `Chat.ReadBasic` scope; team/channel
-  guest checks need `TeamMember.Read.All`, admin consent). Any external/guest
-  member → `[invalid-request]`, fail closed.
-- **Disclosure:** `MessageDisclosure.Apply(body, isHtml: true, policy)` appends
-  the admin text as HTML badge — a tool parameter for it must never exist.
+Before either send, the server lists all conversation members across every
+Graph page and verifies every member as an `aadUserConversationMember`, with a
+non-empty email address allowed by `policy.json`. Channel checks include
+indirect members of shared channels. When internal recipients are required, a
+concrete `Graph:TenantId` must match each member's tenant id; the tenant
+selectors `common`, `consumers`, and `organizations` fail closed because they
+cannot identify the resource tenant. Guest roles, foreign tenants, unknown
+member types, and missing identity data are rejected before Graph receives the
+message POST.
+
+The disclosure is appended server-side by `MessageDisclosure.Apply`; it is not a
+tool parameter and cannot be omitted or changed by the caller. The send tools
+are `teams_send_channel_message` and `teams_send_chat_message`, and they only
+target existing Graph channel/chat ids.
 
 Note the platform limit: Teams chat messages do not pass Exchange transport
-rules, so unlike mail there is no server-side disclaimer backstop — the code
-guard plus scope assignment plus Purview (DLP / Communication Compliance,
-detective) are the enforcement story.
+rules, so unlike mail there is no server-side disclaimer backstop. The code
+guard, admin-owned policy, scope assignment, and Purview controls (DLP /
+Communication Compliance) should be used together.

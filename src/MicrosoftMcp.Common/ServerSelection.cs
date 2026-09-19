@@ -15,7 +15,8 @@ public static class ServerSelection
             ["onedrive"] = ["Files.Read", "Files.ReadWrite"],
             ["calendar"] = ["Calendars.Read", "Calendars.ReadWrite"],
             ["teams"] = [
-                "Team.ReadBasic.All", "ChannelMessage.Read.All", "Chat.ReadBasic", "Chat.Read",
+                "User.Read", "Team.ReadBasic.All", "Channel.ReadBasic.All", "ChannelMessage.Read.All", "ChannelMember.Read.All",
+                "ChannelMessage.Send", "Chat.ReadBasic", "Chat.Read", "ChatMessage.Send",
                 "OnlineMeetingTranscript.Read.All", "OnlineMeetingAiInsight.Read.All"
             ]
         };

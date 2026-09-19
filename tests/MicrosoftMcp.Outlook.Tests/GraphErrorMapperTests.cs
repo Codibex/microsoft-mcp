@@ -66,6 +66,35 @@ public sealed class GraphErrorMapperTests
         GraphErrorMapper.ToGraphServiceException(api, "outlook_search_emails").Code.Should().Be("mailbox-unavailable");
     }
 
+    [Fact]
+    public void Structured_graph_error_preserves_diagnostic_details()
+    {
+        var api = new ODataError
+        {
+            ResponseStatusCode = 500,
+            Error = new MainError
+            {
+                Code = "InternalServerError",
+                Message = "Error while processing response.",
+                Target = "chatMessages",
+                InnerError = new InnerError
+                {
+                    RequestId = "request-123",
+                    ClientRequestId = "client-456"
+                }
+            }
+        };
+
+        var mapped = GraphErrorMapper.ToGraphServiceException(api, "teams_list_chat_messages");
+
+        mapped.Code.Should().Be("service-unavailable");
+        mapped.Message.Should().Contain("InternalServerError");
+        mapped.Message.Should().Contain("message: Error while processing response.");
+        mapped.Message.Should().Contain("target: chatMessages");
+        mapped.Message.Should().Contain("request-id: request-123");
+        mapped.Message.Should().Contain("client-request-id: client-456");
+    }
+
     [Theory]
     [InlineData("ErrorMailboxNotAssociated")]
     [InlineData("ErrorNonExistentMailbox")]

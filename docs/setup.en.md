@@ -59,7 +59,7 @@ microsoft-mcp doctor --servers outlook,calendar
    | `outlook` | `Mail.Read`, `Mail.ReadWrite` |
    | `onedrive` | `Files.Read`, `Files.ReadWrite` |
   | `calendar` | `Calendars.Read`, `Calendars.ReadWrite` |
-  | `teams` | `Team.ReadBasic.All`, `ChannelMessage.Read.All`, `Chat.ReadBasic`, `Chat.Read`, `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All` |
+  | `teams` | `User.Read`, `Team.ReadBasic.All`, `Channel.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMember.Read.All`, `ChannelMessage.Send`, `Chat.ReadBasic`, `Chat.Read`, `ChatMessage.Send`, `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All` |
 
    Then consent (yourself or your admin). App-Only (Outlook only):
    application permission `Mail.ReadWrite` + admin consent + client secret.
@@ -141,7 +141,8 @@ mcp_servers:
 App-Only additionally: `Graph__AuthMode=AppOnly`, `Graph__UserIdOrUpn`,
 `Graph__ClientSecret`. Versioned `policy.json` (Outlook/Calendar/Teams,
 optional) lives in the admin-owned system path or next to the binary;
-`Messaging__*` env is ignored (see `outlook.md` §10).
+`Messaging__*` env is ignored. The complete policy-v1 schema and defaults are
+documented in [outlook.md](outlook.md#policy-v1-schema).
 
 ## 4. Verify
 

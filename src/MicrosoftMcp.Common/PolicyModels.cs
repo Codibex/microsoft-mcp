@@ -15,8 +15,8 @@ public class RecipientPolicyOptions
     public virtual bool IsRestrictive => RequireInternalRecipients;
 }
 
-/// <summary>Outlook policy: recipient restrictions plus mail disclosure.</summary>
-public class OutlookPolicyOptions : RecipientPolicyOptions
+/// <summary>Shared recipient restrictions and AI disclosure settings.</summary>
+public class DisclosurePolicyOptions : RecipientPolicyOptions
 {
     public bool AiDisclosureEnabled { get; set; }
 
@@ -24,6 +24,11 @@ public class OutlookPolicyOptions : RecipientPolicyOptions
 
     [JsonIgnore]
     public override bool IsRestrictive => base.IsRestrictive || AiDisclosureEnabled;
+}
+
+/// <summary>Outlook policy: recipient restrictions plus mail disclosure.</summary>
+public class OutlookPolicyOptions : DisclosurePolicyOptions
+{
 }
 
 /// <summary>Calendar policy with attendee-specific names and no mail disclosure settings.</summary>
@@ -39,8 +44,8 @@ public sealed class CalendarPolicyOptions
     public bool IsRestrictive => RequireInternalAttendees;
 }
 
-/// <summary>Reserved for future Teams write-policy rules.</summary>
-public sealed class TeamsPolicyOptions
+/// <summary>Teams policy: conversation-member restrictions plus disclosure.</summary>
+public sealed class TeamsPolicyOptions : DisclosurePolicyOptions
 {
 }
 
@@ -54,5 +59,5 @@ public sealed record EffectivePolicySet(
 {
     public bool MigrationRequired => IsLegacy;
 
-    public bool IsRestrictive => Outlook.IsRestrictive || Calendar.IsRestrictive;
+    public bool IsRestrictive => Outlook.IsRestrictive || Calendar.IsRestrictive || Teams.IsRestrictive;
 }

@@ -26,7 +26,8 @@ public sealed class PolicyDocumentTests
         Assert.True(policies.Outlook.AiDisclosureEnabled);
         Assert.True(policies.Calendar.RequireInternalAttendees);
         Assert.Equal(["firma.de"], policies.Calendar.AllowedAttendeeDomains);
-        Assert.Empty(policies.Teams.GetType().GetProperties());
+        Assert.False(policies.Teams.RequireInternalRecipients);
+        Assert.False(policies.Teams.AiDisclosureEnabled);
     }
 
     [Fact]
