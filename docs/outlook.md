@@ -266,8 +266,9 @@ recipient restriction or disclosure and should therefore only be used
 intentionally. The deployment scripts use the same messaging defaults for
 Outlook and Teams. Teams additionally verifies conversation members, rejects
 guest or unverifiable members, and checks a concrete `Graph:TenantId` against
-member tenant ids before sending. Calendar never inherits Outlook disclosure
-fields.
+member tenant ids before sending. With `requireInternalRecipients` enabled,
+`common`, `consumers`, and `organizations` fail closed because they do not
+identify a resource tenant. Calendar never inherits Outlook disclosure fields.
 
 The old flat policy properties (`requireInternalRecipients`,
 `allowedRecipientDomains`, `allowedRecipientAddresses`,

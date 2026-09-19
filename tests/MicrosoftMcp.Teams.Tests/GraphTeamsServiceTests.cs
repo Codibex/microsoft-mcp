@@ -320,11 +320,39 @@ public sealed class GraphTeamsServiceTests
     }
 
     [Fact]
+    public async Task SendChatMessage_rejects_non_concrete_tenant_when_internal_policy_is_enabled()
+    {
+        var handler = new SequenceHandler(
+            Response("""
+                {"value":[{"@odata.type":"#microsoft.graph.aadUserConversationMember","id":"member-1","displayName":"Alice","email":"alice@firma.de","tenantId":"tenant-1","userId":"user-1"}]}
+                """),
+            Response("""{"id":"must-not-be-sent"}"""));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions { TenantId = "common" }),
+            Options.Create(new TeamsPolicyOptions
+            {
+                RequireInternalRecipients = true,
+                AllowedRecipientDomains = ["firma.de"]
+            }));
+
+        var exception = await Assert.ThrowsAsync<GraphServiceException>(
+            () => service.SendChatMessageAsync("chat-1", "Hello"));
+
+        exception.Code.Should().Be("invalid-request");
+        handler.Requests.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task SendChatMessage_checks_all_member_pages_before_post()
     {
         var handler = new SequenceHandler(
             Response("""
-                {"value":[{"@odata.type":"#microsoft.graph.aadUserConversationMember","id":"member-1","displayName":"Alice","email":"alice@firma.de","tenantId":"tenant-1","userId":"user-1"}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/chats/chat-1/members?$skiptoken=next"}
+                {"value":[{"@odata.type":"#microsoft.graph.aadUserConversationMember","id":"member-1","displayName":"Alice","email":"alice@firma.de","tenantId":"tenant-1","userId":"user-1"}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/chats/chat-1/members?$skiptoken=next"}
                 """),
             Response("""
                 {"value":[{"@odata.type":"#microsoft.graph.aadUserConversationMember","id":"member-2","displayName":"Guest","email":"guest@firma.de","tenantId":"tenant-1","userId":"user-2","roles":["guest"]}]}
@@ -349,6 +377,7 @@ public sealed class GraphTeamsServiceTests
 
         exception.Code.Should().Be("invalid-request");
         handler.Requests.Should().HaveCount(2);
+        handler.Requests[0].RequestUri!.AbsolutePath.Should().Be("/v1.0/chats/chat-1/members");
         handler.Requests[1].RequestUri!.Query.Should().Contain("$skiptoken=next");
     }
 

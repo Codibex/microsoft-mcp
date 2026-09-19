@@ -236,7 +236,7 @@ public sealed class GraphTeamsService : IGraphTeamsService
             return;
         }
 
-        var page = await _client.Me.Chats[chatId].Members.GetAsync(cancellationToken: ct)
+        var page = await _client.Chats[chatId].Members.GetAsync(cancellationToken: ct)
             .ConfigureAwait(false)
             ?? throw GraphServiceException.InvalidRequest(
                 "Cannot verify all chat members because Graph returned no member page.",
@@ -250,7 +250,7 @@ public sealed class GraphTeamsService : IGraphTeamsService
                 break;
             }
 
-            page = await _client.Me.Chats[chatId].Members
+            page = await _client.Chats[chatId].Members
                 .WithUrl(page.OdataNextLink)
                 .GetAsync(cancellationToken: ct)
                 .ConfigureAwait(false)
@@ -299,7 +299,9 @@ public sealed class GraphTeamsService : IGraphTeamsService
 
         if (!IsConcreteTenant(_tenantId))
         {
-            return;
+            throw GraphServiceException.InvalidRequest(
+                $"Cannot verify {conversationType} member tenants because Graph:TenantId is not a concrete tenant id.",
+                "set Graph:TenantId to the organization's tenant GUID before sending with internal recipients required");
         }
 
         foreach (AadUserConversationMember member in users)

@@ -146,10 +146,10 @@ disclosure fields as Outlook:
 Before either send, the server lists all conversation members across every
 Graph page and verifies every member as an `aadUserConversationMember`, with a
 non-empty email address allowed by `policy.json`. Channel checks include
-indirect members of shared channels. A concrete `Graph:TenantId` also has to
-match each member's tenant id; `common`, `consumers`, and `organizations` rely
-on the configured domain/exact-address policy because they are tenant
-selectors, not resource tenant ids. Guest roles, foreign tenants, unknown
+indirect members of shared channels. When internal recipients are required, a
+concrete `Graph:TenantId` must match each member's tenant id; the tenant
+selectors `common`, `consumers`, and `organizations` fail closed because they
+cannot identify the resource tenant. Guest roles, foreign tenants, unknown
 member types, and missing identity data are rejected before Graph receives the
 message POST.
 
