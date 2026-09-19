@@ -83,9 +83,10 @@ For production use take the published binary (or a release asset).
 - `calendar_update_event` – update only the supplied event fields; no delete or
   move operation is offered
 
-Write tools accept ISO date/time values and normalize them to UTC. Attendee
-values are SMTP addresses. `calendar_update_event` requires at least one
-mutable field; an empty attendee list clears the attendees.
+Write tools accept ISO date/time values and normalize timed events to UTC.
+All-day values must be at midnight; their supplied calendar date is preserved.
+Attendee values are SMTP addresses. `calendar_update_event` requires at least
+one mutable field; an empty attendee list clears the attendees.
 
 Example prompt: “What meetings do I have tomorrow (`calendar_list_events` with
 `timeMin`/`timeMax`)? Who attends the sync (`calendar_read_event`)?”

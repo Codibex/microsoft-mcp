@@ -15,6 +15,9 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
         public bool IsAllDay { get; set; }
         public bool IsCancelled { get; init; }
         public string? Location { get; set; }
+        public string? Body { get; set; }
+        public List<string> Attendees { get; set; } = [];
+        public int? ReminderMinutesBeforeStart { get; set; }
     }
 
     private readonly Dictionary<string, CalendarInfo> _calendars = new(StringComparer.OrdinalIgnoreCase);
@@ -31,7 +34,7 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
         {
             Id = "e-standup", CalendarId = "cal-default", Subject = "Daily Standup",
             Start = now.AddHours(2), End = now.AddHours(2).AddMinutes(15),
-            Location = "Teams"
+            Location = "Teams", Attendees = ["a@x.y"]
         });
         Add(new StoredEvent
         {
@@ -78,8 +81,11 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
         e.Start.ToString("yyyy-MM-ddTHH:mm:ss"), "UTC",
         e.End.ToString("yyyy-MM-ddTHH:mm:ss"), "UTC",
         e.IsAllDay, e.Location, "boss@example.com",
-        [new AttendeeDto("A", "a@x.y", "accepted")],
-        null, null, null, true, "busy", e.IsCancelled, "preview", "body", null);
+        [.. e.Attendees.Select(address => new AttendeeDto(address, address, null))],
+        null, null, null, true, "busy", e.IsCancelled, e.Body, e.Body, null);
+
+    internal int? GetReminderMinutesBeforeStart(string eventId) =>
+        _events[eventId].ReminderMinutesBeforeStart;
 
     public Task<IReadOnlyList<CalendarInfo>> ListCalendarsAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<CalendarInfo>>([.. _calendars.Values]);
@@ -168,7 +174,10 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
             Start = startValue,
             End = endValue,
             IsAllDay = isAllDay,
-            Location = location
+            Location = location,
+            Body = body,
+            Attendees = [.. attendees ?? []],
+            ReminderMinutesBeforeStart = reminderMinutesBeforeStart
         };
         Add(created);
         return Task.FromResult(ToDetail(created));
@@ -231,12 +240,26 @@ internal sealed class FakeGraphCalendarService : IGraphCalendarService
             existing.Location = location;
         }
 
+        if (body is not null)
+        {
+            existing.Body = body;
+        }
+
+        if (attendees is not null)
+        {
+            existing.Attendees = [.. attendees];
+        }
+
         if (isAllDay is not null)
         {
             existing.IsAllDay = isAllDay.Value;
         }
 
         ValidateReminder(reminderMinutesBeforeStart);
+        if (reminderMinutesBeforeStart is not null)
+        {
+            existing.ReminderMinutesBeforeStart = reminderMinutesBeforeStart;
+        }
         return Task.FromResult(ToDetail(existing));
     }
 

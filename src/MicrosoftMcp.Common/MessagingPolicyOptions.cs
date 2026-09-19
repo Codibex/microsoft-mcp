@@ -1,7 +1,8 @@
 namespace MicrosoftMcp.Common;
 
-/// <summary>Admin-owned enterprise policy shared by messaging and calendar
-/// write operations: internal recipients + AI disclosure.
+/// <summary>Admin-owned enterprise policy with recipient restrictions shared by
+/// messaging and calendar write operations. AI disclosure applies to messages
+/// only.
 ///
 /// Binds ONLY from the protected <c>policy.json</c> file (see <see cref="PolicyFile"/>).
 /// Env vars / user-secrets are deliberately NOT consulted for these settings,

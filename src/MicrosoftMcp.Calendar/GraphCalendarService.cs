@@ -152,21 +152,27 @@ public sealed class GraphCalendarService(
                 "use an id from calendar_list_events or calendar_search_events");
         }
 
-        Event? ev = (IsDefaultCalendar(calendarId), IsMe) switch
-        {
-            (true, true) => await client.Me.Calendar.Events[eventId.Trim()].GetAsync(c =>
-                c.QueryParameters.Select = EventSelect, ct).ConfigureAwait(false),
-            (true, false) => await client.Users[_options.UserIdOrUpn].Calendar.Events[eventId.Trim()].GetAsync(c =>
-                c.QueryParameters.Select = EventSelect, ct).ConfigureAwait(false),
-            (false, true) => await client.Me.Calendars[calendarId!].Events[eventId.Trim()].GetAsync(c =>
-                c.QueryParameters.Select = EventSelect, ct).ConfigureAwait(false),
-            (false, false) => await client.Users[_options.UserIdOrUpn].Calendars[calendarId!].Events[eventId.Trim()].GetAsync(c =>
-                c.QueryParameters.Select = EventSelect, ct).ConfigureAwait(false)
-        };
+        Event? ev = await GetGraphEventAsync(eventId.Trim(), calendarId, ct).ConfigureAwait(false);
 
         return ev is null
             ? throw GraphServiceException.EventNotFound(eventId, "calendar_read_event")
             : CalendarMapper.MapDetail(ev);
+    }
+
+    private async Task<Event?> GetGraphEventAsync(
+        string eventId, string? calendarId, CancellationToken ct)
+    {
+        return (IsDefaultCalendar(calendarId), IsMe) switch
+        {
+            (true, true) => await client.Me.Calendar.Events[eventId].GetAsync(c =>
+                c.QueryParameters.Select = EventSelect, ct).ConfigureAwait(false),
+            (true, false) => await client.Users[_options.UserIdOrUpn].Calendar.Events[eventId].GetAsync(c =>
+                c.QueryParameters.Select = EventSelect, ct).ConfigureAwait(false),
+            (false, true) => await client.Me.Calendars[calendarId!].Events[eventId].GetAsync(c =>
+                c.QueryParameters.Select = EventSelect, ct).ConfigureAwait(false),
+            (false, false) => await client.Users[_options.UserIdOrUpn].Calendars[calendarId!].Events[eventId].GetAsync(c =>
+                c.QueryParameters.Select = EventSelect, ct).ConfigureAwait(false)
+        };
     }
 
     public async Task<EventDetail> CreateEventAsync(
@@ -186,6 +192,7 @@ public sealed class GraphCalendarService(
         DateTimeOffset startValue = RequireDateTime(start, "start");
         DateTimeOffset endValue = RequireDateTime(end, "end");
         RequireValidWindow(startValue, endValue);
+        ValidateAllDay(startValue, endValue, isAllDay);
         ValidateReminder(reminderMinutesBeforeStart);
         if (attendees is not null)
         {
@@ -245,9 +252,38 @@ public sealed class GraphCalendarService(
         {
             RecipientGuard.ValidateRecipients(attendees, _policy);
         }
+
+        bool needsExistingEvent = (_policy.RequireInternalRecipients && attendees is null)
+            || startValue is not null || endValue is not null || isAllDay is not null;
+        Event? existing = needsExistingEvent
+            ? await GetGraphEventAsync(eventId.Trim(), calendarId, ct).ConfigureAwait(false)
+            : null;
+        if (needsExistingEvent && existing is null)
+        {
+            throw GraphServiceException.EventNotFound(eventId, "calendar_update_event");
+        }
+
+        if (_policy.RequireInternalRecipients && attendees is null)
+        {
+            string[] existingAttendees = [..
+                (existing!.Attendees ?? []).Select(a => a.EmailAddress?.Address ?? string.Empty)];
+            RecipientGuard.ValidateRecipients(existingAttendees, _policy);
+        }
+
+        bool effectiveIsAllDay = isAllDay ?? existing?.IsAllDay ?? false;
+        if (startValue is not null || endValue is not null || isAllDay is not null)
+        {
+            DateTimeOffset effectiveStart = startValue
+                ?? RequireDateTime(existing!.Start?.DateTime ?? string.Empty, "existing start");
+            DateTimeOffset effectiveEnd = endValue
+                ?? RequireDateTime(existing!.End?.DateTime ?? string.Empty, "existing end");
+            RequireValidWindow(effectiveStart, effectiveEnd);
+            ValidateAllDay(effectiveStart, effectiveEnd, effectiveIsAllDay);
+        }
+
         var payload = BuildUpdatePayload(
             subject, startValue, endValue, body, location, attendees,
-            isAllDay, reminderMinutesBeforeStart);
+            isAllDay, effectiveIsAllDay, reminderMinutesBeforeStart);
         Event? updated = await SendEventWriteAsync(
             Microsoft.Kiota.Abstractions.Method.PATCH,
             EventPath(calendarId, eventId.Trim()), payload, ct).ConfigureAwait(false);
@@ -313,8 +349,8 @@ public sealed class GraphCalendarService(
         var payload = new Dictionary<string, object?>
         {
             ["subject"] = subject,
-            ["start"] = ToGraphDateTime(start),
-            ["end"] = ToGraphDateTime(end),
+            ["start"] = ToGraphDateTime(start, isAllDay),
+            ["end"] = ToGraphDateTime(end, isAllDay),
             ["isAllDay"] = isAllDay
         };
 
@@ -330,6 +366,7 @@ public sealed class GraphCalendarService(
         string? location,
         IReadOnlyList<string>? attendees,
         bool? isAllDay,
+        bool effectiveIsAllDay,
         int? reminderMinutesBeforeStart)
     {
         var payload = new Dictionary<string, object?>();
@@ -340,12 +377,12 @@ public sealed class GraphCalendarService(
 
         if (start is not null)
         {
-            payload["start"] = ToGraphDateTime(start.Value);
+            payload["start"] = ToGraphDateTime(start.Value, effectiveIsAllDay);
         }
 
         if (end is not null)
         {
-            payload["end"] = ToGraphDateTime(end.Value);
+            payload["end"] = ToGraphDateTime(end.Value, effectiveIsAllDay);
         }
 
         if (isAllDay is not null)
@@ -415,12 +452,24 @@ public sealed class GraphCalendarService(
             };
         })];
 
-    private static Dictionary<string, string> ToGraphDateTime(DateTimeOffset value) =>
+    private static Dictionary<string, string> ToGraphDateTime(DateTimeOffset value, bool isAllDay) =>
         new()
         {
-            ["dateTime"] = value.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
+            ["dateTime"] = isAllDay
+                ? value.Date.ToString("yyyy-MM-dd'T'00:00:00", CultureInfo.InvariantCulture)
+                : value.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
             ["timeZone"] = "UTC"
         };
+
+    private static void ValidateAllDay(DateTimeOffset start, DateTimeOffset end, bool isAllDay)
+    {
+        if (isAllDay && (start.TimeOfDay != TimeSpan.Zero || end.TimeOfDay != TimeSpan.Zero))
+        {
+            throw GraphServiceException.InvalidRequest(
+                "All-day event start and end must be at midnight in the supplied time zone.",
+                "pass ISO values such as \"2026-09-14T00:00:00+02:00\"");
+        }
+    }
 
     private static void RequireSubject(string subject)
     {

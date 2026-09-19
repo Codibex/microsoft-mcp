@@ -61,6 +61,78 @@ public sealed class GraphCalendarServiceTests
     }
 
     [Fact]
+    public async Task UpdateEvent_revalidates_existing_attendees_when_not_replaced()
+    {
+        var handler = new RecordingHandler(
+            "{\"id\":\"event-1\",\"attendees\":[{\"emailAddress\":{\"address\":\"outside@example.com\"}}]}");
+        var policy = new MessagingPolicyOptions
+        {
+            RequireInternalRecipients = true,
+            AllowedRecipientDomains = ["firma.de"]
+        };
+        var service = CreateService(handler, policy: policy);
+
+        var act = () => service.UpdateEventAsync("event-1", subject: "Moved");
+
+        await act.Should().ThrowAsync<GraphServiceException>()
+            .WithMessage("*[invalid-request]*policy.json*");
+        handler.Method.Should().Be(HttpMethod.Get);
+    }
+
+    [Fact]
+    public async Task UpdateEvent_rejects_partial_time_update_that_would_invert_window()
+    {
+        var handler = new RecordingHandler(
+            "{\"id\":\"event-1\",\"start\":{\"dateTime\":\"2026-09-14T14:00:00\",\"timeZone\":\"UTC\"},\"end\":{\"dateTime\":\"2026-09-14T15:00:00\",\"timeZone\":\"UTC\"}}");
+        var service = CreateService(handler);
+
+        var act = () => service.UpdateEventAsync(
+            "event-1", start: "2026-09-14T16:00:00Z");
+
+        await act.Should().ThrowAsync<GraphServiceException>()
+            .WithMessage("*[invalid-request]*end*after*start*");
+        handler.Method.Should().Be(HttpMethod.Get);
+    }
+
+    [Fact]
+    public async Task CreateEvent_preserves_local_date_for_all_day_values_with_offset()
+    {
+        var handler = new RecordingHandler("{\"id\":\"event-1\"}");
+        var service = CreateService(handler);
+
+        await service.CreateEventAsync(
+            "Holiday",
+            "2026-09-14T00:00:00+02:00",
+            "2026-09-15T00:00:00+02:00",
+            isAllDay: true);
+
+        using var json = JsonDocument.Parse(handler.Body!);
+        json.RootElement.GetProperty("start").GetProperty("dateTime").GetString()
+            .Should().Be("2026-09-14T00:00:00");
+        json.RootElement.GetProperty("end").GetProperty("dateTime").GetString()
+            .Should().Be("2026-09-15T00:00:00");
+        json.RootElement.GetProperty("start").GetProperty("timeZone").GetString()
+            .Should().Be("UTC");
+    }
+
+    [Fact]
+    public async Task CreateEvent_rejects_non_midnight_all_day_values()
+    {
+        var handler = new RecordingHandler("{}");
+        var service = CreateService(handler);
+
+        var act = () => service.CreateEventAsync(
+            "Holiday",
+            "2026-09-14T01:00:00+02:00",
+            "2026-09-15T01:00:00+02:00",
+            isAllDay: true);
+
+        await act.Should().ThrowAsync<GraphServiceException>()
+            .WithMessage("*[invalid-request]*midnight*");
+        handler.Method.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Calendar_writes_reject_app_only_auth()
     {
         var handler = new RecordingHandler("{}");
