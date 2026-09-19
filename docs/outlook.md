@@ -156,6 +156,15 @@ and binary files as base64; downloads above `maxBytes` (default 768 KB,
 max 2097152) are rejected with `attachment-too-large`. Nested messages
 and OneDrive links are reported, not downloaded.
 
+Ein Mail-Entwurf kann auch ohne `policy.json` erstellt und bearbeitet werden;
+dann greifen keine administrativen Empfänger- oder KI-Hinweis-Regeln. Das ist
+von den Graph-Berechtigungen getrennt: Für das Lesen vorhandener Nachrichten
+und Entwürfe genügt `Mail.Read`, für `outlook_create_draft`,
+`outlook_create_reply_draft`, `outlook_create_forward_draft` und
+`outlook_update_draft` ist wegen der Schreiboperationen `Mail.ReadWrite`
+erforderlich. `Mail.Send` wird nicht benötigt, da dieser Server keine
+Nachrichten versendet.
+
 
 `message-not-found`, `folder-not-found`, `mailbox-unavailable`, `invalid-request`,
 `attachment-too-large`,
