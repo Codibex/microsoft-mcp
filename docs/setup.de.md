@@ -180,8 +180,31 @@ headless → `DeviceCode`, leere Tool-Liste → stderr auf
   Kein Netzwerk, kein Token. `--json` → `{ "checks": [{ "id", "ok", "message", "next" }] }`.
 
 Cache-Einstellungen: `Graph__FallbackToMemoryTokenCache` ist standardmaessig
-`true` und haelt Delegated-Auth ohne Keyring nutzbar. Nur wenn persistenter,
-verschluesselter Speicher zwingend erforderlich ist, auf `false` setzen; auf
-Linux prueft `doctor` dann, ob `org.freedesktop.secrets` erreichbar ist, und
-schlaegt fehl, wenn der Dienst nicht erreichbar ist. Eine Aenderung des
-Cache-Namens kann eine einmalige neue Anmeldung erfordern.
+`true` und haelt Delegated-Auth ohne Keyring nutzbar. Persistente Token-
+Operationen des Credentials werden durch `Graph__TokenCacheTimeoutSeconds`
+begrenzt (Standard `10`, zulaessig `1`-`120`). Der Timeout gilt fuer den
+gesamten Token-Abruf des persistenten Credentials; dieser kann stille
+Authentifizierung, Token-Erneuerung, Netzwerkzugriff und Secret-Service-
+Operationen enthalten. Die Zeit fuer die Device-Code-Anmeldung wird dadurch
+nicht begrenzt. Nur wenn persistenter, verschluesselter Speicher zwingend
+erforderlich ist, auf `false` setzen; auf Linux prueft `doctor` dann, ob
+`org.freedesktop.secrets` erreichbar ist, und schlaegt fehl, wenn der Dienst
+nicht erreichbar ist. Eine Aenderung des Cache-Namens kann eine einmalige neue
+Anmeldung erfordern.
+
+Voraussetzung fuer den persistenten Cache unter Linux: Eine D-Bus-Session des
+Benutzers und ein Secret-Service-Provider mit `org.freedesktop.secrets` muessen
+erreichbar sein, normalerweise GNOME Keyring/libsecret. Ein systemweiter
+`dbus.service` allein reicht nicht. Bei headless oder vom Client gestarteten
+Sessions muss der Serverprozess `DBUS_SESSION_BUS_ADDRESS` der User-Session
+erben; `XDG_RUNTIME_DIR` wird empfohlen, weil manche Provider darueber ihren
+Socket aufloesen. Diese Variablen werden beim Start des MCP-Kindprozesses vom
+Client vererbt. Nach dem Hinzufuegen oder Aendern muss der Clientprozess, der
+den MCP-Kindprozess startet, neu gestartet werden, sonst verwendet das Kind
+weiterhin die alte Umgebung. Hermes kann Teile dieser Umgebung starten oder
+bereitstellen, ist aber keine spezielle Server-Voraussetzung von Microsoft MCP.
+Mit aktiviertem Memory-Fallback verhindert ein nicht verfuegbarer oder nicht
+antwortender Secret Service die Delegated-Anmeldung nicht. Nach dem Wechsel zum
+Memory-Cache bleibt dieser fuer die Lebensdauer des Prozesses aktiv; nach einer
+Erholung des Providers den Server neu starten, um den persistenten Speicher
+erneut zu versuchen.

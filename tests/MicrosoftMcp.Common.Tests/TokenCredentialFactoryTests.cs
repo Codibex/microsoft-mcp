@@ -112,6 +112,119 @@ public sealed class TokenCredentialFactoryTests
     }
 
     [Fact]
+    public async Task Token_cache_async_timeout_switches_to_memory()
+    {
+        List<string> warnings = [];
+        var persistent = new HangingCredential();
+        var memory = new CountingCredential();
+        var credential = new TokenCacheCredential(
+            persistent,
+            memory,
+            warnings.Add,
+            persistentOperationTimeout: TimeSpan.FromMilliseconds(25));
+
+        try
+        {
+            AccessToken token = await credential.GetTokenAsync(
+                new TokenRequestContext(["scope"]),
+                CancellationToken.None).AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+
+            token.Token.Should().Be("token");
+            memory.Calls.Should().Be(1);
+            warnings.Should().ContainSingle().Which.Should().Contain("did not respond within");
+
+            AccessToken secondToken = await credential.GetTokenAsync(
+                new TokenRequestContext(["scope"]),
+                CancellationToken.None);
+
+            secondToken.Token.Should().Be("token");
+            persistent.Calls.Should().Be(1);
+            memory.Calls.Should().Be(2);
+        }
+        finally
+        {
+            persistent.Release();
+        }
+    }
+
+    [Fact]
+    public async Task Token_cache_sync_timeout_switches_to_memory()
+    {
+        List<string> warnings = [];
+        var persistent = new HangingCredential();
+        var memory = new CountingCredential();
+        var credential = new TokenCacheCredential(
+            persistent,
+            memory,
+            warnings.Add,
+            persistentOperationTimeout: TimeSpan.FromMilliseconds(25));
+
+        try
+        {
+            AccessToken token = await Task.Run(() => credential.GetToken(
+                new TokenRequestContext(["scope"]),
+                CancellationToken.None)).WaitAsync(TimeSpan.FromSeconds(1));
+
+            token.Token.Should().Be("token");
+            memory.Calls.Should().Be(1);
+            warnings.Should().ContainSingle().Which.Should().Contain("did not respond within");
+        }
+        finally
+        {
+            persistent.Release();
+        }
+    }
+
+    [Fact]
+    public async Task Token_cache_timeout_in_strict_mode_returns_actionable_error()
+    {
+        var persistent = new HangingCredential();
+        var credential = new TokenCacheCredential(
+            persistent,
+            memory: null,
+            _ => { },
+            persistentOperationTimeout: TimeSpan.FromMilliseconds(25));
+
+        try
+        {
+            GraphServiceException error = await Assert.ThrowsAsync<GraphServiceException>(() =>
+                credential.GetTokenAsync(
+                    new TokenRequestContext(["scope"]),
+                    CancellationToken.None).AsTask().WaitAsync(TimeSpan.FromSeconds(1)));
+
+            error.Code.Should().Be("auth-cache-unavailable");
+            error.Message.Should().Contain("FallbackToMemoryTokenCache");
+        }
+        finally
+        {
+            persistent.Release();
+        }
+    }
+
+    [Fact]
+    public async Task Token_cache_timeout_does_not_replace_caller_cancellation()
+    {
+        List<string> warnings = [];
+        var persistent = new HangingCredential();
+        var memory = new CountingCredential();
+        var credential = new TokenCacheCredential(
+            persistent,
+            memory,
+            warnings.Add,
+            persistentOperationTimeout: TimeSpan.FromSeconds(1));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => credential.GetTokenAsync(
+            new TokenRequestContext(["scope"]),
+            cancellation.Token).AsTask());
+
+        memory.Calls.Should().Be(0);
+        warnings.Should().BeEmpty();
+        persistent.Release();
+    }
+
+    [Fact]
     public void Token_cache_construction_failure_falls_back_to_memory()
     {
         List<string> warnings = [];
@@ -136,6 +249,28 @@ public sealed class TokenCredentialFactoryTests
     }
 
     [Fact]
+    public void Unrelated_construction_timeout_is_not_treated_as_cache_failure()
+    {
+        List<string> warnings = [];
+        var factory = new TokenCredentialFactory(
+            warnings.Add,
+            (_, cache) => cache is null
+                ? new CountingCredential()
+                : throw new TimeoutException("unrelated timeout"));
+        var options = new GraphAuthOptions
+        {
+            AuthMode = AuthMode.Delegated,
+            TenantId = "t",
+            ClientId = "c"
+        };
+
+        Action act = () => factory.GetCredential(options);
+
+        act.Should().Throw<TimeoutException>().WithMessage("unrelated timeout");
+        warnings.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Token_cache_strict_mode_throws_actionable_cache_error()
     {
         var credential = new TokenCacheCredential(
@@ -148,6 +283,25 @@ public sealed class TokenCredentialFactoryTests
         act.Should().Throw<GraphServiceException>()
             .Where(e => e.Code == "auth-cache-unavailable")
             .WithMessage("*FallbackToMemoryTokenCache*");
+    }
+
+    [Fact]
+    public async Task Unrelated_token_timeout_is_not_treated_as_cache_failure()
+    {
+        List<string> warnings = [];
+        var memory = new CountingCredential();
+        var credential = new TokenCacheCredential(
+            new TimeoutCredential(),
+            memory,
+            warnings.Add,
+            persistentOperationTimeout: TimeSpan.FromSeconds(1));
+
+        await Assert.ThrowsAsync<TimeoutException>(() => credential.GetTokenAsync(
+            new TokenRequestContext(["scope"]),
+            CancellationToken.None).AsTask());
+
+        memory.Calls.Should().Be(0);
+        warnings.Should().BeEmpty();
     }
 
     [Fact]
@@ -506,6 +660,47 @@ public sealed class TokenCredentialFactoryTests
 
         public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
             ValueTask.FromException<AccessToken>(new InvalidOperationException(message));
+    }
+
+    private sealed class TimeoutCredential : TokenCredential
+    {
+        public override AccessToken GetToken(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken) =>
+            throw new TimeoutException("unrelated timeout");
+
+        public override ValueTask<AccessToken> GetTokenAsync(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<AccessToken>(new TimeoutException("unrelated timeout"));
+    }
+
+    private sealed class HangingCredential : TokenCredential
+    {
+        private readonly TaskCompletionSource<AccessToken> _completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        public void Release() => _completion.TrySetResult(
+            new AccessToken("released", DateTimeOffset.UtcNow.AddMinutes(5)));
+
+        public override AccessToken GetToken(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _calls);
+            return _completion.Task.GetAwaiter().GetResult();
+        }
+
+        public override ValueTask<AccessToken> GetTokenAsync(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _calls);
+            return new(_completion.Task);
+        }
     }
 
     private sealed class CountingCredential : TokenCredential

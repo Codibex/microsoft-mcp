@@ -94,7 +94,8 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
                 memory,
                 _warningSink,
                 GetAuthenticationHandler(persistent),
-                record => _authenticationRecordStore.Save(record, _warningSink));
+                record => _authenticationRecordStore.Save(record, _warningSink),
+                TimeSpan.FromSeconds(options.TokenCacheTimeoutSeconds));
         }
         catch (Exception ex) when (IsTokenCachePersistenceFailure(ex))
         {
@@ -170,7 +171,8 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
         for (Exception? current = ex; current is not null; current = current.InnerException)
         {
             string message = current.Message;
-            if (message.Contains("Persistence check failed", StringComparison.OrdinalIgnoreCase)
+            if (current is TokenCacheTimeoutException
+                || message.Contains("Persistence check failed", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("libsecret", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("Secret Service", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("keyring", StringComparison.OrdinalIgnoreCase))

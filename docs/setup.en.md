@@ -175,7 +175,27 @@ headless → `DeviceCode`, empty tool list → check stderr for
   No network, no token. `--json` → `{ "checks": [{ "id", "ok", "message", "next" }] }`.
 
 Cache settings: `Graph__FallbackToMemoryTokenCache` defaults to `true` and keeps
-delegated auth usable without a keyring. Set it to `false` only when persistent
-encrypted storage is required; on Linux, `doctor` then checks whether
-`org.freedesktop.secrets` is reachable and fails when it is not. Changing the
-cache name can require one new login.
+delegated auth usable without a keyring. Persistent credential token operations
+are bounded by `Graph__TokenCacheTimeoutSeconds` (default `10`, allowed range
+`1`-`120`). This bounds the persistent credential's token acquisition call,
+which may include silent authentication, token refresh, network access, and
+Secret Service operations. It does not limit the time you may take to complete
+a Device-Code login. Set the fallback to `false` only when persistent encrypted
+storage is required; on Linux, `doctor` then checks whether
+`org.freedesktop.secrets` is reachable and fails when it is not.
+Changing the cache name can require one new login.
+
+Linux persistent-cache prerequisite: a user-session D-Bus and a Secret Service
+provider exposing `org.freedesktop.secrets` must be available, usually GNOME
+Keyring/libsecret. A system-wide `dbus.service` alone is not sufficient. For
+headless or client-launched sessions, the server process must inherit the user
+session's `DBUS_SESSION_BUS_ADDRESS`; `XDG_RUNTIME_DIR` is recommended because
+some providers use it to resolve their socket. These variables are inherited
+when the client spawns the MCP child. After adding or changing them, restart
+the client process that owns the MCP child, otherwise the child keeps the old
+environment. Hermes may start or provide part of this environment, but it is
+not a Hermes-specific server requirement. With the default memory fallback
+enabled, an unavailable or unresponsive Secret Service does not prevent
+delegated authentication. Once the credential switches to the memory cache, it
+stays there for the lifetime of that process; restart the server to try
+persistent storage again after the provider recovers.
