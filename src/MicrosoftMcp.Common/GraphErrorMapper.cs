@@ -55,7 +55,7 @@ public static partial class GraphErrorMapper
         {
             GraphServiceException already => already,
             ApiException api => FromStatus(
-                api.ResponseStatusCode, ResolveGraphCode(api), Truncate(api.Message, 300), operation, resource),
+                api.ResponseStatusCode, ResolveGraphCode(api), ResolveGraphDetail(api), operation, resource),
             HttpRequestException http => GraphServiceException.ServiceUnavailable(
                 Truncate(http.Message, 200), http),
             TimeoutException timeout => GraphServiceException.ServiceUnavailable(
@@ -125,6 +125,27 @@ public static partial class GraphErrorMapper
             ? odata.Error.Code
             : ExtractGraphCode(api.Message);
 
+    public static string? ResolveGraphDetail(ApiException api)
+    {
+        if (api is not ODataError { Error: { } error })
+        {
+            return Truncate(api.Message, 300);
+        }
+
+        var details = new List<string>();
+        AddDetail(details, "message", error.Message);
+        AddDetail(details, "target", error.Target);
+        if (error.InnerError is { } innerError)
+        {
+            AddDetail(details, "request-id", innerError.RequestId);
+            AddDetail(details, "client-request-id", innerError.ClientRequestId);
+        }
+
+        return Truncate(
+            details.Count == 0 ? api.Message : string.Join(", ", details),
+            500);
+    }
+
     public static string? ExtractGraphCode(string? message)
     {
         if (string.IsNullOrEmpty(message))
@@ -179,6 +200,14 @@ public static partial class GraphErrorMapper
 
     private static string? Truncate(string? s, int max) =>
         s is null || s.Length <= max ? s : s[..max] + "…[truncated]";
+
+    private static void AddDetail(List<string> details, string name, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            details.Add($"{name}: {value}");
+        }
+    }
 
     [GeneratedRegex("\"code\"\\s*:\\s*\"([^\"]+)\"", RegexOptions.IgnoreCase)]
     private static partial Regex GraphCodeRegex();

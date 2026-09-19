@@ -72,6 +72,20 @@ public sealed class TeamsToolsTests
     }
 
     [Fact]
+    public async Task Send_tools_delegate_to_the_graph_service()
+    {
+        var tools = Create(new FakeGraphTeamsService());
+
+        MessageDetail channel = ToolResults.Ok<MessageDetail>(
+            await tools.teams_send_channel_message("t-eng", "c-general", "Hello"));
+        MessageDetail chat = ToolResults.Ok<MessageDetail>(
+            await tools.teams_send_chat_message("chat-1", "Hi"));
+
+        channel.Content.Should().Be("Hello");
+        chat.Content.Should().Be("Hi");
+    }
+
+    [Fact]
     public async Task Browse_meeting_transcript_and_insight_with_fake()
     {
         var tools = Create(new FakeGraphTeamsService());

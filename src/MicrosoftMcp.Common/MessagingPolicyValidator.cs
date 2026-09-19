@@ -2,9 +2,9 @@ using Microsoft.Extensions.Options;
 
 namespace MicrosoftMcp.Common;
 
-public sealed class MessagingPolicyValidator : IValidateOptions<OutlookPolicyOptions>
+public sealed class MessagingPolicyValidator : IValidateOptions<DisclosurePolicyOptions>
 {
-    public ValidateOptionsResult Validate(string? name, OutlookPolicyOptions options)
+    public ValidateOptionsResult Validate(string? name, DisclosurePolicyOptions options)
     {
         if (options.RequireInternalRecipients
             && options.AllowedRecipientDomains.Length == 0

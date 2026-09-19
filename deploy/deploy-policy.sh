@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Deploys the admin-owned versioned policy.json (Outlook recipients, Calendar
-# attendees + Outlook AI disclosure).
+# Deploys the admin-owned versioned policy.json (Outlook and Teams recipients,
+# Calendar attendees + AI disclosure).
 #
 # Builds policy.json from parameters, atomically writes it to the admin-owned system location
 # (Linux: /etc/microsoft-mcp/policy.json, macOS: /Library/Application Support/...)
@@ -114,7 +114,13 @@ policy = {
     "allowedAttendeeDomains": calendar_domains,
     "allowedAttendeeAddresses": calendar_addresses,
   },
-  "teams": {},
+  "teams": {
+    "requireInternalRecipients": os.environ["REQUIRE_INTERNAL"].lower() == "true",
+    "allowedRecipientDomains": domains,
+    "allowedRecipientAddresses": addresses,
+    "aiDisclosureEnabled": os.environ["DISCLOSURE_ENABLED"].lower() == "true",
+    "aiDisclosureText": os.environ["DISCLOSURE_TEXT"],
+  },
 }
 with open(os.environ["POLICY_PATH"], "w", encoding="utf-8") as f:
     json.dump(policy, f, ensure_ascii=False, indent=2)

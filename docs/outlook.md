@@ -44,8 +44,8 @@ always reversible (trash, no hard delete).
 3. **Authentication → Add a platform → Mobile and desktop applications**
    → enable `http://localhost` (browser login).
 4. **API permissions → Add → Microsoft Graph → Delegated:**
-   `Mail.Read`, `Mail.ReadWrite`, `MailboxSettings.Read`, `User.Read`
-   (`offline_access` is added automatically). Consent yourself or ask
+  `Mail.Read`, `Mail.ReadWrite` (`offline_access` is added automatically).
+  Consent yourself or ask
    your admin, depending on the tenant.
 
 **Config (2 values only, secrets stay outside the repo):**
@@ -220,9 +220,61 @@ per Skript — siehe 10.1):
     "allowedAttendeeDomains": ["firma.de"],
     "allowedAttendeeAddresses": ["partner@firma.example"]
   },
-  "teams": {}
+  "teams": {
+    "requireInternalRecipients": true,
+    "allowedRecipientDomains": ["firma.de"],
+    "allowedRecipientAddresses": [],
+    "aiDisclosureEnabled": true,
+    "aiDisclosureText": "Hinweis: Diese Nachricht wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+  }
 }
 ```
+
+### Policy-v1 schema
+
+`docs/policy.example.json` is the complete JSON-with-comments template. The
+document accepts comments and trailing commas, but unknown properties are
+rejected. Sections are optional; an omitted section uses its unrestricted
+defaults. OneDrive has no policy section because it has no recipient, attendee
+or disclosure guard.
+
+| Property | Type and default | Meaning |
+|---|---|---|
+| `version` | integer, `1` | Version of the structured document. It is required when `outlook`, `calendar` or `teams` is present; only version `1` is currently supported. |
+
+The following properties are supported by `outlook` and `teams`:
+
+| Property | Type and default | Meaning |
+|---|---|---|
+| `requireInternalRecipients` | boolean, `false` | Require every mail recipient or Teams conversation member to pass the configured allowlist and identity checks. When `true`, at least one allowed domain or exact address is required. |
+| `allowedRecipientDomains` | string array, `[]` | Allow a domain and its subdomains, for example `firma.de` also allows `mail.firma.de`. The comparison is case-insensitive. |
+| `allowedRecipientAddresses` | string array, `[]` | Allow exact SMTP addresses. This is OR-combined with the domain list. |
+| `aiDisclosureEnabled` | boolean, `false` | Enable server-side disclosure insertion. Outlook applies it to drafts; Teams applies it to guarded message sends. |
+| `aiDisclosureText` | string, `""` | Text appended when disclosure is enabled. It must be non-empty when `aiDisclosureEnabled` is `true`; callers cannot omit or replace it. |
+
+The `calendar` section has its own attendee policy:
+
+| Property | Type and default | Meaning |
+|---|---|---|
+| `requireInternalAttendees` | boolean, `false` | Require every event attendee to pass the attendee allowlist. When `true`, at least one allowed domain or exact address is required. |
+| `allowedAttendeeDomains` | string array, `[]` | Allow an attendee domain and its subdomains, case-insensitively. |
+| `allowedAttendeeAddresses` | string array, `[]` | Allow exact attendee SMTP addresses. This is OR-combined with the domain list. |
+
+The `teams` section uses the same recipient and disclosure fields as Outlook.
+An omitted section or explicit `"teams": {}` is still valid, but means no Teams
+recipient restriction or disclosure and should therefore only be used
+intentionally. The deployment scripts use the same messaging defaults for
+Outlook and Teams. Teams additionally verifies conversation members, rejects
+guest or unverifiable members, and checks a concrete `Graph:TenantId` against
+member tenant ids before sending. Calendar never inherits Outlook disclosure
+fields.
+
+The old flat policy properties (`requireInternalRecipients`,
+`allowedRecipientDomains`, `allowedRecipientAddresses`,
+`aiDisclosureEnabled`, `aiDisclosureText`) remain readable for migration. They
+are mapped to the legacy Outlook policy and attendee fields; use the versioned
+document for new deployments and run `microsoft-mcp policy migrate --json
+--write` after an update.
 
 Regeln: Subdomains sind eingeschlossen (`mail.firma.de` passt zu `firma.de`),
 Groß-/Kleinschreibung egal, genau ein `@` erforderlich. Eine exakte Adresse in
@@ -243,9 +295,11 @@ mit Dateizugriff die Policy sonst per Env-Override aushebeln könnte.
 
 ### 10.1 Deployment per Skript (empfohlen)
 
-Die Skripte unter `deploy/` nehmen alle Werte als Parameter entgegen, bauen das
-JSON korrekt auf und schützen die Datei sofort schreibgeschützt — als Admin
-ausführen:
+Die Skripte unter `deploy/` konfigurieren Outlook und Teams mit denselben
+Messaging-Werten sowie Calendar mit einer eigenen Attendee-Policy. Sie bauen
+das JSON korrekt auf und schützen die Datei sofort schreibgeschützt — als Admin
+ausführen. Die gemeinsamen Recipient- und Disclosure-Parameter gelten für
+Outlook und Teams; die Calendar-Parameter können separat überschrieben werden.
 
 ```powershell
 # Windows (Admin-PowerShell)

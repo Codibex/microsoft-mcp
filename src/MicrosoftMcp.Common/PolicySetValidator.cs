@@ -30,6 +30,12 @@ public static class PolicySetValidator
         }
 
         ValidateOptionsResult calendar = new CalendarPolicyValidator().Validate(null, policies.Calendar);
-        return calendar.Failed ? calendar.FailureMessage : null;
+        if (calendar.Failed)
+        {
+            return calendar.FailureMessage;
+        }
+
+        ValidateOptionsResult teams = new MessagingPolicyValidator().Validate(null, policies.Teams);
+        return teams.Failed ? teams.FailureMessage : null;
     }
 }
