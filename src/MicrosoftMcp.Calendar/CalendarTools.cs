@@ -10,6 +10,20 @@ namespace MicrosoftMcp.Calendar;
 
 public static class CalendarServiceRegistration
 {
+    /// <summary>Compatibility adapter for callers using the legacy shared policy.
+    /// Legacy recipient restrictions apply to calendar attendees.</summary>
+    public static IServiceCollection AddCalendar(
+        this IServiceCollection services, MessagingPolicyOptions legacyPolicy)
+    {
+        ArgumentNullException.ThrowIfNull(legacyPolicy);
+        return services.AddCalendar(new CalendarPolicyOptions
+        {
+            RequireInternalAttendees = legacyPolicy.RequireInternalRecipients,
+            AllowedAttendeeDomains = [.. legacyPolicy.AllowedRecipientDomains],
+            AllowedAttendeeAddresses = [.. legacyPolicy.AllowedRecipientAddresses]
+        });
+    }
+
     public static IServiceCollection AddCalendar(
         this IServiceCollection services, CalendarPolicyOptions? policy = null)
     {

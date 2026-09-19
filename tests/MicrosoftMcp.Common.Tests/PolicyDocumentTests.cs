@@ -1,9 +1,12 @@
 using MicrosoftMcp.Common;
+using Microsoft.Extensions.Options;
 
 namespace MicrosoftMcp.Common.Tests;
 
 public sealed class PolicyDocumentTests
 {
+    private static readonly object CurrentDirectoryLock = new();
+
     [Fact]
     public void Legacy_policy_applies_restrictions_to_outlook_and_calendar()
     {
@@ -101,6 +104,8 @@ public sealed class PolicyDocumentTests
             Assert.True(written.Written);
             Assert.NotNull(written.BackupPath);
             Assert.True(File.Exists(written.BackupPath));
+            string migrated = File.ReadAllText(path);
+            Assert.DoesNotContain("\"isRestrictive\"", migrated);
             Assert.False(PolicyDocument.Load(path).MigrationRequired);
 
             PolicyMigrationResult second = PolicyMigrator.Migrate(path, write: true);
@@ -135,6 +140,56 @@ public sealed class PolicyDocumentTests
         finally
         {
           File.Delete(path);
+        }
+      }
+
+      [Fact]
+      public void Migration_rejects_invalid_legacy_policy_before_writing()
+      {
+        string path = Path.Combine(Path.GetTempPath(), $"policy-invalid-effective-{Guid.NewGuid():N}.json");
+        const string source = "{\"requireInternalRecipients\":true}";
+        try
+        {
+          File.WriteAllText(path, source);
+
+          OptionsValidationException exception = Assert.Throws<OptionsValidationException>(
+            () => PolicyMigrator.Migrate(path, write: true));
+
+          Assert.Contains("no allowed domains", exception.Message);
+          Assert.Equal(source, File.ReadAllText(path));
+          Assert.Empty(Directory.GetFiles(
+            Path.GetDirectoryName(path)!,
+            Path.GetFileName(path) + ".legacy.*.bak"));
+        }
+        finally
+        {
+          File.Delete(path);
+        }
+      }
+
+      [Fact]
+      public void Migration_accepts_filename_relative_to_current_directory()
+      {
+        lock (CurrentDirectoryLock)
+        {
+          string originalDirectory = Environment.CurrentDirectory;
+          string directory = Path.Combine(Path.GetTempPath(), $"policy-relative-{Guid.NewGuid():N}");
+          Directory.CreateDirectory(directory);
+          try
+          {
+            Directory.SetCurrentDirectory(directory);
+            File.WriteAllText("policy.json", "{\"requireInternalRecipients\":false}");
+
+            PolicyMigrationResult result = PolicyMigrator.Migrate("policy.json", write: true);
+
+            Assert.Equal(Path.Combine(directory, "policy.json"), result.PolicyPath);
+            Assert.False(PolicyDocument.Load("policy.json").MigrationRequired);
+          }
+          finally
+          {
+            Directory.SetCurrentDirectory(originalDirectory);
+            Directory.Delete(directory, recursive: true);
+          }
         }
       }
 }

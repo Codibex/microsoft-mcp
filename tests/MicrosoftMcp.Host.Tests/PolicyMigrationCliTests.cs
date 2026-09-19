@@ -59,6 +59,18 @@ public sealed class PolicyMigrationCliTests
         Assert.Contains("policy migrate", result.RootElement.GetProperty("error").GetString());
     }
 
+    [Theory]
+    [InlineData("--help")]
+    [InlineData("-h")]
+    [InlineData("help")]
+    public void Policy_help_flags_print_usage(string help)
+    {
+        (int code, string output) = Run("policy", help);
+
+        Assert.Equal(0, code);
+        Assert.Contains("policy migrate", output);
+    }
+
     private static (int Code, string Output) Run(params string[] args)
     {
         lock (ConsoleLock)

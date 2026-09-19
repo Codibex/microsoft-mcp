@@ -25,10 +25,16 @@ param(
 
   [string[]]$AllowedRecipientAddresses = @(),
 
+  [string[]]$AllowedAttendeeDomains = @(),
+
+  [string[]]$AllowedAttendeeAddresses = @(),
+
   [Parameter(Mandatory)]
   [string]$AiDisclosureText,
 
   [bool]$RequireInternalRecipients = $true,
+
+  [Nullable[bool]]$RequireInternalAttendees = $null,
 
   [bool]$AiDisclosureEnabled = $true,
 
@@ -45,6 +51,27 @@ if ($AiDisclosureEnabled -and [string]::IsNullOrWhiteSpace($AiDisclosureText)) {
   throw 'AiDisclosureEnabled is set but AiDisclosureText is empty.'
 }
 
+$rawAttendeeDomains = if ($PSBoundParameters.ContainsKey('AllowedAttendeeDomains')) {
+  $AllowedAttendeeDomains
+} else {
+  $AllowedRecipientDomains
+}
+$rawAttendeeAddresses = if ($PSBoundParameters.ContainsKey('AllowedAttendeeAddresses')) {
+  $AllowedAttendeeAddresses
+} else {
+  $AllowedRecipientAddresses
+}
+$attendeeDomains = @($rawAttendeeDomains | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$attendeeAddresses = @($rawAttendeeAddresses | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$requireInternalAttendees = if ($null -eq $RequireInternalAttendees) {
+  $RequireInternalRecipients
+} else {
+  [bool]$RequireInternalAttendees
+}
+if ($requireInternalAttendees -and $attendeeDomains.Count -eq 0 -and $attendeeAddresses.Count -eq 0) {
+  throw 'RequireInternalAttendees is set but no AllowedAttendeeDomains or AllowedAttendeeAddresses were given.'
+}
+
 $policy = [ordered]@{
   version  = 1
   outlook  = [ordered]@{
@@ -55,9 +82,9 @@ $policy = [ordered]@{
     aiDisclosureText          = $AiDisclosureText
   }
   calendar = [ordered]@{
-    requireInternalAttendees = $RequireInternalRecipients
-    allowedAttendeeDomains   = @($AllowedRecipientDomains | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    allowedAttendeeAddresses = @($AllowedRecipientAddresses | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    requireInternalAttendees = $requireInternalAttendees
+    allowedAttendeeDomains   = $attendeeDomains
+    allowedAttendeeAddresses = $attendeeAddresses
   }
   teams = [ordered]@{}
 }

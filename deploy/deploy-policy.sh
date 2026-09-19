@@ -14,6 +14,8 @@
 #     --disclosure-text "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
 #   sudo ./deploy-policy.sh --addresses partner@example.com \
 #     --disclosure-text "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+#   sudo ./deploy-policy.sh --domains firma.de --calendar-no-restrict \
+#     --disclosure-text "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
 #   sudo ./deploy-policy.sh --domains firma.de --disclosure-text "..." --path /custom/policy.json
 set -euo pipefail
 
@@ -23,9 +25,14 @@ DISCLOSURE_TEXT=""
 REQUIRE_INTERNAL=true
 DISCLOSURE_ENABLED=true
 POLICY_PATH=""
+CALENDAR_DOMAINS=""
+CALENDAR_ADDRESSES=""
+CALENDAR_REQUIRE_INTERNAL=""
+CALENDAR_DOMAINS_SET=false
+CALENDAR_ADDRESSES_SET=false
 
 usage() {
-  echo "Usage: sudo $0 [--domains a.de,b.de] [--addresses a@b.example,c@d.example] --disclosure-text \"...\" [--no-restrict] [--no-disclosure] [--path FILE]"
+  echo "Usage: sudo $0 [--domains a.de,b.de] [--addresses a@b.example,c@d.example] [--calendar-domains a.de,b.de] [--calendar-addresses a@b.example] [--calendar-restrict|--calendar-no-restrict] --disclosure-text \"...\" [--no-restrict] [--no-disclosure] [--path FILE]"
   exit 2
 }
 
@@ -33,6 +40,10 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --domains) DOMAINS="${2:?}"; shift 2 ;;
     --addresses) ADDRESSES="${2:?}"; shift 2 ;;
+    --calendar-domains) CALENDAR_DOMAINS="${2:?}"; CALENDAR_DOMAINS_SET=true; shift 2 ;;
+    --calendar-addresses) CALENDAR_ADDRESSES="${2:?}"; CALENDAR_ADDRESSES_SET=true; shift 2 ;;
+    --calendar-restrict) CALENDAR_REQUIRE_INTERNAL=true; shift ;;
+    --calendar-no-restrict) CALENDAR_REQUIRE_INTERNAL=false; shift ;;
     --disclosure-text) DISCLOSURE_TEXT="${2:?}"; shift 2 ;;
     --no-restrict) REQUIRE_INTERNAL=false; shift ;;
     --no-disclosure) DISCLOSURE_ENABLED=false; shift ;;
@@ -42,8 +53,21 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+if [ "$CALENDAR_DOMAINS_SET" = false ]; then
+  CALENDAR_DOMAINS="$DOMAINS"
+fi
+if [ "$CALENDAR_ADDRESSES_SET" = false ]; then
+  CALENDAR_ADDRESSES="$ADDRESSES"
+fi
+if [ -z "$CALENDAR_REQUIRE_INTERNAL" ]; then
+  CALENDAR_REQUIRE_INTERNAL="$REQUIRE_INTERNAL"
+fi
+
 if [ "$REQUIRE_INTERNAL" = true ] && [ -z "$DOMAINS" ] && [ -z "$ADDRESSES" ]; then
   echo "Error: --domains or --addresses is required unless --no-restrict is given." >&2; exit 1
+fi
+if [ "$CALENDAR_REQUIRE_INTERNAL" = true ] && [ -z "$CALENDAR_DOMAINS" ] && [ -z "$CALENDAR_ADDRESSES" ]; then
+  echo "Error: --calendar-domains or --calendar-addresses is required unless --calendar-no-restrict is given." >&2; exit 1
 fi
 if [ "$DISCLOSURE_ENABLED" = true ] && [ -z "$DISCLOSURE_TEXT" ]; then
   echo "Error: --disclosure-text is required unless --no-disclosure is given." >&2; exit 1
@@ -67,11 +91,15 @@ TEMP_PATH="$(mktemp "${POLICY_PATH}.tmp.XXXXXX")"
 trap 'rm -f "$TEMP_PATH"' EXIT
 DOMAINS="$DOMAINS" ADDRESSES="$ADDRESSES" DISCLOSURE_TEXT="$DISCLOSURE_TEXT" \
 REQUIRE_INTERNAL="$REQUIRE_INTERNAL" DISCLOSURE_ENABLED="$DISCLOSURE_ENABLED" \
+CALENDAR_DOMAINS="$CALENDAR_DOMAINS" CALENDAR_ADDRESSES="$CALENDAR_ADDRESSES" \
+CALENDAR_REQUIRE_INTERNAL="$CALENDAR_REQUIRE_INTERNAL" \
 POLICY_PATH="$TEMP_PATH" python3 - <<'EOF'
 import json, os
 
 domains = [d.strip() for d in os.environ["DOMAINS"].split(",") if d.strip()]
 addresses = [a.strip() for a in os.environ["ADDRESSES"].split(",") if a.strip()]
+calendar_domains = [d.strip() for d in os.environ["CALENDAR_DOMAINS"].split(",") if d.strip()]
+calendar_addresses = [a.strip() for a in os.environ["CALENDAR_ADDRESSES"].split(",") if a.strip()]
 policy = {
   "version": 1,
   "outlook": {
@@ -82,9 +110,9 @@ policy = {
     "aiDisclosureText": os.environ["DISCLOSURE_TEXT"],
   },
   "calendar": {
-    "requireInternalAttendees": os.environ["REQUIRE_INTERNAL"].lower() == "true",
-    "allowedAttendeeDomains": domains,
-    "allowedAttendeeAddresses": addresses,
+    "requireInternalAttendees": os.environ["CALENDAR_REQUIRE_INTERNAL"].lower() == "true",
+    "allowedAttendeeDomains": calendar_domains,
+    "allowedAttendeeAddresses": calendar_addresses,
   },
   "teams": {},
 }

@@ -168,21 +168,6 @@ and OneDrive links are reported, not downloaded.
 - Personal account (`outlook.com` etc.): use `Graph:TenantId=consumers`
   with a personal-only app (`signInAudience=PersonalMicrosoftAccount`). Use
 
-### 10.3 Migration nach einem Update
-
-Ein neues Binary liest das flache Legacy-Format weiterhin kompatibel im
-Speicher. Die persistente Aufteilung wird nach dem Binary-Update explizit
-ausgeführt:
-
-```bash
-microsoft-mcp policy migrate --json --write
-microsoft-mcp doctor --json
-```
-
-Die Migration erstellt ein Backup und ersetzt die Datei atomar. Sie benötigt
-Administrator-/Root-Rechte; ein Agent darf diese Rechte nicht selbst
-beschaffen. Ohne Schreibrechte bleibt die Legacy-Datei gültig und kann später
-erneut migriert werden.
   `Graph:TenantId=common` only with an app that supports both org and personal
   accounts (`signInAudience=AzureADandPersonalMicrosoftAccount`). Confirm the
   device flow with the mailbox account.
@@ -265,6 +250,12 @@ sudo ./deploy/deploy-policy.sh --domains firma.de,tochter.firma.de \
   --disclosure-text "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
 ```
 
+Calendar kann unabhängig konfiguriert werden. Beim Shell-Skript stehen dafür
+`--calendar-domains`, `--calendar-addresses`, `--calendar-restrict` und
+`--calendar-no-restrict` zur Verfügung; PowerShell verwendet
+`-AllowedAttendeeDomains`, `-AllowedAttendeeAddresses` und
+`-RequireInternalAttendees:$false`.
+
 Beide Skripte validieren die Eingaben (keine Restriktion ohne Domains, kein
 Hinweis ohne Text), schreiben das v1-Dokument atomar, legen es admin-owned +
 read-only ab und verifizieren den Schutz (PS: ACL-Audit auf Users-Schreibrechte;
@@ -295,6 +286,22 @@ Center → Mail flow → Rules → Disclaimer-Regel für Mails mit KI-Vermerk, p
 ggf. Extern-Sperre für das Service-Postfach. Transportregeln greifen allerdings
 erst beim Senden, nicht auf Entwürfen — die lokale Injektion bleibt die
 Draft-Vorschau.
+
+### 10.3 Migration nach einem Update
+
+Ein neues Binary liest das flache Legacy-Format weiterhin kompatibel im
+Speicher. Die persistente Aufteilung wird nach dem Binary-Update explizit
+ausgeführt:
+
+```bash
+microsoft-mcp policy migrate --json --write
+microsoft-mcp doctor --json
+```
+
+Die Migration erstellt ein Backup und ersetzt die Datei atomar. Sie benötigt
+Administrator-/Root-Rechte; ein Agent darf diese Rechte nicht selbst
+beschaffen. Ohne Schreibrechte bleibt die Legacy-Datei gültig und kann später
+erneut migriert werden.
 
 ## Appendix: settings reference
 

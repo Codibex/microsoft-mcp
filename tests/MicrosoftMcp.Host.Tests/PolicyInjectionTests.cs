@@ -34,4 +34,26 @@ public sealed class PolicyInjectionTests
         Assert.Same(calendar, provider.GetRequiredService<IOptions<CalendarPolicyOptions>>().Value);
         Assert.Same(teams, provider.GetRequiredService<IOptions<TeamsPolicyOptions>>().Value);
     }
+
+    [Fact]
+    public void Calendar_registration_accepts_the_legacy_shared_policy()
+    {
+        var legacy = new MessagingPolicyOptions
+        {
+            RequireInternalRecipients = true,
+            AllowedRecipientDomains = ["legacy.example"],
+            AllowedRecipientAddresses = ["guest@example.com"]
+        };
+
+        using ServiceProvider provider = new ServiceCollection()
+            .AddCalendar(legacy)
+            .BuildServiceProvider();
+
+        CalendarPolicyOptions policy = provider
+            .GetRequiredService<IOptions<CalendarPolicyOptions>>()
+            .Value;
+        Assert.True(policy.RequireInternalAttendees);
+        Assert.Equal(["legacy.example"], policy.AllowedAttendeeDomains);
+        Assert.Equal(["guest@example.com"], policy.AllowedAttendeeAddresses);
+    }
 }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace MicrosoftMcp.Common;
 
 /// <summary>Shared address restrictions used by messaging services.</summary>
@@ -9,6 +11,7 @@ public class RecipientPolicyOptions
 
     public string[] AllowedRecipientAddresses { get; set; } = [];
 
+    [JsonIgnore]
     public virtual bool IsRestrictive => RequireInternalRecipients;
 }
 
@@ -19,6 +22,7 @@ public class OutlookPolicyOptions : RecipientPolicyOptions
 
     public string AiDisclosureText { get; set; } = string.Empty;
 
+    [JsonIgnore]
     public override bool IsRestrictive => base.IsRestrictive || AiDisclosureEnabled;
 }
 
@@ -31,6 +35,7 @@ public sealed class CalendarPolicyOptions
 
     public string[] AllowedAttendeeAddresses { get; set; } = [];
 
+    [JsonIgnore]
     public bool IsRestrictive => RequireInternalAttendees;
 }
 

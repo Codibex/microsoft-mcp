@@ -63,10 +63,18 @@ public static class SetupCli
 
     private static int RunPolicy(string[] args)
     {
+        if (args.Length == 0
+            || args[0].Equals("help", StringComparison.OrdinalIgnoreCase)
+            || args[0] is "--help" or "-h")
+        {
+            Console.Out.WriteLine("Usage: microsoft-mcp policy migrate [--path PATH] [--write] [--json]");
+            return 0;
+        }
+
         string action = args.Length == 0 ? string.Empty : args[0].ToLowerInvariant();
         Dictionary<string, string?> opts = ParseOpts(args.Length == 0 ? [] : args[1..]);
         bool json = Has(opts, "json");
-        if (action is "" or "help" || Has(opts, "help") || Has(opts, "h"))
+        if (Has(opts, "help") || Has(opts, "h"))
         {
             Console.Out.WriteLine("Usage: microsoft-mcp policy migrate [--path PATH] [--write] [--json]");
             return 0;
