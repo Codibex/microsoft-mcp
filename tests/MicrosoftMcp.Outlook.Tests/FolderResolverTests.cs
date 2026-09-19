@@ -19,6 +19,8 @@ public sealed class FolderResolverTests
     [InlineData("Archive", "archive")]
     [InlineData("  DeletedItems ", "deleteditems")]
     [InlineData("DRAFTS", "drafts")]
+    [InlineData("SyncIssues", "syncissues")]
+    [InlineData("RecoverableItemsDeletions", "recoverableitemsdeletions")]
     public void Wellknown_names_pass_through_normalized(string input, string expected) =>
         FolderResolver.Resolve(input, Folders).Should().Be(expected);
 

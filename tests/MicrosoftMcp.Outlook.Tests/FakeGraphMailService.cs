@@ -13,6 +13,7 @@ internal sealed class FakeGraphMailService : IGraphMailService
         public string Folder { get; set; } = "inbox";
         public bool IsRead { get; set; }
         public bool HasAttachments { get; init; }
+        public List<string> ToRecipients { get; set; } = [];
         public List<string> Categories { get; set; } = [];
         public string Importance { get; set; } = "normal";
         public string Body { get; set; } = "body";
@@ -152,7 +153,7 @@ internal sealed class FakeGraphMailService : IGraphMailService
 
         if (!string.IsNullOrWhiteSpace(query.From))
         {
-            result = result.Where(m => m.From.Contains(query.From!, StringComparison.OrdinalIgnoreCase));
+            result = result.Where(m => string.Equals(m.From, query.From!.Trim(), StringComparison.OrdinalIgnoreCase));
         }
 
         int top = Math.Clamp(query.Top, 1, 50);
@@ -206,7 +207,8 @@ internal sealed class FakeGraphMailService : IGraphMailService
             Id = $"draft-{++_drafts}",
             Subject = subject,
             Body = body,
-            Folder = "drafts"
+            Folder = "drafts",
+            ToRecipients = [.. to]
         };
         Seed(draft);
         return Task.FromResult(ToDetail(draft));
@@ -236,7 +238,8 @@ internal sealed class FakeGraphMailService : IGraphMailService
             Id = $"draft-{++_drafts}",
             Subject = "Fwd: " + orig.Subject,
             Body = (comment ?? string.Empty) + "\n---\n" + orig.Body,
-            Folder = "drafts"
+            Folder = "drafts",
+            ToRecipients = [.. to]
         };
         Seed(draft);
         return Task.FromResult(ToDetail(draft));
@@ -247,6 +250,13 @@ internal sealed class FakeGraphMailService : IGraphMailService
         bool isHtml = false, IReadOnlyList<string>? to = null, CancellationToken ct = default)
     {
         var draft = Get(messageId);
+        if (!string.Equals(draft.Folder, "drafts", StringComparison.OrdinalIgnoreCase))
+        {
+            throw GraphServiceException.InvalidRequest(
+                $"Message '{messageId}' is not a draft.",
+                "use outlook_search_emails with folder=drafts and pass a draft message id");
+        }
+
         if (subject is not null)
         {
             draft.Subject = subject;
@@ -255,6 +265,12 @@ internal sealed class FakeGraphMailService : IGraphMailService
         if (body is not null)
         {
             draft.Body = body;
+        }
+
+        if (to is not null)
+        {
+            RequireRecipients(to);
+            draft.ToRecipients = [.. to];
         }
 
         return Task.FromResult(ToDetail(draft));
@@ -293,9 +309,7 @@ internal sealed class FakeGraphMailService : IGraphMailService
 
         int cap = Math.Clamp(maxBytes, 1, 2097152);
         var att = _contents.FirstOrDefault(a => a.MessageId == msg.Id && a.Id == attachmentId)
-            ?? throw GraphServiceException.InvalidRequest(
-                $"Attachment '{attachmentId}' was not found on message '{messageId}'.",
-                "call outlook_list_attachments to get valid attachment ids");
+            ?? throw GraphServiceException.AttachmentNotFound(attachmentId, "outlook_read_attachment");
 
         if (att.Kind == "nested")
         {

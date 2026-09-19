@@ -102,6 +102,13 @@ var app = builder.Build();
 // Fail fast on misconfiguration (validator runs here) and print the
 // effective setup to stderr (always visible: the file log level is Warning).
 var graph = app.Services.GetRequiredService<IOptions<GraphAuthOptions>>().Value;
+string? combinationError = SetupGuide.ValidateCombination(enabled, graph.AuthMode);
+if (combinationError is not null)
+{
+    Console.Error.WriteLine($"[startup] {combinationError}");
+    return 1;
+}
+
 Console.Error.WriteLine(
     $"[startup] Servers: {string.Join(",", enabled)} | auth mode: {graph.AuthMode} | scopes: {string.Join(" ", graph.DelegatedScopes)}");
 

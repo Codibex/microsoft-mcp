@@ -201,7 +201,9 @@ public static class SetupCli
         Console.Out.WriteLine($"Servers: {string.Join(",", servers)} | account: {account} | auth: {auth}");
         Console.Out.WriteLine($"TenantId: {tenantHint} | ClientId: <client-id from Entra overview>");
         Console.Out.WriteLine($"Delegated scopes to consent: {string.Join(" ", scopes)}"
-            + (auth == AuthMode.AppOnly ? " (+ application Mail.ReadWrite, admin consent, client secret)" : ""));
+            + (auth == AuthMode.AppOnly
+                ? " (+ application Mail.ReadWrite and MailboxSettings.Read, admin consent, client secret)"
+                : ""));
         Console.Out.WriteLine("Policy: versioned policy.json with outlook, calendar and teams sections; legacy flat files remain compatible.");
         if (headless)
         {

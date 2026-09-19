@@ -22,6 +22,11 @@ public sealed class GraphServiceException : Exception
         $"Message '{messageId}' was not found during {operation}.",
         "call outlook_search_emails to get a valid Graph id (use 'id', not internetMessageId; ids expire after moves)");
 
+    public static GraphServiceException AttachmentNotFound(string attachmentId, string operation) => Create(
+        "attachment-not-found",
+        $"Attachment '{attachmentId}' was not found during {operation}.",
+        "call outlook_list_attachments with the message id to get a valid attachment id");
+
     public static GraphServiceException FolderNotFound(string destination) => Create(
         "folder-not-found",
         $"Folder '{destination}' was not found.",

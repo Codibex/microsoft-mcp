@@ -96,6 +96,28 @@ public sealed class OutlookToolsTests
     }
 
     [Fact]
+    public async Task Fake_rejects_updates_to_non_drafts()
+    {
+        var tools = Create(new FakeGraphMailService());
+
+        ToolResults.Fail(await tools.outlook_update_draft("m1", subject: "Nope"))
+            .Should().Contain("[invalid-request]");
+    }
+
+    [Fact]
+    public async Task Fake_sender_filter_is_exact()
+    {
+        var tools = Create(new FakeGraphMailService());
+
+        ToolResults.Ok<List<EmailSummary>>(
+                await tools.outlook_search_emails(from: "boss@example.com"))
+            .Should().Contain(message => message.Id == "m1");
+        ToolResults.Ok<List<EmailSummary>>(
+                await tools.outlook_search_emails(from: "boss@example"))
+            .Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Label_and_read_flow_with_fake()
     {
         var tools = Create(new FakeGraphMailService());
@@ -140,7 +162,7 @@ public sealed class OutlookToolsTests
         var tools = Create(new FakeGraphMailService());
 
         ToolResults.Fail(await tools.outlook_read_attachment("m1", "a3")).Should().Contain("[attachment-too-large]");
-        ToolResults.Fail(await tools.outlook_read_attachment("m1", "nope")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.outlook_read_attachment("m1", "nope")).Should().Contain("[attachment-not-found]");
         ToolResults.Fail(await tools.outlook_read_attachment("m1", "  ")).Should().Contain("[invalid-request]");
     }
 

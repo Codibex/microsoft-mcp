@@ -61,6 +61,18 @@ public sealed class GraphCalendarServiceTests
     }
 
     [Fact]
+    public async Task SearchEvents_escapes_quotes_and_backslashes()
+    {
+        var handler = new RecordingHandler("{\"value\":[]}");
+        var service = CreateService(handler);
+
+        await service.SearchEventsAsync("dentist \"urgent\"\\followup");
+
+        string query = Uri.UnescapeDataString(handler.RequestUri!.Query);
+        query.Should().Contain("$search=\"dentist \\\"urgent\\\"\\\\followup\"");
+    }
+
+    [Fact]
     public async Task UpdateEvent_revalidates_existing_attendees_when_not_replaced()
     {
         var handler = new RecordingHandler(

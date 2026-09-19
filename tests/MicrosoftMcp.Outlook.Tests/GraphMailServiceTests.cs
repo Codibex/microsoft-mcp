@@ -88,6 +88,105 @@ public sealed class GraphMailServiceTests
     }
 
     [Fact]
+    public async Task ListAttachments_follows_next_link()
+    {
+        var setup = Create(
+            Response("""
+                {"value":[{"@odata.type":"#microsoft.graph.fileAttachment","id":"a1","name":"one.txt","contentType":"text/plain","size":10,"isInline":false}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/messages/m1/attachments?$skiptoken=attachment-next"}
+                """),
+            Response("""
+                {"value":[{"@odata.type":"#microsoft.graph.fileAttachment","id":"a2","name":"two.txt","contentType":"text/plain","size":20,"isInline":false}]}
+                """));
+
+        var attachments = await setup.Service.ListAttachmentsAsync("m1");
+
+        attachments.Select(attachment => attachment.Id).Should().Equal("a1", "a2");
+        setup.Handler.Requests.Should().HaveCount(2);
+        setup.Handler.Requests[1].RequestUri!.Query.Should().Contain("$skiptoken=attachment-next");
+    }
+
+    [Fact]
+    public async Task ListCategories_follows_next_link()
+    {
+        var setup = Create(
+            Response("""
+                {"value":[{"id":"c1","displayName":"One","color":"preset0"}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/outlook/masterCategories?$skiptoken=category-next"}
+                """),
+            Response("""
+                {"value":[{"id":"c2","displayName":"Two","color":"preset1"}]}
+                """));
+
+        var categories = await setup.Service.ListCategoriesAsync();
+
+        categories.Select(category => category.Id).Should().Equal("c1", "c2");
+        setup.Handler.Requests.Should().HaveCount(2);
+        setup.Handler.Requests[1].RequestUri!.Query.Should().Contain("$skiptoken=category-next");
+    }
+
+    [Fact]
+    public async Task Search_with_query_and_sender_uses_separate_escaped_search_clauses()
+    {
+        var setup = Create(Response("""{"value":[]}"""));
+
+        await setup.Service.SearchAsync(new EmailQuery(
+            "subject:\"Q4\"\\path", null, "boss@example.com"));
+
+        string query = Uri.UnescapeDataString(setup.Handler.Requests.Single().RequestUri!.Query);
+        query.Should().Contain("$search=\"subject:\\\"Q4\\\"\\\\path\" AND \"from:boss@example.com\"");
+    }
+
+    [Fact]
+    public async Task Sender_filter_precedes_orderby_and_escapes_o_data_literals()
+    {
+        var setup = Create(Response("""{"value":[]}"""));
+
+        await setup.Service.SearchAsync(new EmailQuery(
+            null, null, "o'hare@example.com"));
+
+        string query = Uri.UnescapeDataString(setup.Handler.Requests.Single().RequestUri!.Query);
+        query.Should().Contain(
+            "$filter=receivedDateTime ge 1900-01-01T00:00:00Z and from/emailAddress/address eq 'o''hare@example.com'");
+        query.Should().Contain("$orderby=receivedDateTime desc");
+    }
+
+    [Fact]
+    public async Task ReadAttachment_rejects_large_metadata_before_content_request()
+    {
+        var setup = Create(Response("""
+            {"@odata.type":"#microsoft.graph.fileAttachment","id":"a3","name":"big.bin","contentType":"application/octet-stream","size":3000000,"isInline":false}
+            """));
+
+        var act = () => setup.Service.ReadAttachmentAsync("m1", "a3", maxBytes: 100);
+
+        await act.Should().ThrowAsync<GraphServiceException>()
+            .WithMessage("*[attachment-too-large]*");
+        setup.Handler.Requests.Should().ContainSingle();
+        Uri.UnescapeDataString(setup.Handler.Requests[0].RequestUri!.Query)
+            .Should().NotContain("contentBytes");
+    }
+
+    [Fact]
+    public async Task ReadAttachment_fetches_content_only_after_metadata_check()
+    {
+        var setup = Create(
+            Response("""
+                {"@odata.type":"#microsoft.graph.fileAttachment","id":"a1","name":"one.txt","contentType":"text/plain","size":5,"isInline":false}
+                """),
+            Response("""
+                {"@odata.type":"#microsoft.graph.fileAttachment","id":"a1","name":"one.txt","contentType":"text/plain","size":5,"isInline":false,"contentBytes":"SGVsbG8="}
+                """));
+
+        var attachment = await setup.Service.ReadAttachmentAsync("m1", "a1", maxBytes: 100);
+
+        attachment.Text.Should().Be("Hello");
+        setup.Handler.Requests.Should().HaveCount(2);
+        Uri.UnescapeDataString(setup.Handler.Requests[0].RequestUri!.Query)
+            .Should().NotContain("contentBytes");
+        Uri.UnescapeDataString(setup.Handler.Requests[1].RequestUri!.Query)
+            .Should().Contain("contentBytes");
+    }
+
+    [Fact]
     public async Task CreateFolder_with_parent_uses_child_folders_endpoint()
     {
         var setup = Create(Response("""

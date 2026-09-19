@@ -22,6 +22,11 @@ public sealed class GraphErrorMapperTests
         GraphErrorMapper.FromStatus(status, graphCode, "detail", "outlook_read_email")
             .Code.Should().Be(expectedCode);
 
+    [Fact]
+    public void Attachment_not_found_uses_attachment_recovery_hint() =>
+        GraphErrorMapper.FromStatus(404, null, "detail", "outlook_read_attachment", "attachment")
+            .Code.Should().Be("attachment-not-found");
+
     [Theory]
     [InlineData("ErrorItemNotFound", "message-not-found")]
     [InlineData("ErrorMessageNotFound", "message-not-found")]

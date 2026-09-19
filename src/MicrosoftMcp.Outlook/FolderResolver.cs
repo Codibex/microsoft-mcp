@@ -7,7 +7,10 @@ internal static class FolderResolver
 {
     private static readonly HashSet<string> WellKnown = new(StringComparer.OrdinalIgnoreCase)
     {
-        "inbox", "archive", "deleteditems", "drafts", "sentitems", "junkemail", "outbox"
+        "archive", "clutter", "conflicts", "conversationhistory", "deleteditems", "drafts",
+        "inbox", "junkemail", "localfailures", "msgfolderroot", "outbox",
+        "recoverableitemsdeletions", "scheduled", "searchfolders", "sentitems",
+        "serverfailures", "syncissues"
     };
 
     internal static bool IsWellKnown(string destination) =>

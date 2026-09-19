@@ -26,7 +26,9 @@ public sealed class SetupGuideTests
     public void Scopes_follow_the_selection()
     {
         SetupGuide.ScopesFor(["outlook", "calendar"])
-            .Should().Equal("Mail.Read", "Mail.ReadWrite", "Calendars.Read", "Calendars.ReadWrite");
+            .Should().Equal(
+                "Mail.Read", "Mail.ReadWrite", "MailboxSettings.Read",
+                "Calendars.Read", "Calendars.ReadWrite");
     }
 
     [Fact]

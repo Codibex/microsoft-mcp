@@ -126,7 +126,7 @@ public sealed class GraphCalendarService(
         {
             var page = await client.Me.Events.GetAsync(c =>
             {
-                c.QueryParameters.Search = $"\"{query.Trim()}\"";
+                c.QueryParameters.Search = BuildSearchClause(query);
                 c.QueryParameters.Top = take;
                 c.QueryParameters.Select = EventSelect;
             }, ct).ConfigureAwait(false);
@@ -135,12 +135,15 @@ public sealed class GraphCalendarService(
 
         var userPage = await client.Users[_options.UserIdOrUpn].Events.GetAsync(c =>
         {
-            c.QueryParameters.Search = $"\"{query.Trim()}\"";
+            c.QueryParameters.Search = BuildSearchClause(query);
             c.QueryParameters.Top = take;
             c.QueryParameters.Select = EventSelect;
         }, ct).ConfigureAwait(false);
         return [.. (userPage?.Value ?? []).Select(CalendarMapper.MapSummary)];
     }
+
+    private static string BuildSearchClause(string query) =>
+        $"\"{query.Trim().Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
 
     public async Task<EventDetail> GetEventAsync(
         string eventId, string? calendarId = null, CancellationToken ct = default)
