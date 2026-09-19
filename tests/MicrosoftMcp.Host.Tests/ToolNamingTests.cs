@@ -33,7 +33,7 @@ public sealed class ToolNamingTests
     public void All_tool_names_are_unique_across_domains()
     {
         var names = AllTools().Select(t => t.Name).ToList();
-        names.Should().HaveCount(45);
+        names.Should().HaveCount(46);
         names.Should().OnlyHaveUniqueItems();
     }
 

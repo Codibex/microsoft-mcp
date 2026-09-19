@@ -38,6 +38,8 @@ available for read operations only.
 If an admin-owned `policy.json` is present, its `calendar` policy applies to
 event attendees. Domains in `allowedAttendeeDomains` are allowed including
 subdomains; exact exceptions can be listed in `allowedAttendeeAddresses`.
+The complete versioned policy schema and validation rules are documented in
+[the policy reference](outlook.md#policy-v1-schema).
 Legacy flat policies remain compatible and are mapped to these attendee fields;
 Outlook AI-disclosure settings are never applied to Calendar.
 For supported personal-account scenarios, use `Graph:TenantId=consumers` with

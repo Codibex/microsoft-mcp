@@ -8,12 +8,6 @@ namespace MicrosoftMcp.Teams;
 /// <summary>Pure mapping helpers (Graph models to DTOs). Internal but unit-tested.</summary>
 internal static partial class TeamsMapper
 {
-    private static readonly string[] MessageSelect =
-        ["id", "messageType", "body", "from", "createdDateTime", "attachments",
-         "mentions", "reactions", "replyToId", "webUrl"];
-
-    internal static string[] Select => MessageSelect;
-
     internal static TeamInfo MapTeam(Team t) => new(
         t.Id ?? string.Empty,
         t.DisplayName ?? string.Empty,
