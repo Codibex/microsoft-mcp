@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploys the admin-owned messaging policy.json (internal recipients + AI disclosure).
+# Deploys the admin-owned recipient policy.json (domains/addresses + AI disclosure).
 #
 # Builds policy.json from parameters, writes it to the admin-owned system location
 # (Linux: /etc/microsoft-mcp/policy.json, macOS: /Library/Application Support/...)
@@ -11,23 +11,27 @@
 # Usage (as root, e.g. via sudo):
 #   sudo ./deploy-policy.sh --domains firma.de,tochter.firma.de \
 #     --disclosure-text "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+#   sudo ./deploy-policy.sh --addresses partner@example.com \
+#     --disclosure-text "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
 #   sudo ./deploy-policy.sh --domains firma.de --disclosure-text "..." --path /custom/policy.json
 set -euo pipefail
 
 DOMAINS=""
+ADDRESSES=""
 DISCLOSURE_TEXT=""
 REQUIRE_INTERNAL=true
 DISCLOSURE_ENABLED=true
 POLICY_PATH=""
 
 usage() {
-  echo "Usage: sudo $0 --domains a.de,b.de --disclosure-text \"...\" [--no-restrict] [--no-disclosure] [--path FILE]"
+  echo "Usage: sudo $0 [--domains a.de,b.de] [--addresses a@b.example,c@d.example] --disclosure-text \"...\" [--no-restrict] [--no-disclosure] [--path FILE]"
   exit 2
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --domains) DOMAINS="${2:?}"; shift 2 ;;
+    --addresses) ADDRESSES="${2:?}"; shift 2 ;;
     --disclosure-text) DISCLOSURE_TEXT="${2:?}"; shift 2 ;;
     --no-restrict) REQUIRE_INTERNAL=false; shift ;;
     --no-disclosure) DISCLOSURE_ENABLED=false; shift ;;
@@ -37,8 +41,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ "$REQUIRE_INTERNAL" = true ] && [ -z "$DOMAINS" ]; then
-  echo "Error: --domains is required unless --no-restrict is given." >&2; exit 1
+if [ "$REQUIRE_INTERNAL" = true ] && [ -z "$DOMAINS" ] && [ -z "$ADDRESSES" ]; then
+  echo "Error: --domains or --addresses is required unless --no-restrict is given." >&2; exit 1
 fi
 if [ "$DISCLOSURE_ENABLED" = true ] && [ -z "$DISCLOSURE_TEXT" ]; then
   echo "Error: --disclosure-text is required unless --no-disclosure is given." >&2; exit 1
@@ -58,15 +62,17 @@ if [ -z "$POLICY_PATH" ]; then
 fi
 
 mkdir -p "$(dirname "$POLICY_PATH")"
-DOMAINS="$DOMAINS" DISCLOSURE_TEXT="$DISCLOSURE_TEXT" \
+DOMAINS="$DOMAINS" ADDRESSES="$ADDRESSES" DISCLOSURE_TEXT="$DISCLOSURE_TEXT" \
 REQUIRE_INTERNAL="$REQUIRE_INTERNAL" DISCLOSURE_ENABLED="$DISCLOSURE_ENABLED" \
 POLICY_PATH="$POLICY_PATH" python3 - <<'EOF'
 import json, os
 
 domains = [d.strip() for d in os.environ["DOMAINS"].split(",") if d.strip()]
+addresses = [a.strip() for a in os.environ["ADDRESSES"].split(",") if a.strip()]
 policy = {
     "requireInternalRecipients": os.environ["REQUIRE_INTERNAL"].lower() == "true",
     "allowedRecipientDomains": domains,
+    "allowedRecipientAddresses": addresses,
     "aiDisclosureEnabled": os.environ["DISCLOSURE_ENABLED"].lower() == "true",
     "aiDisclosureText": os.environ["DISCLOSURE_TEXT"],
 }

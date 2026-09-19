@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MicrosoftMcp.Common;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -9,9 +10,12 @@ namespace MicrosoftMcp.Calendar;
 
 public static class CalendarServiceRegistration
 {
-    public static IServiceCollection AddCalendar(this IServiceCollection services)
+    public static IServiceCollection AddCalendar(
+        this IServiceCollection services, MessagingPolicyOptions? policy = null)
     {
         services.AddSingleton<IGraphCalendarService, GraphCalendarService>();
+        services.AddSingleton<IOptions<MessagingPolicyOptions>>(
+            Options.Create(policy ?? new MessagingPolicyOptions()));
         return services;
     }
 }
@@ -65,4 +69,37 @@ public sealed class CalendarTools(IGraphCalendarService calendar, ILogger<Calend
         [Description("Calendar id or \"default\" (optional)")] string? calendarId = null,
         CancellationToken ct = default) =>
         InvokeAsync("calendar_read_event", () => calendar.GetEventAsync(eventId, calendarId, ct));
+
+    [McpServerTool, Description("Create an event. Requires delegated Calendars.ReadWrite permission; no invitation is sent without attendees.")]
+    public Task<CallToolResult> calendar_create_event(
+        [Description("Event subject/title")] string subject,
+        [Description("Start in ISO format, e.g. 2026-09-14T14:00:00Z")] string start,
+        [Description("End in ISO format, e.g. 2026-09-14T15:00:00Z")] string end,
+        [Description("Calendar id or \"default\" (optional)")] string? calendarId = null,
+        [Description("Plain-text event body (optional)")] string? body = null,
+        [Description("Location name (optional)")] string? location = null,
+        [Description("Attendee SMTP addresses (optional)")] IReadOnlyList<string>? attendees = null,
+        [Description("Whether the event spans whole days")] bool isAllDay = false,
+        [Description("Minutes before start for the reminder (optional)")] int? reminderMinutesBeforeStart = null,
+        CancellationToken ct = default) =>
+        InvokeAsync("calendar_create_event", () => calendar.CreateEventAsync(
+            subject, start, end, calendarId, body, location, attendees,
+            isAllDay, reminderMinutesBeforeStart, ct));
+
+    [McpServerTool, Description("Update supplied fields of an event. Requires delegated Calendars.ReadWrite permission; no delete or move is offered.")]
+    public Task<CallToolResult> calendar_update_event(
+        [Description("Graph event id")] string eventId,
+        [Description("Calendar id or \"default\" (optional)")] string? calendarId = null,
+        [Description("New subject/title (optional)")] string? subject = null,
+        [Description("New start in ISO format (optional)")] string? start = null,
+        [Description("New end in ISO format (optional)")] string? end = null,
+        [Description("New plain-text body (optional)")] string? body = null,
+        [Description("New location name (optional)")] string? location = null,
+        [Description("Replacement attendee SMTP addresses (optional; empty clears)")] IReadOnlyList<string>? attendees = null,
+        [Description("Whether the event spans whole days (optional)")] bool? isAllDay = null,
+        [Description("New minutes before start for the reminder (optional)")] int? reminderMinutesBeforeStart = null,
+        CancellationToken ct = default) =>
+        InvokeAsync("calendar_update_event", () => calendar.UpdateEventAsync(
+            eventId, calendarId, subject, start, end, body, location, attendees,
+            isAllDay, reminderMinutesBeforeStart, ct));
 }

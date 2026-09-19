@@ -62,6 +62,40 @@ public sealed class CalendarToolsTests
     }
 
     [Fact]
+    public async Task Create_and_update_with_fake()
+    {
+        var fake = new FakeGraphCalendarService();
+        var tools = Create(fake);
+
+        var created = ToolResults.Ok<EventDetail>(await tools.calendar_create_event(
+            "Planning",
+            "2026-09-14T14:00:00Z",
+            "2026-09-14T15:00:00Z",
+            body: "Agenda",
+            location: "Room 3",
+            attendees: ["guest@example.com"],
+            reminderMinutesBeforeStart: 15));
+        created.Subject.Should().Be("Planning");
+        created.Body.Should().Be("Agenda");
+        created.Location.Should().Be("Room 3");
+        created.Attendees.Should().ContainSingle(a => a.Address == "guest@example.com");
+        fake.GetReminderMinutesBeforeStart(created.Id).Should().Be(15);
+
+        var updated = ToolResults.Ok<EventDetail>(await tools.calendar_update_event(
+            created.Id,
+            subject: "Moved",
+            body: "Updated agenda",
+            location: "Room 4",
+            attendees: ["organizer@example.com"],
+            reminderMinutesBeforeStart: 30));
+        updated.Subject.Should().Be("Moved");
+        updated.Location.Should().Be("Room 4");
+        updated.Body.Should().Be("Updated agenda");
+        updated.Attendees.Should().ContainSingle(a => a.Address == "organizer@example.com");
+        fake.GetReminderMinutesBeforeStart(created.Id).Should().Be(30);
+    }
+
+    [Fact]
     public async Task Tool_errors_carry_codes_and_hints()
     {
         var tools = Create(new FakeGraphCalendarService());

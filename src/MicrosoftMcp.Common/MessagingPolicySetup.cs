@@ -41,7 +41,9 @@ public static class MessagingPolicySetup
         PolicyFile.EnsureProtected(path, policy);
         Console.Error.WriteLine(
             $"[startup] Policy: {path} (sha256 {PolicyFile.ComputeHash(path)[..12]}…) | " +
-            $"internal-only: {policy.RequireInternalRecipients} [{string.Join(",", policy.AllowedRecipientDomains)}] | " +
+            $"internal-only: {policy.RequireInternalRecipients} " +
+            $"domains=[{string.Join(",", policy.AllowedRecipientDomains)}] " +
+            $"addresses=[{string.Join(",", policy.AllowedRecipientAddresses)}] | " +
             $"disclosure: {policy.AiDisclosureEnabled}");
         return policy;
     }

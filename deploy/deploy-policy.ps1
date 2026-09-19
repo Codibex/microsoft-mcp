@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-  Deploys the admin-owned messaging policy.json (internal recipients + AI disclosure).
+  Deploys the admin-owned recipient policy.json (domains/addresses + AI disclosure).
 
 .DESCRIPTION
   Builds policy.json from parameters, writes it to the admin-owned system location
@@ -14,11 +14,16 @@
 .EXAMPLE
   .\deploy-policy.ps1 -AllowedRecipientDomains firma.de,tochter.firma.de `
     -AiDisclosureText "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+
+.EXAMPLE
+  .\deploy-policy.ps1 -AllowedRecipientAddresses partner@example.com `
+    -AiDisclosureText "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
 #>
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory)]
-  [string[]]$AllowedRecipientDomains,
+  [string[]]$AllowedRecipientDomains = @(),
+
+  [string[]]$AllowedRecipientAddresses = @(),
 
   [Parameter(Mandatory)]
   [string]$AiDisclosureText,
@@ -33,8 +38,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if ($RequireInternalRecipients -and $AllowedRecipientDomains.Count -eq 0) {
-  throw 'RequireInternalRecipients is set but no AllowedRecipientDomains were given.'
+if ($RequireInternalRecipients -and $AllowedRecipientDomains.Count -eq 0 -and $AllowedRecipientAddresses.Count -eq 0) {
+  throw 'RequireInternalRecipients is set but no AllowedRecipientDomains or AllowedRecipientAddresses were given.'
 }
 if ($AiDisclosureEnabled -and [string]::IsNullOrWhiteSpace($AiDisclosureText)) {
   throw 'AiDisclosureEnabled is set but AiDisclosureText is empty.'
@@ -43,6 +48,7 @@ if ($AiDisclosureEnabled -and [string]::IsNullOrWhiteSpace($AiDisclosureText)) {
 $policy = [ordered]@{
   requireInternalRecipients = $RequireInternalRecipients
   allowedRecipientDomains   = @($AllowedRecipientDomains | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  allowedRecipientAddresses = @($AllowedRecipientAddresses | ForEach-Object { $_.Trim() } | Where-Object { $_ })
   aiDisclosureEnabled       = $AiDisclosureEnabled
   aiDisclosureText          = $AiDisclosureText
 }

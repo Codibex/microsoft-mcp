@@ -1,8 +1,8 @@
 namespace MicrosoftMcp.Common;
 
-/// <summary>Admin-owned enterprise policy shared by all messaging servers
-/// (Outlook drafts today, Teams send in the future): internal recipients +
-/// AI disclosure.
+/// <summary>Admin-owned enterprise policy with recipient restrictions shared by
+/// messaging and calendar write operations. AI disclosure applies to messages
+/// only.
 ///
 /// Binds ONLY from the protected <c>policy.json</c> file (see <see cref="PolicyFile"/>).
 /// Env vars / user-secrets are deliberately NOT consulted for these settings,
@@ -14,9 +14,14 @@ public sealed class MessagingPolicyOptions
     /// (mail: <see cref="AllowedRecipientDomains"/>; Teams: same-tenant members).</summary>
     public bool RequireInternalRecipients { get; set; }
 
-    /// <summary>Allowed mail recipient domains, e.g. ["firma.de"]. Subdomains match
-    /// (mail.firma.de is covered by firma.de). Compared case-insensitively.</summary>
+    /// <summary>Allowed recipient domains, e.g. ["firma.de"]. Subdomains match
+    /// (mail.firma.de is covered by firma.de). Compared case-insensitively.
+    /// Applies to mail recipients and calendar attendees.</summary>
     public string[] AllowedRecipientDomains { get; set; } = [];
+
+    /// <summary>Allowed exact recipient addresses. Compared case-insensitively;
+    /// an exact address is an exception to the domain allowlist.</summary>
+    public string[] AllowedRecipientAddresses { get; set; } = [];
 
     /// <summary>When true, <see cref="AiDisclosureText"/> is appended to every
     /// created message by the server (not by the LLM, so it cannot be omitted).</summary>

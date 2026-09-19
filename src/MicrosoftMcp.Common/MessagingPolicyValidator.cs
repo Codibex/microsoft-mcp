@@ -6,11 +6,13 @@ public sealed class MessagingPolicyValidator : IValidateOptions<MessagingPolicyO
 {
     public ValidateOptionsResult Validate(string? name, MessagingPolicyOptions options)
     {
-        if (options.RequireInternalRecipients && options.AllowedRecipientDomains.Length == 0)
+        if (options.RequireInternalRecipients
+            && options.AllowedRecipientDomains.Length == 0
+            && options.AllowedRecipientAddresses.Length == 0)
         {
             return ValidateOptionsResult.Fail(
-                "Messaging policy: RequireInternalRecipients is true but AllowedRecipientDomains is empty. " +
-                "Next: list the internal domains in the admin-owned policy.json.");
+                "Messaging policy: RequireInternalRecipients is true but no allowed domains or exact addresses are configured. " +
+                "Next: list internal domains or exact addresses in the admin-owned policy.json.");
         }
 
         if (options.AiDisclosureEnabled && string.IsNullOrWhiteSpace(options.AiDisclosureText))

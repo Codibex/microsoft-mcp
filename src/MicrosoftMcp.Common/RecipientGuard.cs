@@ -1,8 +1,8 @@
 namespace MicrosoftMcp.Common;
 
-/// <summary>Server-side mail recipient check. Runs in code (not via prompt), so the LLM
-/// cannot talk its way around it. Pure and unit-tested. Teams send will reuse the
-/// same policy via tenant-member checks (see docs/teams.md).</summary>
+/// <summary>Server-side recipient check. Runs in code (not via prompt), so the
+/// LLM cannot talk its way around it. Pure and unit-tested. Teams send and
+/// calendar attendees reuse the same policy.</summary>
 public static class RecipientGuard
 {
     public static void ValidateRecipients(IReadOnlyList<string> recipients, MessagingPolicyOptions policy)
@@ -15,10 +15,10 @@ public static class RecipientGuard
         foreach (string recipient in recipients)
         {
             string domain = DomainOf(recipient);
-            if (!IsAllowed(domain, policy.AllowedRecipientDomains))
+            if (!IsAllowedRecipient(recipient, domain, policy))
             {
                 throw GraphServiceException.InvalidRequest(
-                    $"Recipient '{recipient}' is outside the allowed domains ({string.Join(", ", policy.AllowedRecipientDomains)}).",
+                    $"Recipient '{recipient}' is outside the allowed domains and exact addresses configured by policy.json.",
                     "use an internal recipient address, or ask your admin to extend policy.json");
             }
         }
@@ -60,4 +60,10 @@ public static class RecipientGuard
             return normalized.Length > 0 &&
                 (domain == normalized || domain.EndsWith("." + normalized, StringComparison.Ordinal));
         });
+
+    private static bool IsAllowedRecipient(
+        string address, string domain, MessagingPolicyOptions policy) =>
+        policy.AllowedRecipientAddresses.Any(allowed =>
+            string.Equals(allowed.Trim(), address.Trim(), StringComparison.OrdinalIgnoreCase))
+        || IsAllowed(domain, policy.AllowedRecipientDomains);
 }

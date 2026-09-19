@@ -199,20 +199,26 @@ Details + stack traces go to the server log (stderr) only, never to the client.
 
 Drafts an externe Adressen werden mit `[invalid-request]` abgelehnt, und jeder
 Draft-Body bekommt server-seitig (nicht vom LLM, daher nicht weglassbar) den
-Hinweis-Text angehängt. Beides steuert die **admin-owned `policy.json`**
+Hinweis-Text angehängt. Kalender-Einladungen prüfen dieselbe Empfänger-Policy;
+der KI-Hinweis gilt dort nicht. Beides steuert die **admin-owned `policy.json`**
 (Format: `docs/policy.example.json`, Deployment per Skript — siehe 10.1):
 
 ```jsonc
 {
   "requireInternalRecipients": true,
   "allowedRecipientDomains": ["firma.de"],
+  "allowedRecipientAddresses": ["partner@firma.example"],
   "aiDisclosureEnabled": true,
   "aiDisclosureText": "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
 }
 ```
 
 Regeln: Subdomains sind eingeschlossen (`mail.firma.de` passt zu `firma.de`),
-Groß-/Kleinschreibung egal, genau ein `@` erforderlich. Antworten prüfen
+Groß-/Kleinschreibung egal, genau ein `@` erforderlich. Eine exakte Adresse in
+`allowedRecipientAddresses` ist zusätzlich erlaubt, auch wenn ihre Domain nicht
+in `allowedRecipientDomains` steht. Beide Listen werden als OR-Allowlist
+behandelt. Die Prüfung gilt für Mail-Empfänger und Kalender-Attendees.
+Antworten prüfen
 server-seitig das tatsächliche Reply-Ziel (`Reply-To`, sonst Absender) und
 scheitern geschlossen ohne Absender; Weiterleitungen prüfen die expliziten
 Empfänger; `outlook_update_draft` ohne `to` prüft die bestehenden Empfänger des
