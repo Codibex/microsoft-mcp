@@ -25,7 +25,7 @@ public sealed class GraphServiceException : Exception
     public static GraphServiceException FolderNotFound(string destination) => Create(
         "folder-not-found",
         $"Folder '{destination}' was not found.",
-        "call outlook_list_folders and use id, displayName or a well-known name (inbox, archive, deleteditems, drafts)");
+        "call outlook_list_folders and use the folder id, displayName, full path or a well-known name (inbox, archive, deleteditems, drafts)");
 
     public static GraphServiceException DriveItemNotFound(string itemRef, string operation) => Create(
         "item-not-found",

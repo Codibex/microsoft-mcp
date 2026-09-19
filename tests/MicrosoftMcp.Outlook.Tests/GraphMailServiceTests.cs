@@ -17,15 +17,14 @@ public sealed class GraphMailServiceTests
     {
         var setup = Create(
             Response("""
-                {"value":[{"id":"school","displayName":"School","parentFolderId":"root","totalItemCount":2,"unreadItemCount":1}]}
+                {"value":[{"id":"school","displayName":"School","parentFolderId":"root","childFolderCount":1,"totalItemCount":2,"unreadItemCount":1}]}
                 """),
             Response("""
-                {"value":[{"id":"kids","displayName":"Kids","parentFolderId":"school","totalItemCount":1,"unreadItemCount":1}]}
+                {"value":[{"id":"kids","displayName":"Kids","parentFolderId":"school","childFolderCount":1,"totalItemCount":1,"unreadItemCount":1}]}
                 """),
             Response("""
-                {"value":[{"id":"sophie","displayName":"Sophie","parentFolderId":"kids","totalItemCount":1,"unreadItemCount":0}]}
-                """),
-            Response("""{"value":[]}"""));
+                {"value":[{"id":"sophie","displayName":"Sophie","parentFolderId":"kids","childFolderCount":0,"totalItemCount":1,"unreadItemCount":0}]}
+                """));
 
         var folders = await setup.Service.ListFoldersAsync();
 
@@ -35,8 +34,7 @@ public sealed class GraphMailServiceTests
             .Should().Equal(
                 "/v1.0/me/mailFolders",
                 "/v1.0/me/mailFolders/school/childFolders",
-                "/v1.0/me/mailFolders/kids/childFolders",
-                "/v1.0/me/mailFolders/sophie/childFolders");
+            "/v1.0/me/mailFolders/kids/childFolders");
     }
 
     [Fact]
@@ -44,22 +42,20 @@ public sealed class GraphMailServiceTests
     {
         var setup = Create(
             Response("""
-                {"value":[{"id":"school","displayName":"School"}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/mailFolders?$skiptoken=root-next"}
+                {"value":[{"id":"school","displayName":"School","childFolderCount":1}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/mailFolders?$skiptoken=root-next"}
                 """),
-            Response("""{"value":[{"id":"archive","displayName":"Archive"}]}"""),
+            Response("""{"value":[{"id":"archive","displayName":"Archive","childFolderCount":0}]}"""),
             Response("""
-                {"value":[{"id":"kids","displayName":"Kids"}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/mailFolders/school/childFolders?$skiptoken=child-next"}
+                {"value":[{"id":"kids","displayName":"Kids","childFolderCount":1}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/mailFolders/school/childFolders?$skiptoken=child-next"}
                 """),
-            Response("""{"value":[{"id":"clubs","displayName":"Clubs"}]}"""),
-            Response("""{"value":[]}"""),
-            Response("""{"value":[]}"""),
+            Response("""{"value":[{"id":"clubs","displayName":"Clubs","childFolderCount":0}]}"""),
             Response("""{"value":[]}"""));
 
         var folders = await setup.Service.ListFoldersAsync();
 
         folders.Select(folder => folder.Path).Should().Equal(
             "School", "Archive", "School/Kids", "School/Clubs");
-        setup.Handler.Requests.Should().HaveCount(7);
+        setup.Handler.Requests.Should().HaveCount(5);
         setup.Handler.Requests[1].RequestUri!.Query.Should().Contain("$skiptoken=root-next");
         setup.Handler.Requests[3].RequestUri!.Query.Should().Contain("$skiptoken=child-next");
         Uri.UnescapeDataString(setup.Handler.Requests[2].RequestUri!.Query)
@@ -67,23 +63,44 @@ public sealed class GraphMailServiceTests
     }
 
     [Fact]
-    public async Task CreateFolder_with_parent_uses_child_folders_endpoint()
+    public async Task User_folder_traversal_follows_root_and_child_paging_links()
     {
         var setup = Create(
-            Response("""{"value":[{"id":"school","displayName":"School"}]}"""),
-            Response("""{"value":[{"id":"kids","displayName":"Kids","parentFolderId":"school"}]}"""),
-            Response("""{"value":[]}"""),
+            new GraphAuthOptions { UserIdOrUpn = "user-1" },
             Response("""
+                {"value":[{"id":"school","displayName":"School","childFolderCount":1}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/users/user-1/mailFolders?$skiptoken=root-next"}
+                """),
+            Response("""{"value":[{"id":"archive","displayName":"Archive","childFolderCount":0}]}"""),
+            Response("""
+                {"value":[{"id":"kids","displayName":"Kids","childFolderCount":0}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/users/user-1/mailFolders/school/childFolders?$skiptoken=child-next"}
+                """),
+            Response("""{"value":[{"id":"clubs","displayName":"Clubs","childFolderCount":0}]}"""));
+
+        var folders = await setup.Service.ListFoldersAsync();
+
+        folders.Select(folder => folder.Path).Should().Equal("School", "Archive", "School/Kids", "School/Clubs");
+        setup.Handler.Requests.Should().HaveCount(4);
+        setup.Handler.Requests[0].RequestUri!.AbsolutePath.Should().Be("/v1.0/users/user-1/mailFolders");
+        setup.Handler.Requests[1].RequestUri!.Query.Should().Contain("$skiptoken=root-next");
+        setup.Handler.Requests[2].RequestUri!.AbsolutePath
+            .Should().Be("/v1.0/users/user-1/mailFolders/school/childFolders");
+        setup.Handler.Requests[3].RequestUri!.Query.Should().Contain("$skiptoken=child-next");
+    }
+
+    [Fact]
+    public async Task CreateFolder_with_parent_uses_child_folders_endpoint()
+    {
+        var setup = Create(Response("""
                 {"id":"sophie","displayName":"Sophie","parentFolderId":"kids"}
                 """));
 
         var folder = await setup.Service.CreateFolderAsync("Sophie", "kids");
 
         folder.Id.Should().Be("sophie");
-        folder.Path.Should().Be("School/Kids/Sophie");
-        setup.Handler.Requests.Should().HaveCount(4);
-        setup.Handler.Requests[^1].Method.Should().Be(HttpMethod.Post);
-        setup.Handler.Requests[^1].RequestUri!.AbsolutePath
+        folder.Path.Should().BeNull();
+        setup.Handler.Requests.Should().ContainSingle();
+        setup.Handler.Requests[0].Method.Should().Be(HttpMethod.Post);
+        setup.Handler.Requests[0].RequestUri!.AbsolutePath
             .Should().Be("/v1.0/me/mailFolders/kids/childFolders");
     }
 
@@ -91,10 +108,9 @@ public sealed class GraphMailServiceTests
     public async Task Move_resolves_nested_path_to_graph_folder_id()
     {
         var setup = Create(
-            Response("""{"value":[{"id":"school","displayName":"School"}]}"""),
-            Response("""{"value":[{"id":"kids","displayName":"Kids","parentFolderId":"school"}]}"""),
-            Response("""{"value":[{"id":"sophie","displayName":"Sophie","parentFolderId":"kids"}]}"""),
-            Response("""{"value":[]}"""),
+            Response("""{"value":[{"id":"school","displayName":"School","childFolderCount":1}]}"""),
+            Response("""{"value":[{"id":"kids","displayName":"Kids","parentFolderId":"school","childFolderCount":1}]}"""),
+            Response("""{"value":[{"id":"sophie","displayName":"Sophie","parentFolderId":"kids","childFolderCount":0}]}"""),
             Response("""{"id":"message-1","subject":"Moved"}"""));
 
         var moved = await setup.Service.MoveAsync("message-1", "School/Kids/Sophie");
@@ -110,6 +126,11 @@ public sealed class GraphMailServiceTests
 
     private static (GraphMailService Service, SequenceHandler Handler, HttpClient Client) Create(
         params HttpResponseMessage[] responses)
+        => Create(new GraphAuthOptions(), responses);
+
+    private static (GraphMailService Service, SequenceHandler Handler, HttpClient Client) Create(
+        GraphAuthOptions options,
+        params HttpResponseMessage[] responses)
     {
         var handler = new SequenceHandler(responses);
         var client = new HttpClient(handler);
@@ -119,7 +140,7 @@ public sealed class GraphMailServiceTests
         var graphClient = new GraphServiceClient(adapter);
         var service = new GraphMailService(
             graphClient,
-            Options.Create(new GraphAuthOptions()),
+            Options.Create(options),
             Options.Create(new OutlookPolicyOptions()));
         return (service, handler, client);
     }

@@ -165,15 +165,18 @@ internal sealed class FakeGraphMailService : IGraphMailService
     public Task<IReadOnlyList<FolderInfo>> ListFoldersAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<FolderInfo>>([.. _folders.Values]);
 
-    public Task<FolderInfo> CreateFolderAsync(string displayName, string? parentFolderId = null, CancellationToken ct = default)
+    public Task<FolderInfo> CreateFolderAsync(string displayName, string? parentFolderId, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         string name = displayName.Trim();
         string? parentId = string.IsNullOrWhiteSpace(parentFolderId) ? null : parentFolderId.Trim();
+        if (parentId is not null && !_folders.ContainsKey(parentId))
+        {
+            throw GraphServiceException.FolderNotFound(parentId);
+        }
+
         string id = "f-" + name.ToLowerInvariant().Replace(' ', '-');
-        string? parentPath = parentId is not null && _folders.TryGetValue(parentId, out var parent)
-            ? parent.Path
-            : null;
+        string? parentPath = parentId is not null ? _folders[parentId].Path : null;
         string path = string.IsNullOrWhiteSpace(parentPath) ? name : $"{parentPath}/{name}";
         var folder = new FolderInfo(id, name, 0, 0, parentId, path);
         _folders[id] = folder;

@@ -31,6 +31,17 @@ public sealed class FolderResolverTests
         FolderResolver.Resolve("projekte", Folders).Should().Be("id-custom");
 
     [Fact]
+    public void Four_value_folder_constructor_and_deconstructor_remain_usable()
+    {
+        var folder = new FolderInfo("id", "Name", 3, 1);
+
+        folder.ParentId.Should().BeNull();
+        folder.Path.Should().BeNull();
+        var (id, displayName, totalCount, unreadCount) = folder;
+        (id, displayName, totalCount, unreadCount).Should().Be(("id", "Name", 3, 1));
+    }
+
+    [Fact]
     public void Resolves_by_nested_path_case_insensitive() =>
         FolderResolver.Resolve(" school/kids/sophie ", Folders).Should().Be("id-sophie");
 

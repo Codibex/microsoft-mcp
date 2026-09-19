@@ -66,10 +66,10 @@ public sealed class OutlookTools(IGraphMailService mail, ILogger<OutlookTools> l
     public Task<CallToolResult> outlook_list_folders(CancellationToken ct = default) =>
         InvokeAsync("outlook_list_folders", () => mail.ListFoldersAsync(ct));
 
-    [McpServerTool, Description("Create a mail folder, optionally under a parent folder. Returns the new folder with id.")]
+    [McpServerTool, Description("Create a mail folder. Pass the parent folder id for a child folder or null explicitly for a top-level folder. Returns the new folder with id.")]
     public Task<CallToolResult> outlook_create_folder(
         [Description("Display name of the new folder")] string displayName,
-        [Description("Parent folder id (optional, omit for top level)")] string? parentFolderId = null,
+        [Description("Parent folder id; pass null for a top-level folder")] string? parentFolderId,
         CancellationToken ct = default) =>
         InvokeAsync("outlook_create_folder", () => mail.CreateFolderAsync(displayName, parentFolderId, ct));
 

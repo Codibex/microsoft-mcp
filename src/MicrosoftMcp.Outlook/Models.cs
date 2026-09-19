@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace MicrosoftMcp.Outlook;
 
 public sealed record EmailAddressDto(string Name, string Address);
@@ -26,13 +28,53 @@ public sealed record EmailDetail(
     string? Body,
     string? WebLink);
 
-public sealed record FolderInfo(
-    string Id,
-    string DisplayName,
-    int TotalCount,
-    int UnreadCount,
-    string? ParentId = null,
-    string? Path = null);
+public sealed record FolderInfo
+{
+    public string Id { get; init; }
+    public string DisplayName { get; init; }
+    public int TotalCount { get; init; }
+    public int UnreadCount { get; init; }
+    public string? ParentId { get; init; }
+    public string? Path { get; init; }
+
+    public FolderInfo(
+        string id,
+        string displayName,
+        int totalCount,
+        int unreadCount)
+    {
+        Id = id;
+        DisplayName = displayName;
+        TotalCount = totalCount;
+        UnreadCount = unreadCount;
+    }
+
+    [JsonConstructor]
+    public FolderInfo(
+        string id,
+        string displayName,
+        int totalCount,
+        int unreadCount,
+        string? parentId,
+        string? path)
+        : this(id, displayName, totalCount, unreadCount)
+    {
+        ParentId = parentId;
+        Path = path;
+    }
+
+    public void Deconstruct(
+        out string id,
+        out string displayName,
+        out int totalCount,
+        out int unreadCount)
+    {
+        id = Id;
+        displayName = DisplayName;
+        totalCount = TotalCount;
+        unreadCount = UnreadCount;
+    }
+}
 
 public sealed record AttachmentInfo(
     string Id,

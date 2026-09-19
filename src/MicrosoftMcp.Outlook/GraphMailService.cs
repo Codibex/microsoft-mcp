@@ -59,22 +59,11 @@ public sealed class GraphMailService(
                 (parentId, nextLink) => GetUserChildPageAsync(parentId, nextLink, ct));
 
     public async Task<FolderInfo> CreateFolderAsync(
-        string displayName, string? parentFolderId = null, CancellationToken ct = default)
+        string displayName, string? parentFolderId, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         string name = displayName.Trim();
         string? parentId = string.IsNullOrWhiteSpace(parentFolderId) ? null : parentFolderId.Trim();
-        string? parentPath = null;
-        if (parentId is not null)
-        {
-            var folders = await ListFoldersAsync(ct).ConfigureAwait(false);
-            parentPath = folders.FirstOrDefault(folder =>
-                string.Equals(folder.Id, parentId, StringComparison.OrdinalIgnoreCase))?.Path;
-            if (parentPath is null)
-            {
-                throw GraphServiceException.FolderNotFound(parentId);
-            }
-        }
 
         var folder = new MailFolder { DisplayName = name };
 
@@ -97,7 +86,7 @@ public sealed class GraphMailService(
 
         return created is null
             ? throw GraphServiceException.GraphError(0, null, "Folder creation returned no result.")
-            : MapFolder(created, parentId, AppendPath(parentPath ?? string.Empty, name));
+            : MapFolder(created, parentId, parentId is null ? name : null);
     }
 
     public async Task<EmailSummary> MoveAsync(string messageId, string destination, CancellationToken ct = default)
@@ -681,7 +670,7 @@ public sealed class GraphMailService(
 
                 string path = folder.DisplayName ?? string.Empty;
                 result.Add(MapFolder(folder, folder.ParentFolderId, path));
-                queue.Enqueue(new FolderNode(folderId, path));
+                EnqueueIfHasChildren(queue, folder, folderId, path);
             }
 
             nextLink = page.NextLink;
@@ -705,7 +694,7 @@ public sealed class GraphMailService(
                     string path = AppendPath(parent.Path, folder.DisplayName);
                     string parentId = folder.ParentFolderId ?? parent.Id;
                     result.Add(MapFolder(folder, parentId, path));
-                    queue.Enqueue(new FolderNode(folderId, path));
+                    EnqueueIfHasChildren(queue, folder, folderId, path);
                 }
 
                 nextLink = page.NextLink;
@@ -778,6 +767,18 @@ public sealed class GraphMailService(
         return !string.IsNullOrWhiteSpace(folderId) && visited.Add(folderId);
     }
 
+    private static void EnqueueIfHasChildren(
+        Queue<FolderNode> queue,
+        MailFolder folder,
+        string folderId,
+        string path)
+    {
+        if (folder.ChildFolderCount is not 0)
+        {
+            queue.Enqueue(new FolderNode(folderId, path));
+        }
+    }
+
     private static string AppendPath(string parentPath, string? displayName) =>
         string.IsNullOrWhiteSpace(parentPath)
             ? displayName ?? string.Empty
@@ -811,13 +812,13 @@ public sealed class GraphMailService(
         }
     }
 
-    private static FolderInfo MapFolder(MailFolder f, string? parentId = null, string? path = null) => new(
+    private static FolderInfo MapFolder(MailFolder f, string? parentId, string? path) => new(
         f.Id ?? string.Empty,
         f.DisplayName ?? string.Empty,
         f.TotalItemCount ?? 0,
         f.UnreadItemCount ?? 0,
         f.ParentFolderId ?? parentId,
-        path ?? f.DisplayName ?? string.Empty);
+        path);
 
     private sealed record FolderPage(IReadOnlyList<MailFolder> Items, string? NextLink);
 

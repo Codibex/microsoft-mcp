@@ -149,12 +149,21 @@ public sealed class OutlookToolsTests
     {
         var tools = Create(new FakeGraphMailService());
 
-        var folder = ToolResults.Ok<FolderInfo>(await tools.outlook_create_folder("Kunden"));
+        var folder = ToolResults.Ok<FolderInfo>(await tools.outlook_create_folder("Kunden", null));
         folder.DisplayName.Should().Be("Kunden");
 
         await tools.outlook_move_email("m1", "Kunden");
         ToolResults.Ok<List<EmailSummary>>(await tools.outlook_search_emails(folder: "Kunden"))
             .Should().Contain(m => m.Id == "m1");
+    }
+
+    [Fact]
+    public async Task Create_folder_rejects_unknown_parent_with_fake()
+    {
+        var tools = Create(new FakeGraphMailService());
+
+        ToolResults.Fail(await tools.outlook_create_folder("Child", "missing"))
+            .Should().Contain("[folder-not-found]");
     }
 
     [Fact]
