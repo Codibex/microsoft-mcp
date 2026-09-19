@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MicrosoftMcp.Common;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -9,9 +10,12 @@ namespace MicrosoftMcp.Teams;
 
 public static class TeamsServiceRegistration
 {
-    public static IServiceCollection AddTeams(this IServiceCollection services)
+    public static IServiceCollection AddTeams(
+        this IServiceCollection services, TeamsPolicyOptions? policy = null)
     {
         services.AddSingleton<IGraphTeamsService, GraphTeamsService>();
+        services.AddSingleton<IOptions<TeamsPolicyOptions>>(
+            Options.Create(policy ?? new TeamsPolicyOptions()));
         return services;
     }
 }

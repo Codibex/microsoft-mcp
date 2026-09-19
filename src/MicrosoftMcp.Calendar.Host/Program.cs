@@ -24,11 +24,11 @@ builder.Configuration
     .AddEnvironmentVariables()
     .AddUserSecrets<Program>();
 
-MessagingPolicyOptions policy = MessagingPolicySetup.Initialize();
+EffectivePolicySet policies = MessagingPolicySetup.InitializePolicies();
 
 builder.Services
     .AddGraphCommon(builder.Configuration)
-    .AddCalendar(policy);
+    .AddCalendar(policies.Calendar);
 
 builder.Services
     .AddMcpServer()

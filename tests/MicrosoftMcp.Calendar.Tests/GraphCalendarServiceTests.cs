@@ -65,10 +65,10 @@ public sealed class GraphCalendarServiceTests
     {
         var handler = new RecordingHandler(
             "{\"id\":\"event-1\",\"attendees\":[{\"emailAddress\":{\"address\":\"outside@example.com\"}}]}");
-        var policy = new MessagingPolicyOptions
+        var policy = new CalendarPolicyOptions
         {
-            RequireInternalRecipients = true,
-            AllowedRecipientDomains = ["firma.de"]
+            RequireInternalAttendees = true,
+            AllowedAttendeeDomains = ["firma.de"]
         };
         var service = CreateService(handler, policy: policy);
 
@@ -151,10 +151,10 @@ public sealed class GraphCalendarServiceTests
     public async Task CreateEvent_rejects_external_attendee_when_policy_requires_internal()
     {
         var handler = new RecordingHandler("{}");
-        var policy = new MessagingPolicyOptions
+        var policy = new CalendarPolicyOptions
         {
-            RequireInternalRecipients = true,
-            AllowedRecipientDomains = ["firma.de"]
+            RequireInternalAttendees = true,
+            AllowedAttendeeDomains = ["firma.de"]
         };
         var service = CreateService(handler, policy: policy);
 
@@ -173,10 +173,10 @@ public sealed class GraphCalendarServiceTests
     public async Task UpdateEvent_rejects_external_attendee_before_patch()
     {
         var handler = new RecordingHandler("{}");
-        var policy = new MessagingPolicyOptions
+        var policy = new CalendarPolicyOptions
         {
-            RequireInternalRecipients = true,
-            AllowedRecipientDomains = ["firma.de"]
+            RequireInternalAttendees = true,
+            AllowedAttendeeDomains = ["firma.de"]
         };
         var service = CreateService(handler, policy: policy);
 
@@ -191,7 +191,7 @@ public sealed class GraphCalendarServiceTests
     private static GraphCalendarService CreateService(
         RecordingHandler handler,
         GraphAuthOptions? options = null,
-        MessagingPolicyOptions? policy = null)
+        CalendarPolicyOptions? policy = null)
     {
         var httpClient = new HttpClient(handler);
         var requestAdapter = new HttpClientRequestAdapter(
@@ -201,7 +201,7 @@ public sealed class GraphCalendarServiceTests
         return new GraphCalendarService(
             graphClient,
             Options.Create(options ?? new GraphAuthOptions()),
-            Options.Create(policy ?? new MessagingPolicyOptions()));
+            Options.Create(policy ?? new CalendarPolicyOptions()));
     }
 
     private sealed class RecordingHandler(string response) : HttpMessageHandler

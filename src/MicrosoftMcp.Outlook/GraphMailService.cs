@@ -8,14 +8,14 @@ namespace MicrosoftMcp.Outlook;
 public sealed class GraphMailService(
     GraphServiceClient client,
     IOptions<GraphAuthOptions> options,
-    IOptions<MessagingPolicyOptions> policy) : IGraphMailService
+    IOptions<OutlookPolicyOptions> policy) : IGraphMailService
 {
     private static readonly string[] SummarySelect =
         ["id", "subject", "from", "toRecipients", "receivedDateTime", "isRead",
          "hasAttachments", "categories", "importance", "bodyPreview", "parentFolderId", "webLink"];
 
     private readonly GraphAuthOptions _options = options.Value;
-    private readonly MessagingPolicyOptions _policy = policy.Value;
+    private readonly OutlookPolicyOptions _policy = policy.Value;
     private bool IsMe => string.Equals(_options.UserIdOrUpn, "me", StringComparison.OrdinalIgnoreCase);
 
     public async Task<IReadOnlyList<EmailSummary>> SearchAsync(EmailQuery query, CancellationToken ct = default)

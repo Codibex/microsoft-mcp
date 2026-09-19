@@ -125,11 +125,11 @@ Details + stack traces go to the server log (stderr) only, never to the client.
 ## 9. Enterprise-Policy (Vorbereitung für Write)
 
 Read-only today: there is no send path, so nothing to enforce — but the shared
-admin-owned `policy.json` (same file and format as
+admin-owned versioned `policy.json` (same file and format as
 [Outlook](outlook.md#10-enterprise-policy-nur-interne-drafts--ki-hinweis-policyjson),
 loaded from the OS-specific system path, `Messaging__*` env ignored) is already
-validated at startup of every Teams host, so the file stays the single source
-when send tools land.
+validated at startup of every Teams host. Its `teams` section is intentionally
+empty for now, so the file stays the single source when send tools land.
 
 Send design (to be implemented): new tools (`teams_send_channel_message`,
 `teams_send_chat_message`) plus delegated scopes `ChannelMessage.Send` and

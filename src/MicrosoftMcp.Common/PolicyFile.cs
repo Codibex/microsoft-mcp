@@ -85,26 +85,20 @@ public static class PolicyFile
         }
     }
 
-    /// <summary>Parses policy.json (comments and trailing commas allowed, unknown
-    /// properties rejected so typos fail closed instead of silently disabling rules).
-    /// Never reads env vars or user-secrets: this file is the only source.</summary>
+    /// <summary>Compatibility loader for callers that need the effective Outlook
+    /// policy. New code should use <see cref="PolicyDocument.Load"/> so it can
+    /// receive all service-specific policies.</summary>
     public static MessagingPolicyOptions Load(string path)
     {
-        string json = File.ReadAllText(path);
-        var options = JsonSerializer.Deserialize<MessagingPolicyOptions>(json, new JsonSerializerOptions
+        OutlookPolicyOptions outlook = PolicyDocument.Load(path).Outlook;
+        return new MessagingPolicyOptions
         {
-            PropertyNameCaseInsensitive = true,
-            ReadCommentHandling = JsonCommentHandling.Skip,
-            AllowTrailingCommas = true,
-            UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
-        }) ?? throw new JsonException($"Policy file '{path}' contains no policy object.");
-
-        // Null arrays deserialize over the initializers as null.
-        options.AllowedRecipientDomains ??= [];
-        options.AllowedRecipientDomains = [.. options.AllowedRecipientDomains.Where(d => !string.IsNullOrWhiteSpace(d))];
-        options.AllowedRecipientAddresses ??= [];
-        options.AllowedRecipientAddresses = [.. options.AllowedRecipientAddresses.Where(a => !string.IsNullOrWhiteSpace(a))];
-        return options;
+            RequireInternalRecipients = outlook.RequireInternalRecipients,
+            AllowedRecipientDomains = [.. outlook.AllowedRecipientDomains],
+            AllowedRecipientAddresses = [.. outlook.AllowedRecipientAddresses],
+            AiDisclosureEnabled = outlook.AiDisclosureEnabled,
+            AiDisclosureText = outlook.AiDisclosureText
+        };
     }
 
     /// <summary>SHA-256 of the file bytes (hex), for startup-log audit on stderr.</summary>
@@ -120,9 +114,36 @@ public static class PolicyFile
     /// is not writable and passes on all three OSes. The parent directory is checked
     /// too: a writable directory allows delete-and-replace of even a read-only file.
     /// Permissive policies (nothing enforced) skip the check — nothing to protect.</summary>
-    public static void EnsureProtected(string path, MessagingPolicyOptions policy)
+    public static void EnsureProtected(string path, RecipientPolicyOptions policy) =>
+        EnsureProtected(path, policy.IsRestrictive);
+
+    public static void EnsureProtected(string path, EffectivePolicySet policies) =>
+        EnsureProtected(path, policies.IsRestrictive);
+
+    /// <summary>Checks that the current process can replace the policy file.
+    /// A migration must be run by the administrator/root owner for a protected
+    /// system policy, rather than failing halfway through a file replacement.</summary>
+    public static void EnsureMigrationWritable(string path)
     {
-        if (!policy.IsRestrictive)
+        string directory = Path.GetDirectoryName(path)
+            ?? throw new OptionsValidationException(
+                "Messaging",
+                typeof(EffectivePolicySet),
+                [$"Policy migration requires a policy path with a parent directory: '{path}'."]);
+
+        if (!IsWritable(path) || !IsDirectoryWritable(directory))
+        {
+            throw new OptionsValidationException(
+                "Messaging",
+                typeof(EffectivePolicySet),
+                [$"Policy migration requires write access to '{path}' and its parent directory. " +
+                 "Next: run the migration as administrator/root or grant the deployment account access."]);
+        }
+    }
+
+    private static void EnsureProtected(string path, bool restrictive)
+    {
+        if (!restrictive)
         {
             return;
         }
@@ -139,7 +160,7 @@ public static class PolicyFile
         {
             throw new OptionsValidationException(
                 "Messaging",
-                typeof(MessagingPolicyOptions),
+                typeof(RecipientPolicyOptions),
                 [$"Policy file '{path}' (or its parent directory) enforces restrictions but is writable " +
                  "by the current user, so it could be rewritten or replaced. Next: deploy it admin-owned " +
                  "and read-only including its directory " +

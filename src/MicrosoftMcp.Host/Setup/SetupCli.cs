@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using MicrosoftMcp.Common;
 
 namespace MicrosoftMcp.Host.Setup;
@@ -19,13 +20,19 @@ public static class SetupCli
     {
         return args.Length > 0
             && (args[0].Equals("setup", StringComparison.OrdinalIgnoreCase)
-                || args[0].Equals("doctor", StringComparison.OrdinalIgnoreCase));
+                || args[0].Equals("doctor", StringComparison.OrdinalIgnoreCase)
+                || args[0].Equals("policy", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Runs setup/doctor, returns the exit code.</summary>
     public static int Run(string[] args)
     {
         string command = args[0].ToLowerInvariant();
+        if (command == "policy")
+        {
+            return RunPolicy(args[1..]);
+        }
+
         Dictionary<string, string?> opts = ParseOpts(args[1..]);
         if (Has(opts, "help") || Has(opts, "h"))
         {
@@ -52,6 +59,89 @@ public static class SetupCli
             "doctor" => RunDoctor(servers, json),
             _ => Fail(json, $"Unknown command '{command}'. Next: use setup or doctor."),
         };
+    }
+
+    private static int RunPolicy(string[] args)
+    {
+        if (args.Length == 0
+            || args[0].Equals("help", StringComparison.OrdinalIgnoreCase)
+            || args[0] is "--help" or "-h")
+        {
+            Console.Out.WriteLine("Usage: microsoft-mcp policy migrate [--path PATH] [--write] [--json]");
+            return 0;
+        }
+
+        string action = args.Length == 0 ? string.Empty : args[0].ToLowerInvariant();
+        Dictionary<string, string?> opts = ParseOpts(args.Length == 0 ? [] : args[1..]);
+        bool json = Has(opts, "json");
+        if (Has(opts, "help") || Has(opts, "h"))
+        {
+            Console.Out.WriteLine("Usage: microsoft-mcp policy migrate [--path PATH] [--write] [--json]");
+            return 0;
+        }
+
+        if (action != "migrate")
+        {
+            return Fail(json, $"Unknown policy command '{action}'. Next: use policy migrate.");
+        }
+
+        string? path = Opt(opts, "path");
+        try
+        {
+            path ??= PolicyFile.FindPolicyFile();
+            if (path is null)
+            {
+                if (json)
+                {
+                    Console.Out.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        policyPath = (string?)null,
+                        migrationRequired = false,
+                        written = false,
+                        targetVersion = 1
+                    }, JsonOptions));
+                }
+                else
+                {
+                    Console.Out.WriteLine("No policy.json found; no migration required.");
+                }
+
+                return 0;
+            }
+
+            PolicyMigrationResult result = PolicyMigrator.Migrate(path, Has(opts, "write"));
+            if (json)
+            {
+                Console.Out.WriteLine(JsonSerializer.Serialize(result, JsonOptions));
+            }
+            else
+            {
+                Console.Out.WriteLine(result.MigrationRequired
+                    ? result.Written
+                        ? $"Migrated {result.PolicyPath} to version {result.TargetVersion}. Backup: {result.BackupPath}"
+                        : $"Migration required for {result.PolicyPath}. Preview only; add --write as administrator/root."
+                    : $"Policy {result.PolicyPath} is already versioned.");
+            }
+
+            return 0;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or OptionsValidationException)
+        {
+            if (json)
+            {
+                Console.Out.WriteLine(JsonSerializer.Serialize(new
+                {
+                    error = ex.Message,
+                    requiresElevation = ex is UnauthorizedAccessException or OptionsValidationException
+                }, JsonOptions));
+            }
+            else
+            {
+                Console.Out.WriteLine(ex.Message);
+            }
+
+            return 1;
+        }
     }
 
     private static int RunSetup(IReadOnlyList<string> servers, Dictionary<string, string?> opts, bool json)
@@ -101,6 +191,8 @@ public static class SetupCli
                 clientKey = SetupGuide.TopLevelKey(client),
                 configFile = SetupGuide.ConfigFile(client),
                 tenantHint,
+                policySchema = "versioned-v1",
+                policyMigrationCommand = "microsoft-mcp policy migrate --json --write",
                 mcpJson = snippet
             }, JsonOptions));
             return 0;
@@ -110,6 +202,7 @@ public static class SetupCli
         Console.Out.WriteLine($"TenantId: {tenantHint} | ClientId: <client-id from Entra overview>");
         Console.Out.WriteLine($"Delegated scopes to consent: {string.Join(" ", scopes)}"
             + (auth == AuthMode.AppOnly ? " (+ application Mail.ReadWrite, admin consent, client secret)" : ""));
+        Console.Out.WriteLine("Policy: versioned policy.json with outlook, calendar and teams sections; legacy flat files remain compatible.");
         if (headless)
         {
             Console.Out.WriteLine("Headless: set Graph__DelegatedFlow=DeviceCode and confirm the code from stderr.");
@@ -122,6 +215,7 @@ public static class SetupCli
         Console.Out.WriteLine(snippet);
         Console.Out.WriteLine();
         Console.Out.WriteLine("Verify: microsoft-mcp doctor --servers " + string.Join(",", servers));
+        Console.Out.WriteLine("After an update: microsoft-mcp policy migrate --json --write (administrator/root), then restart the MCP client.");
         return 0;
     }
 
@@ -141,16 +235,35 @@ public static class SetupCli
 
         string? policyPath = null;
         string? policyError = null;
+        EffectivePolicySet? policy = null;
         try
         {
             policyPath = PolicyFile.FindPolicyFile();
+            if (policyPath is not null)
+            {
+                policy = PolicyDocument.Load(policyPath);
+                string? validationError = PolicySetValidator.Validate(policy);
+                if (validationError is not null)
+                {
+                    throw new OptionsValidationException(
+                        "Messaging", typeof(EffectivePolicySet), [validationError]);
+                }
+
+                PolicyFile.EnsureProtected(policyPath, policy);
+            }
         }
-        catch (Exception ex) when (ex is Microsoft.Extensions.Options.OptionsValidationException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is OptionsValidationException or UnauthorizedAccessException or IOException or JsonException)
         {
             policyError = ex.Message;
         }
 
-        IReadOnlyList<SetupCheck> checks = DoctorChecks.Run(servers, options, policyPath, policyError);
+        IReadOnlyList<SetupCheck> checks = DoctorChecks.Run(
+            servers,
+            options,
+            policyPath,
+            policyError,
+            policyMigrationRequired: policy?.MigrationRequired ?? false,
+            policyFormat: policy is null ? null : policy.IsLegacy ? "legacy" : "v1");
 
         if (json)
         {
@@ -186,7 +299,9 @@ public static class SetupCli
     {
         Console.Out.WriteLine(command == "setup"
             ? "Usage: microsoft-mcp setup [--servers outlook,calendar] [--account work|personal] [--auth delegated|apponly] [--client vscode|claude|opencode|codex|openclaw|hermes|generic] [--binary PATH] [--headless] [--json]"
-            : "Usage: microsoft-mcp doctor [--servers outlook,calendar] [--json]");
+            : command == "doctor"
+                ? "Usage: microsoft-mcp doctor [--servers outlook,calendar] [--json]"
+                : "Usage: microsoft-mcp policy migrate [--path PATH] [--write] [--json]");
     }
 
     private static Dictionary<string, string?> ParseOpts(string[] args)

@@ -139,9 +139,9 @@ mcp_servers:
 ```
 
 App-Only additionally: `Graph__AuthMode=AppOnly`, `Graph__UserIdOrUpn`,
-`Graph__ClientSecret`. `policy.json` (Outlook/Teams/Calendar, optional):
-admin-owned system path or next to the binary; `Messaging__*` env is
-ignored (see `outlook.md` §10).
+`Graph__ClientSecret`. Versioned `policy.json` (Outlook/Calendar/Teams,
+optional) lives in the admin-owned system path or next to the binary;
+`Messaging__*` env is ignored (see `outlook.md` §10).
 
 ## 4. Verify
 
@@ -158,7 +158,26 @@ headless → `DeviceCode`, empty tool list → check stderr for
 `OptionsValidationException`. OpenClaw: additionally
 `openclaw mcp doctor m365 --probe` for a live connection test.
 
-## Machine contract (for `setup`/`doctor`)
+### Policy migration after an update
+
+The new binary keeps reading the old flat policy in memory, so an update does
+not weaken or disable existing restrictions. To persist the split document,
+run the new binary after replacing it and before restarting the MCP client:
+
+```bash
+microsoft-mcp policy migrate --json
+microsoft-mcp policy migrate --json --write
+microsoft-mcp doctor --json
+```
+
+The first command is a preview. `--write` is explicit, creates a backup and
+replaces the admin-owned file atomically. It must run as administrator/root;
+an agent such as Hermes can execute the sequence only when its update process
+already has those rights. Without them, leave the legacy file in place and
+ask an administrator to run the migration. The MCP client must be restarted
+after the binary or policy file changes.
+
+## Machine contract (for `setup`/`doctor`/`policy migrate`)
 
 - Inputs: `--servers` (subset of `outlook,onedrive,calendar,teams`,
   empty = all), `--account work|personal`, `--auth delegated|apponly`,
@@ -172,7 +191,10 @@ headless → `DeviceCode`, empty tool list → check stderr for
   `TenantId` format (GUID or `common|consumers|organizations`),
   `ClientId` GUID, AuthMode vs. domains, scopes vs. selection,
   `DelegatedFlow`, `policy.json` found/protected (warning only if missing).
-  No network, no token. `--json` → `{ "checks": [{ "id", "ok", "message", "next" }] }`.
+  No network, no token. `--json` → `{ "checks": [{ "id", "ok", "message", "next", "migrationRequired" }] }`.
+- `policy migrate --json` only inspects by default. Add `--write` for the
+  explicit atomic migration. The result reports `migrationRequired`,
+  `written`, `backupPath` and `targetVersion`; no secrets are read or written.
 
 Cache settings: `Graph__FallbackToMemoryTokenCache` defaults to `true` and keeps
 delegated auth usable without a keyring. Persistent credential token operations

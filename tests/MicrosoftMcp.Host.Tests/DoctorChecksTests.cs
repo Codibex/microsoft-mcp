@@ -165,6 +165,24 @@ public sealed class DoctorChecksTests
     }
 
     [Fact]
+    public void Legacy_policy_is_ok_but_reports_migration_required()
+    {
+        var policy = DoctorChecks.Run(
+                ["outlook", "calendar"],
+                Delegated(),
+                policyPath: "/etc/microsoft-mcp/policy.json",
+                policyError: null,
+                policyMigrationRequired: true,
+                policyFormat: "legacy")
+            .First(c => c.Id == "policy");
+
+        policy.Ok.Should().BeTrue();
+        policy.MigrationRequired.Should().BeTrue();
+        policy.Message.Should().Contain("legacy");
+        policy.Next.Should().Contain("policy migrate");
+    }
+
+    [Fact]
     public void Unreadable_policy_fails()
     {
         var checks = DoctorChecks.Run(["outlook"], Delegated(), policyPath: null, policyError: "not readable");

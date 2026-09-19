@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Deploys the admin-owned recipient policy.json (domains/addresses + AI disclosure).
+# Deploys the admin-owned versioned policy.json (Outlook recipients, Calendar
+# attendees + Outlook AI disclosure).
 #
-# Builds policy.json from parameters, writes it to the admin-owned system location
+# Builds policy.json from parameters, atomically writes it to the admin-owned system location
 # (Linux: /etc/microsoft-mcp/policy.json, macOS: /Library/Application Support/...)
 # as root:root mode 644, so a user-level LLM with file access can neither rewrite
 # nor delete it. The MCP server reads this file as its ONLY policy source
@@ -13,6 +14,8 @@
 #     --disclosure-text "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
 #   sudo ./deploy-policy.sh --addresses partner@example.com \
 #     --disclosure-text "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
+#   sudo ./deploy-policy.sh --domains firma.de --calendar-no-restrict \
+#     --disclosure-text "Hinweis: Dieser Entwurf wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
 #   sudo ./deploy-policy.sh --domains firma.de --disclosure-text "..." --path /custom/policy.json
 set -euo pipefail
 
@@ -22,9 +25,14 @@ DISCLOSURE_TEXT=""
 REQUIRE_INTERNAL=true
 DISCLOSURE_ENABLED=true
 POLICY_PATH=""
+CALENDAR_DOMAINS=""
+CALENDAR_ADDRESSES=""
+CALENDAR_REQUIRE_INTERNAL=""
+CALENDAR_DOMAINS_SET=false
+CALENDAR_ADDRESSES_SET=false
 
 usage() {
-  echo "Usage: sudo $0 [--domains a.de,b.de] [--addresses a@b.example,c@d.example] --disclosure-text \"...\" [--no-restrict] [--no-disclosure] [--path FILE]"
+  echo "Usage: sudo $0 [--domains a.de,b.de] [--addresses a@b.example,c@d.example] [--calendar-domains a.de,b.de] [--calendar-addresses a@b.example] [--calendar-restrict|--calendar-no-restrict] --disclosure-text \"...\" [--no-restrict] [--no-disclosure] [--path FILE]"
   exit 2
 }
 
@@ -32,6 +40,10 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --domains) DOMAINS="${2:?}"; shift 2 ;;
     --addresses) ADDRESSES="${2:?}"; shift 2 ;;
+    --calendar-domains) CALENDAR_DOMAINS="${2:?}"; CALENDAR_DOMAINS_SET=true; shift 2 ;;
+    --calendar-addresses) CALENDAR_ADDRESSES="${2:?}"; CALENDAR_ADDRESSES_SET=true; shift 2 ;;
+    --calendar-restrict) CALENDAR_REQUIRE_INTERNAL=true; shift ;;
+    --calendar-no-restrict) CALENDAR_REQUIRE_INTERNAL=false; shift ;;
     --disclosure-text) DISCLOSURE_TEXT="${2:?}"; shift 2 ;;
     --no-restrict) REQUIRE_INTERNAL=false; shift ;;
     --no-disclosure) DISCLOSURE_ENABLED=false; shift ;;
@@ -41,8 +53,21 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+if [ "$CALENDAR_DOMAINS_SET" = false ]; then
+  CALENDAR_DOMAINS="$DOMAINS"
+fi
+if [ "$CALENDAR_ADDRESSES_SET" = false ]; then
+  CALENDAR_ADDRESSES="$ADDRESSES"
+fi
+if [ -z "$CALENDAR_REQUIRE_INTERNAL" ]; then
+  CALENDAR_REQUIRE_INTERNAL="$REQUIRE_INTERNAL"
+fi
+
 if [ "$REQUIRE_INTERNAL" = true ] && [ -z "$DOMAINS" ] && [ -z "$ADDRESSES" ]; then
   echo "Error: --domains or --addresses is required unless --no-restrict is given." >&2; exit 1
+fi
+if [ "$CALENDAR_REQUIRE_INTERNAL" = true ] && [ -z "$CALENDAR_DOMAINS" ] && [ -z "$CALENDAR_ADDRESSES" ]; then
+  echo "Error: --calendar-domains or --calendar-addresses is required unless --calendar-no-restrict is given." >&2; exit 1
 fi
 if [ "$DISCLOSURE_ENABLED" = true ] && [ -z "$DISCLOSURE_TEXT" ]; then
   echo "Error: --disclosure-text is required unless --no-disclosure is given." >&2; exit 1
@@ -62,24 +87,48 @@ if [ -z "$POLICY_PATH" ]; then
 fi
 
 mkdir -p "$(dirname "$POLICY_PATH")"
+TEMP_PATH="$(mktemp "${POLICY_PATH}.tmp.XXXXXX")"
+trap 'rm -f "$TEMP_PATH"' EXIT
 DOMAINS="$DOMAINS" ADDRESSES="$ADDRESSES" DISCLOSURE_TEXT="$DISCLOSURE_TEXT" \
 REQUIRE_INTERNAL="$REQUIRE_INTERNAL" DISCLOSURE_ENABLED="$DISCLOSURE_ENABLED" \
-POLICY_PATH="$POLICY_PATH" python3 - <<'EOF'
+CALENDAR_DOMAINS="$CALENDAR_DOMAINS" CALENDAR_ADDRESSES="$CALENDAR_ADDRESSES" \
+CALENDAR_REQUIRE_INTERNAL="$CALENDAR_REQUIRE_INTERNAL" \
+POLICY_PATH="$TEMP_PATH" python3 - <<'EOF'
 import json, os
 
 domains = [d.strip() for d in os.environ["DOMAINS"].split(",") if d.strip()]
 addresses = [a.strip() for a in os.environ["ADDRESSES"].split(",") if a.strip()]
+calendar_domains = [d.strip() for d in os.environ["CALENDAR_DOMAINS"].split(",") if d.strip()]
+calendar_addresses = [a.strip() for a in os.environ["CALENDAR_ADDRESSES"].split(",") if a.strip()]
 policy = {
+  "version": 1,
+  "outlook": {
     "requireInternalRecipients": os.environ["REQUIRE_INTERNAL"].lower() == "true",
     "allowedRecipientDomains": domains,
     "allowedRecipientAddresses": addresses,
     "aiDisclosureEnabled": os.environ["DISCLOSURE_ENABLED"].lower() == "true",
     "aiDisclosureText": os.environ["DISCLOSURE_TEXT"],
+  },
+  "calendar": {
+    "requireInternalAttendees": os.environ["CALENDAR_REQUIRE_INTERNAL"].lower() == "true",
+    "allowedAttendeeDomains": calendar_domains,
+    "allowedAttendeeAddresses": calendar_addresses,
+  },
+  "teams": {},
 }
 with open(os.environ["POLICY_PATH"], "w", encoding="utf-8") as f:
     json.dump(policy, f, ensure_ascii=False, indent=2)
     f.write("\n")
 EOF
+
+if [ "$(uname -s)" = "Darwin" ]; then
+  chown root:wheel "$TEMP_PATH"
+else
+  chown root:root "$TEMP_PATH"
+fi
+chmod 644 "$TEMP_PATH"
+mv -f "$TEMP_PATH" "$POLICY_PATH"
+trap - EXIT
 
 if [ "$(uname -s)" = "Darwin" ]; then
   chown root:wheel "$POLICY_PATH"
