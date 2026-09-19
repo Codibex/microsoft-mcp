@@ -175,12 +175,14 @@ headless → `DeviceCode`, empty tool list → check stderr for
   No network, no token. `--json` → `{ "checks": [{ "id", "ok", "message", "next" }] }`.
 
 Cache settings: `Graph__FallbackToMemoryTokenCache` defaults to `true` and keeps
-delegated auth usable without a keyring. Persistent cache operations are bounded
-by `Graph__TokenCacheTimeoutSeconds` (default `10`, allowed range `1`-`120`).
-The timeout applies to the cache operation only; it does not limit the time you
-may take to complete a Device-Code login. Set the fallback to `false` only when
-persistent encrypted storage is required; on Linux, `doctor` then checks
-whether `org.freedesktop.secrets` is reachable and fails when it is not.
+delegated auth usable without a keyring. Persistent credential token operations
+are bounded by `Graph__TokenCacheTimeoutSeconds` (default `10`, allowed range
+`1`-`120`). This bounds the persistent credential's token acquisition call,
+which may include silent authentication, token refresh, network access, and
+Secret Service operations. It does not limit the time you may take to complete
+a Device-Code login. Set the fallback to `false` only when persistent encrypted
+storage is required; on Linux, `doctor` then checks whether
+`org.freedesktop.secrets` is reachable and fails when it is not.
 Changing the cache name can require one new login.
 
 Linux persistent-cache prerequisite: a user-session D-Bus and a Secret Service

@@ -135,10 +135,33 @@ internal sealed class TokenCacheCredential(
 
     private T ExecutePersistent<T>(
         Func<CancellationToken, T> operation,
-        CancellationToken cancellationToken) =>
-        ExecutePersistentAsync(
-            token => Task.Run(() => operation(token)),
-            cancellationToken).GetAwaiter().GetResult();
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using CancellationTokenSource timeoutSource =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(_persistentOperationTimeout);
+
+        Task<T> operationTask = Task.Run(
+            () => operation(timeoutSource.Token),
+            CancellationToken.None);
+
+        try
+        {
+            return operationTask.WaitAsync(_persistentOperationTimeout, cancellationToken)
+                .GetAwaiter().GetResult();
+        }
+        catch (TimeoutException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw CreateTimeoutException();
+        }
+        catch (OperationCanceledException) when (
+            !cancellationToken.IsCancellationRequested && timeoutSource.IsCancellationRequested)
+        {
+            throw CreateTimeoutException();
+        }
+    }
 
     private async Task<T> ExecutePersistentAsync<T>(
         Func<CancellationToken, Task<T>> operation,

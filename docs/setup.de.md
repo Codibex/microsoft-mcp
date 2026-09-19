@@ -180,14 +180,17 @@ headless → `DeviceCode`, leere Tool-Liste → stderr auf
   Kein Netzwerk, kein Token. `--json` → `{ "checks": [{ "id", "ok", "message", "next" }] }`.
 
 Cache-Einstellungen: `Graph__FallbackToMemoryTokenCache` ist standardmaessig
-`true` und haelt Delegated-Auth ohne Keyring nutzbar. Persistente
-Cache-Operationen werden durch `Graph__TokenCacheTimeoutSeconds` begrenzt
-(Standard `10`, zulaessig `1`-`120`). Der Timeout gilt nur fuer die
-Cache-Operation und begrenzt nicht die Zeit fuer die Device-Code-Anmeldung.
-Nur wenn persistenter, verschluesselter Speicher zwingend erforderlich ist, auf
-`false` setzen; auf Linux prueft `doctor` dann, ob `org.freedesktop.secrets`
-erreichbar ist, und schlaegt fehl, wenn der Dienst nicht erreichbar ist. Eine
-Aenderung des Cache-Namens kann eine einmalige neue Anmeldung erfordern.
+`true` und haelt Delegated-Auth ohne Keyring nutzbar. Persistente Token-
+Operationen des Credentials werden durch `Graph__TokenCacheTimeoutSeconds`
+begrenzt (Standard `10`, zulaessig `1`-`120`). Der Timeout gilt fuer den
+gesamten Token-Abruf des persistenten Credentials; dieser kann stille
+Authentifizierung, Token-Erneuerung, Netzwerkzugriff und Secret-Service-
+Operationen enthalten. Die Zeit fuer die Device-Code-Anmeldung wird dadurch
+nicht begrenzt. Nur wenn persistenter, verschluesselter Speicher zwingend
+erforderlich ist, auf `false` setzen; auf Linux prueft `doctor` dann, ob
+`org.freedesktop.secrets` erreichbar ist, und schlaegt fehl, wenn der Dienst
+nicht erreichbar ist. Eine Aenderung des Cache-Namens kann eine einmalige neue
+Anmeldung erfordern.
 
 Voraussetzung fuer den persistenten Cache unter Linux: Eine D-Bus-Session des
 Benutzers und ein Secret-Service-Provider mit `org.freedesktop.secrets` muessen
