@@ -30,7 +30,9 @@ public sealed record FolderInfo(
     string Id,
     string DisplayName,
     int TotalCount,
-    int UnreadCount);
+    int UnreadCount,
+    string? ParentId = null,
+    string? Path = null);
 
 public sealed record AttachmentInfo(
     string Id,

@@ -47,15 +47,25 @@ internal sealed class FakeGraphMailService : IGraphMailService
 
     public FakeGraphMailService()
     {
-        foreach (var (id, name) in new[] { ("inbox", "Inbox"), ("archive", "Archive"),
-                     ("deleteditems", "DeletedItems"), ("drafts", "Drafts"), ("f-projekte", "Projekte") })
+        foreach (var (id, name, parentId, path) in new[]
         {
-            _folders[id] = new FolderInfo(id, name, 0, 0);
+            ("inbox", "Inbox", "root", "Inbox"),
+            ("archive", "Archive", "root", "Archive"),
+            ("deleteditems", "DeletedItems", "root", "DeletedItems"),
+            ("drafts", "Drafts", "root", "Drafts"),
+            ("f-projekte", "Projekte", "root", "Projekte"),
+            ("f-school", "School", "root", "School"),
+            ("f-kids", "Kids", "f-school", "School/Kids"),
+            ("f-sophie", "Sophie", "f-kids", "School/Kids/Sophie")
+        })
+        {
+            _folders[id] = new FolderInfo(id, name, 0, 0, parentId, path);
         }
 
         Seed(new Stored { Id = "m1", Subject = "Rechnung Januar", IsRead = false, HasAttachments = true });
         Seed(new Stored { Id = "m2", Subject = "Hallo", IsRead = true, Categories = ["Red category"] });
         Seed(new Stored { Id = "m3", Subject = "Alt", Folder = "archive", IsRead = true });
+        Seed(new Stored { Id = "m4", Subject = "Schulmail", Folder = "f-sophie", IsRead = false });
 
         _contents.Add(new StoredAttachment
         {
@@ -158,8 +168,14 @@ internal sealed class FakeGraphMailService : IGraphMailService
     public Task<FolderInfo> CreateFolderAsync(string displayName, string? parentFolderId = null, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
-        string id = "f-" + displayName.Trim().ToLowerInvariant().Replace(' ', '-');
-        var folder = new FolderInfo(id, displayName.Trim(), 0, 0);
+        string name = displayName.Trim();
+        string? parentId = string.IsNullOrWhiteSpace(parentFolderId) ? null : parentFolderId.Trim();
+        string id = "f-" + name.ToLowerInvariant().Replace(' ', '-');
+        string? parentPath = parentId is not null && _folders.TryGetValue(parentId, out var parent)
+            ? parent.Path
+            : null;
+        string path = string.IsNullOrWhiteSpace(parentPath) ? name : $"{parentPath}/{name}";
+        var folder = new FolderInfo(id, name, 0, 0, parentId, path);
         _folders[id] = folder;
         return Task.FromResult(folder);
     }

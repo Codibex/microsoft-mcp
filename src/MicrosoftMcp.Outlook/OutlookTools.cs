@@ -47,11 +47,11 @@ public sealed class OutlookTools(IGraphMailService mail, ILogger<OutlookTools> l
         }
     }
 
-    [McpServerTool, Description("Search mails via KQL ($search) or list recent. query e.g. 'subject:Rechnung from:boss'. folder optionally restricts to a folder (well-known name, id or displayName). top max 50. Failures return isError with [code] and a Next-hint.")]
+    [McpServerTool, Description("Search mails via KQL ($search) or list recent. query e.g. 'subject:Rechnung from:boss'. folder optionally restricts to a folder (well-known name, id, displayName or path such as School/Kids/Sophie). top max 50. Failures return isError with [code] and a Next-hint.")]
     public Task<CallToolResult> outlook_search_emails(
         [Description("KQL query, empty lists recent")] string? query = null,
         [Description("Sender address filter")] string? from = null,
-        [Description("Folder: well-known name, id or displayName")] string? folder = null,
+        [Description("Folder: well-known name, id, displayName or path from outlook_list_folders")] string? folder = null,
         [Description("Max results 1-50")] int top = 25,
         CancellationToken ct = default) =>
         InvokeAsync("outlook_search_emails", () => mail.SearchAsync(new EmailQuery(query, folder, from, top), ct));
@@ -62,7 +62,7 @@ public sealed class OutlookTools(IGraphMailService mail, ILogger<OutlookTools> l
         CancellationToken ct = default) =>
         InvokeAsync("outlook_read_email", () => mail.GetAsync(messageId, ct));
 
-    [McpServerTool, Description("List mail folders with ids and counts. Needed to pick a move destination.")]
+    [McpServerTool, Description("List all visible mail folders recursively with ids, parent ids, paths and counts. Needed to pick a move destination.")]
     public Task<CallToolResult> outlook_list_folders(CancellationToken ct = default) =>
         InvokeAsync("outlook_list_folders", () => mail.ListFoldersAsync(ct));
 
@@ -73,7 +73,7 @@ public sealed class OutlookTools(IGraphMailService mail, ILogger<OutlookTools> l
         CancellationToken ct = default) =>
         InvokeAsync("outlook_create_folder", () => mail.CreateFolderAsync(displayName, parentFolderId, ct));
 
-    [McpServerTool, Description("Move a mail to another folder. Destination: well-known name (inbox, archive, deleteditems, drafts), folder id or displayName. Reversible. Failures return isError with [code] and a Next-hint.")]
+    [McpServerTool, Description("Move a mail to another folder. Destination: well-known name (inbox, archive, deleteditems, drafts), folder id, displayName or path from outlook_list_folders. Reversible. Failures return isError with [code] and a Next-hint.")]
     public Task<CallToolResult> outlook_move_email(
         [Description("Graph message id")] string messageId,
         [Description("Destination folder")] string destination,

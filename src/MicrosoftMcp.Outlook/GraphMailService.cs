@@ -10,6 +10,9 @@ public sealed class GraphMailService(
     IOptions<GraphAuthOptions> options,
     IOptions<OutlookPolicyOptions> policy) : IGraphMailService
 {
+    private static readonly string[] FolderSelect =
+        ["id", "displayName", "parentFolderId", "totalItemCount", "unreadItemCount", "childFolderCount"];
+
     private static readonly string[] SummarySelect =
         ["id", "subject", "from", "toRecipients", "receivedDateTime", "isRead",
          "hasAttachments", "categories", "importance", "bodyPreview", "parentFolderId", "webLink"];
@@ -46,33 +49,55 @@ public sealed class GraphMailService(
             : EmailMapper.MapDetail(msg);
     }
 
-    public async Task<IReadOnlyList<FolderInfo>> ListFoldersAsync(CancellationToken ct = default)
-    {
-        if (IsMe)
-        {
-            var page = await client.Me.MailFolders.GetAsync(c => c.QueryParameters.Top = 100, ct).ConfigureAwait(false);
-            return [.. (page?.Value ?? []).Select(MapFolder)];
-        }
-
-        var userPage = await client.Users[_options.UserIdOrUpn].MailFolders
-            .GetAsync(c => c.QueryParameters.Top = 100, ct).ConfigureAwait(false);
-        return [.. (userPage?.Value ?? []).Select(MapFolder)];
-    }
+    public Task<IReadOnlyList<FolderInfo>> ListFoldersAsync(CancellationToken ct = default) =>
+        IsMe
+            ? ListFoldersAsync(
+                nextLink => GetMeRootPageAsync(nextLink, ct),
+                (parentId, nextLink) => GetMeChildPageAsync(parentId, nextLink, ct))
+            : ListFoldersAsync(
+                nextLink => GetUserRootPageAsync(nextLink, ct),
+                (parentId, nextLink) => GetUserChildPageAsync(parentId, nextLink, ct));
 
     public async Task<FolderInfo> CreateFolderAsync(
         string displayName, string? parentFolderId = null, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
-        var folder = new MailFolder { DisplayName = displayName.Trim(), ParentFolderId = parentFolderId };
+        string name = displayName.Trim();
+        string? parentId = string.IsNullOrWhiteSpace(parentFolderId) ? null : parentFolderId.Trim();
+        string? parentPath = null;
+        if (parentId is not null)
+        {
+            var folders = await ListFoldersAsync(ct).ConfigureAwait(false);
+            parentPath = folders.FirstOrDefault(folder =>
+                string.Equals(folder.Id, parentId, StringComparison.OrdinalIgnoreCase))?.Path;
+            if (parentPath is null)
+            {
+                throw GraphServiceException.FolderNotFound(parentId);
+            }
+        }
 
-        MailFolder? created = IsMe
-            ? await client.Me.MailFolders.PostAsync(folder, cancellationToken: ct).ConfigureAwait(false)
-            : await client.Users[_options.UserIdOrUpn].MailFolders
-                .PostAsync(folder, cancellationToken: ct).ConfigureAwait(false);
+        var folder = new MailFolder { DisplayName = name };
+
+        MailFolder? created;
+        if (IsMe)
+        {
+            created = parentId is null
+                ? await client.Me.MailFolders.PostAsync(folder, cancellationToken: ct).ConfigureAwait(false)
+                : await client.Me.MailFolders[parentId].ChildFolders
+                    .PostAsync(folder, cancellationToken: ct).ConfigureAwait(false);
+        }
+        else
+        {
+            created = parentId is null
+                ? await client.Users[_options.UserIdOrUpn].MailFolders
+                    .PostAsync(folder, cancellationToken: ct).ConfigureAwait(false)
+                : await client.Users[_options.UserIdOrUpn].MailFolders[parentId].ChildFolders
+                    .PostAsync(folder, cancellationToken: ct).ConfigureAwait(false);
+        }
 
         return created is null
             ? throw GraphServiceException.GraphError(0, null, "Folder creation returned no result.")
-            : MapFolder(created);
+            : MapFolder(created, parentId, AppendPath(parentPath ?? string.Empty, name));
     }
 
     public async Task<EmailSummary> MoveAsync(string messageId, string destination, CancellationToken ct = default)
@@ -635,6 +660,129 @@ public sealed class GraphMailService(
         return FolderResolver.Resolve(destination, folders);
     }
 
+    private async Task<IReadOnlyList<FolderInfo>> ListFoldersAsync(
+        Func<string?, Task<FolderPage>> getRootPage,
+        Func<string, string?, Task<FolderPage>> getChildPage)
+    {
+        var result = new List<FolderInfo>();
+        var queue = new Queue<FolderNode>();
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        string? nextLink = null;
+        do
+        {
+            FolderPage page = await getRootPage(nextLink).ConfigureAwait(false);
+            foreach (MailFolder folder in page.Items)
+            {
+                if (!TryVisit(folder, visited, out string folderId))
+                {
+                    continue;
+                }
+
+                string path = folder.DisplayName ?? string.Empty;
+                result.Add(MapFolder(folder, folder.ParentFolderId, path));
+                queue.Enqueue(new FolderNode(folderId, path));
+            }
+
+            nextLink = page.NextLink;
+        }
+        while (!string.IsNullOrWhiteSpace(nextLink));
+
+        while (queue.Count > 0)
+        {
+            FolderNode parent = queue.Dequeue();
+            nextLink = null;
+            do
+            {
+                FolderPage page = await getChildPage(parent.Id, nextLink).ConfigureAwait(false);
+                foreach (MailFolder folder in page.Items)
+                {
+                    if (!TryVisit(folder, visited, out string folderId))
+                    {
+                        continue;
+                    }
+
+                    string path = AppendPath(parent.Path, folder.DisplayName);
+                    string parentId = folder.ParentFolderId ?? parent.Id;
+                    result.Add(MapFolder(folder, parentId, path));
+                    queue.Enqueue(new FolderNode(folderId, path));
+                }
+
+                nextLink = page.NextLink;
+            }
+            while (!string.IsNullOrWhiteSpace(nextLink));
+        }
+
+        return result;
+    }
+
+    private async Task<FolderPage> GetMeRootPageAsync(string? nextLink, CancellationToken ct)
+    {
+        var page = string.IsNullOrWhiteSpace(nextLink)
+            ? await client.Me.MailFolders.GetAsync(c =>
+            {
+                c.QueryParameters.Top = 100;
+                c.QueryParameters.Select = FolderSelect;
+            }, ct).ConfigureAwait(false)
+            : await client.Me.MailFolders.WithUrl(nextLink!).GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        return ToFolderPage(page);
+    }
+
+    private async Task<FolderPage> GetMeChildPageAsync(
+        string parentId, string? nextLink, CancellationToken ct)
+    {
+        var page = string.IsNullOrWhiteSpace(nextLink)
+            ? await client.Me.MailFolders[parentId].ChildFolders.GetAsync(c =>
+            {
+                c.QueryParameters.Top = 100;
+                c.QueryParameters.Select = FolderSelect;
+            }, ct).ConfigureAwait(false)
+            : await client.Me.MailFolders[parentId].ChildFolders
+                .WithUrl(nextLink!).GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        return ToFolderPage(page);
+    }
+
+    private async Task<FolderPage> GetUserRootPageAsync(string? nextLink, CancellationToken ct)
+    {
+        var folders = client.Users[_options.UserIdOrUpn].MailFolders;
+        var page = string.IsNullOrWhiteSpace(nextLink)
+            ? await folders.GetAsync(c =>
+            {
+                c.QueryParameters.Top = 100;
+                c.QueryParameters.Select = FolderSelect;
+            }, ct).ConfigureAwait(false)
+            : await folders.WithUrl(nextLink!).GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        return ToFolderPage(page);
+    }
+
+    private async Task<FolderPage> GetUserChildPageAsync(
+        string parentId, string? nextLink, CancellationToken ct)
+    {
+        var childFolders = client.Users[_options.UserIdOrUpn].MailFolders[parentId].ChildFolders;
+        var page = string.IsNullOrWhiteSpace(nextLink)
+            ? await childFolders.GetAsync(c =>
+            {
+                c.QueryParameters.Top = 100;
+                c.QueryParameters.Select = FolderSelect;
+            }, ct).ConfigureAwait(false)
+            : await childFolders.WithUrl(nextLink!).GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        return ToFolderPage(page);
+    }
+
+    private static FolderPage ToFolderPage(Microsoft.Graph.Models.MailFolderCollectionResponse? page) =>
+        new([.. page?.Value ?? []], page?.OdataNextLink);
+
+    private static bool TryVisit(MailFolder folder, ISet<string> visited, out string folderId)
+    {
+        folderId = folder.Id ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(folderId) && visited.Add(folderId);
+    }
+
+    private static string AppendPath(string parentPath, string? displayName) =>
+        string.IsNullOrWhiteSpace(parentPath)
+            ? displayName ?? string.Empty
+            : $"{parentPath}/{displayName ?? string.Empty}";
+
     private static void RequireId(string messageId)
     {
         if (string.IsNullOrWhiteSpace(messageId))
@@ -663,11 +811,17 @@ public sealed class GraphMailService(
         }
     }
 
-    private static FolderInfo MapFolder(MailFolder f) => new(
+    private static FolderInfo MapFolder(MailFolder f, string? parentId = null, string? path = null) => new(
         f.Id ?? string.Empty,
         f.DisplayName ?? string.Empty,
         f.TotalItemCount ?? 0,
-        f.UnreadItemCount ?? 0);
+        f.UnreadItemCount ?? 0,
+        f.ParentFolderId ?? parentId,
+        path ?? f.DisplayName ?? string.Empty);
+
+    private sealed record FolderPage(IReadOnlyList<MailFolder> Items, string? NextLink);
+
+    private sealed record FolderNode(string Id, string Path);
 
     private static Recipient ToRecipient(string address) => new()
     {

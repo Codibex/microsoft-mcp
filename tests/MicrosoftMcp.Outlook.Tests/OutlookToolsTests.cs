@@ -158,6 +158,24 @@ public sealed class OutlookToolsTests
     }
 
     [Fact]
+    public async Task Nested_folder_path_lists_searches_and_moves_with_fake()
+    {
+        var tools = Create(new FakeGraphMailService());
+
+        var folders = ToolResults.Ok<List<FolderInfo>>(await tools.outlook_list_folders());
+        folders.Single(folder => folder.Id == "f-sophie").Path.Should().Be("School/Kids/Sophie");
+
+        ToolResults.Ok<List<EmailSummary>>(
+                await tools.outlook_search_emails(folder: "School/Kids/Sophie"))
+            .Should().ContainSingle(message => message.Id == "m4");
+
+        await tools.outlook_move_email("m1", "School/Kids/Sophie");
+        ToolResults.Ok<List<EmailSummary>>(
+                await tools.outlook_search_emails(folder: "School/Kids/Sophie"))
+            .Should().Contain(message => message.Id == "m1");
+    }
+
+    [Fact]
     public async Task Tool_errors_carry_codes_and_hints_as_isError()
     {
         var tools = Create(new FakeGraphMailService());
