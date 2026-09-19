@@ -140,6 +140,15 @@ public static class DoctorChecks
                 null);
         }
 
+        if (options.TokenCacheTimeoutSeconds is < 1 or > 120)
+        {
+            return new SetupCheck(
+                "cache",
+                false,
+                $"Token cache timeout {options.TokenCacheTimeoutSeconds}s is outside the supported range 1-120s.",
+                "Next: set Graph__TokenCacheTimeoutSeconds to a value between 1 and 120.");
+        }
+
         if (options.UnsafeAllowUnencryptedTokenCache)
         {
             return new SetupCheck(
@@ -154,7 +163,7 @@ public static class DoctorChecks
             return new SetupCheck(
                 "cache",
                 true,
-                "Encrypted OS token cache preferred; in-memory fallback enabled if Secret Service is unavailable.",
+                $"Encrypted OS token cache preferred; in-memory fallback enabled if Secret Service is unavailable or does not respond within {options.TokenCacheTimeoutSeconds}s.",
                 "Next (optional): install GNOME Keyring/libsecret for persistence across restarts.");
         }
 
@@ -170,7 +179,7 @@ public static class DoctorChecks
         return new SetupCheck(
             "cache",
             true,
-            "Encrypted OS token cache required; Secret Service is reachable.",
+            $"Encrypted OS token cache required; Secret Service is reachable and has a {options.TokenCacheTimeoutSeconds}s operation timeout.",
             "Next: set Graph__FallbackToMemoryTokenCache=true unless persistence is guaranteed.");
     }
 

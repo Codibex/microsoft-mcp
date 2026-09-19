@@ -68,4 +68,20 @@ public sealed class GraphAuthOptionsValidatorTests
 
         Assert.True(result.Succeeded);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(121)]
+    public void Invalid_token_cache_timeout_fails(int timeoutSeconds)
+    {
+        var result = new GraphAuthOptionsValidator().Validate(null, new GraphAuthOptions
+        {
+            AuthMode = AuthMode.Delegated,
+            TenantId = "t",
+            ClientId = "c",
+            TokenCacheTimeoutSeconds = timeoutSeconds
+        });
+
+        Assert.False(result.Succeeded);
+    }
 }

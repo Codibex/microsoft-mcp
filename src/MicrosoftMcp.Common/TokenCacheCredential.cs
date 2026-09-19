@@ -8,10 +8,12 @@ internal sealed class TokenCacheCredential(
     TokenCredential? memory,
     Action<string> warningSink,
     Func<TokenRequestContext, CancellationToken, Task<AuthenticationRecord>>? authenticateAsync = null,
-    Action<AuthenticationRecord>? authenticationRecordSink = null) : TokenCredential
+    Action<AuthenticationRecord>? authenticationRecordSink = null,
+    TimeSpan? persistentOperationTimeout = null) : TokenCredential
 {
     private int _useMemory;
     private int _warningWritten;
+    private readonly TimeSpan _persistentOperationTimeout = persistentOperationTimeout ?? TimeSpan.FromSeconds(10);
 
     public override AccessToken GetToken(
         TokenRequestContext requestContext,
@@ -24,7 +26,9 @@ internal sealed class TokenCacheCredential(
 
         try
         {
-            return persistent.GetToken(requestContext, cancellationToken);
+            return ExecutePersistent(
+                token => persistent.GetToken(requestContext, token),
+                cancellationToken);
         }
         catch (AuthenticationRequiredException) when (authenticateAsync is not null)
         {
@@ -32,7 +36,9 @@ internal sealed class TokenCacheCredential(
             {
                 AuthenticationRecord record = authenticateAsync(requestContext, cancellationToken).GetAwaiter().GetResult();
                 authenticationRecordSink?.Invoke(record);
-                return persistent.GetToken(requestContext, cancellationToken);
+                return ExecutePersistent(
+                    token => persistent.GetToken(requestContext, token),
+                    cancellationToken);
             }
             catch (Exception ex) when (TokenCredentialFactory.IsTokenCachePersistenceFailure(ex))
             {
@@ -56,7 +62,9 @@ internal sealed class TokenCacheCredential(
 
         try
         {
-            return await persistent.GetTokenAsync(requestContext, cancellationToken);
+            return await ExecutePersistentAsync(
+                token => persistent.GetTokenAsync(requestContext, token).AsTask(),
+                cancellationToken);
         }
         catch (AuthenticationRequiredException) when (authenticateAsync is not null)
         {
@@ -64,7 +72,9 @@ internal sealed class TokenCacheCredential(
             {
                 AuthenticationRecord record = await authenticateAsync(requestContext, cancellationToken);
                 authenticationRecordSink?.Invoke(record);
-                return await persistent.GetTokenAsync(requestContext, cancellationToken);
+                return await ExecutePersistentAsync(
+                    token => persistent.GetTokenAsync(requestContext, token).AsTask(),
+                    cancellationToken);
             }
             catch (Exception ex) when (TokenCredentialFactory.IsTokenCachePersistenceFailure(ex))
             {
@@ -84,7 +94,7 @@ internal sealed class TokenCacheCredential(
     {
         EnsureMemoryFallback(failure);
         Interlocked.Exchange(ref _useMemory, 1);
-        WarnMemoryFallback();
+        WarnMemoryFallback(failure);
         return memory!.GetToken(requestContext, cancellationToken);
     }
 
@@ -95,7 +105,7 @@ internal sealed class TokenCacheCredential(
     {
         EnsureMemoryFallback(failure);
         Interlocked.Exchange(ref _useMemory, 1);
-        WarnMemoryFallback();
+        WarnMemoryFallback(failure);
         return await memory!.GetTokenAsync(requestContext, cancellationToken);
     }
 
@@ -123,11 +133,54 @@ internal sealed class TokenCacheCredential(
         }
     }
 
-    private void WarnMemoryFallback()
+    private T ExecutePersistent<T>(
+        Func<CancellationToken, T> operation,
+        CancellationToken cancellationToken) =>
+        ExecutePersistentAsync(
+            token => Task.Run(() => operation(token)),
+            cancellationToken).GetAwaiter().GetResult();
+
+    private async Task<T> ExecutePersistentAsync<T>(
+        Func<CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using CancellationTokenSource timeoutSource =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(_persistentOperationTimeout);
+
+        Task<T> operationTask = Task.Run(
+            () => operation(timeoutSource.Token),
+            CancellationToken.None);
+
+        try
+        {
+            return await operationTask.WaitAsync(_persistentOperationTimeout, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw CreateTimeoutException();
+        }
+        catch (OperationCanceledException) when (
+            !cancellationToken.IsCancellationRequested && timeoutSource.IsCancellationRequested)
+        {
+            throw CreateTimeoutException();
+        }
+    }
+
+    private TimeoutException CreateTimeoutException() =>
+        new($"Persistent token cache operation timed out after {_persistentOperationTimeout.TotalSeconds:0.###} seconds.");
+
+    private void WarnMemoryFallback(Exception? failure = null)
     {
         if (Interlocked.Exchange(ref _warningWritten, 1) == 0)
         {
-            warningSink("[auth] Persistent token cache unavailable; using an in-memory cache. Tokens will not survive a process restart. Install a Secret Service or set Graph__UnsafeAllowUnencryptedTokenCache=true to persist an unencrypted cache.");
+            string reason = failure is TimeoutException
+                ? $" The persistent cache did not respond within {_persistentOperationTimeout.TotalSeconds:0.###} seconds."
+                : string.Empty;
+            warningSink($"[auth] Persistent token cache unavailable; using an in-memory cache.{reason} Tokens will not survive a process restart. Install a Secret Service or set Graph__UnsafeAllowUnencryptedTokenCache=true to persist an unencrypted cache.");
         }
     }
 }

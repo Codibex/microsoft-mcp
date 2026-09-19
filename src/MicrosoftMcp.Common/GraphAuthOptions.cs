@@ -44,6 +44,9 @@ public sealed class GraphAuthOptions
 
     public bool FallbackToMemoryTokenCache { get; set; } = true;
 
+    /// <summary>Maximum duration of one persistent token-cache operation.</summary>
+    public int TokenCacheTimeoutSeconds { get; set; } = 10;
+
     public bool UnsafeAllowUnencryptedTokenCache { get; set; }
 
     public AppCredentialKind AppCredential { get; set; } = AppCredentialKind.ClientSecret;

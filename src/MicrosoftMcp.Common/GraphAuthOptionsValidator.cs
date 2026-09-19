@@ -25,6 +25,14 @@ public sealed class GraphAuthOptionsValidator : IValidateOptions<GraphAuthOption
                 "Graph:UserIdOrUpn must be a UPN/user-id for AppOnly (not 'me'). Next: set Graph__UserIdOrUpn to the mailbox owner.");
         }
 
+        if (options.AuthMode == AuthMode.Delegated
+            && options.EnableTokenCache
+            && (options.TokenCacheTimeoutSeconds is < 1 or > 120))
+        {
+            return ValidateOptionsResult.Fail(
+                "Graph:TokenCacheTimeoutSeconds must be between 1 and 120 when the delegated token cache is enabled. Next: set Graph__TokenCacheTimeoutSeconds to a bounded value.");
+        }
+
         return ValidateOptionsResult.Success;
     }
 }
