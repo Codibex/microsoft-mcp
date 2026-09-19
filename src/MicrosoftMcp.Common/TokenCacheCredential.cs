@@ -154,6 +154,11 @@ internal sealed class TokenCacheCredential(
         }
         catch (TimeoutException) when (!cancellationToken.IsCancellationRequested)
         {
+            if (operationTask.IsCompleted)
+            {
+                return operationTask.GetAwaiter().GetResult();
+            }
+
             throw CreateTimeoutException();
         }
         catch (OperationCanceledException) when (
@@ -184,6 +189,11 @@ internal sealed class TokenCacheCredential(
         }
         catch (TimeoutException) when (!cancellationToken.IsCancellationRequested)
         {
+            if (operationTask.IsCompleted)
+            {
+                return await operationTask.ConfigureAwait(false);
+            }
+
             throw CreateTimeoutException();
         }
         catch (OperationCanceledException) when (
@@ -193,17 +203,21 @@ internal sealed class TokenCacheCredential(
         }
     }
 
-    private TimeoutException CreateTimeoutException() =>
-        new($"Persistent token cache operation timed out after {_persistentOperationTimeout.TotalSeconds:0.###} seconds.");
+    private TokenCacheTimeoutException CreateTimeoutException() =>
+        new($"Persistent credential token operation timed out after {_persistentOperationTimeout.TotalSeconds:0.###} seconds.");
 
     private void WarnMemoryFallback(Exception? failure = null)
     {
         if (Interlocked.Exchange(ref _warningWritten, 1) == 0)
         {
-            string reason = failure is TimeoutException
-                ? $" The persistent cache did not respond within {_persistentOperationTimeout.TotalSeconds:0.###} seconds."
+            string reason = failure is TokenCacheTimeoutException
+                ? $" The persistent credential did not respond within {_persistentOperationTimeout.TotalSeconds:0.###} seconds."
                 : string.Empty;
             warningSink($"[auth] Persistent token cache unavailable; using an in-memory cache.{reason} Tokens will not survive a process restart. Install a Secret Service or set Graph__UnsafeAllowUnencryptedTokenCache=true to persist an unencrypted cache.");
         }
     }
+}
+
+internal sealed class TokenCacheTimeoutException(string message) : TimeoutException(message)
+{
 }

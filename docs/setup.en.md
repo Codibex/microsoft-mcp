@@ -189,7 +189,13 @@ Linux persistent-cache prerequisite: a user-session D-Bus and a Secret Service
 provider exposing `org.freedesktop.secrets` must be available, usually GNOME
 Keyring/libsecret. A system-wide `dbus.service` alone is not sufficient. For
 headless or client-launched sessions, the server process must inherit the user
-session's `DBUS_SESSION_BUS_ADDRESS` and `XDG_RUNTIME_DIR`. Hermes may start or
-provide part of this environment, but it is not a Hermes-specific server
-requirement. With the default memory fallback enabled, an unavailable or
-unresponsive Secret Service does not prevent delegated authentication.
+session's `DBUS_SESSION_BUS_ADDRESS`; `XDG_RUNTIME_DIR` is recommended because
+some providers use it to resolve their socket. These variables are inherited
+when the client spawns the MCP child. After adding or changing them, restart
+the client process that owns the MCP child, otherwise the child keeps the old
+environment. Hermes may start or provide part of this environment, but it is
+not a Hermes-specific server requirement. With the default memory fallback
+enabled, an unavailable or unresponsive Secret Service does not prevent
+delegated authentication. Once the credential switches to the memory cache, it
+stays there for the lifetime of that process; restart the server to try
+persistent storage again after the provider recovers.

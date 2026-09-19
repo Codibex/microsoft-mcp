@@ -171,7 +171,7 @@ public sealed class TokenCredentialFactory : ITokenCredentialProvider
         for (Exception? current = ex; current is not null; current = current.InnerException)
         {
             string message = current.Message;
-            if (current is TimeoutException
+            if (current is TokenCacheTimeoutException
                 || message.Contains("Persistence check failed", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("libsecret", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("Secret Service", StringComparison.OrdinalIgnoreCase)

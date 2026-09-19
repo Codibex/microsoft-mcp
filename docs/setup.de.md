@@ -196,8 +196,15 @@ Voraussetzung fuer den persistenten Cache unter Linux: Eine D-Bus-Session des
 Benutzers und ein Secret-Service-Provider mit `org.freedesktop.secrets` muessen
 erreichbar sein, normalerweise GNOME Keyring/libsecret. Ein systemweiter
 `dbus.service` allein reicht nicht. Bei headless oder vom Client gestarteten
-Sessions muss der Serverprozess die User-Session-Variablen
-`DBUS_SESSION_BUS_ADDRESS` und `XDG_RUNTIME_DIR` erben. Hermes kann Teile dieser
-Umgebung starten oder bereitstellen, ist aber keine spezielle Server-Voraussetzung
-von Microsoft MCP. Mit aktiviertem Memory-Fallback verhindert ein nicht
-verfuegbarer oder nicht antwortender Secret Service die Delegated-Anmeldung nicht.
+Sessions muss der Serverprozess `DBUS_SESSION_BUS_ADDRESS` der User-Session
+erben; `XDG_RUNTIME_DIR` wird empfohlen, weil manche Provider darueber ihren
+Socket aufloesen. Diese Variablen werden beim Start des MCP-Kindprozesses vom
+Client vererbt. Nach dem Hinzufuegen oder Aendern muss der Clientprozess, der
+den MCP-Kindprozess startet, neu gestartet werden, sonst verwendet das Kind
+weiterhin die alte Umgebung. Hermes kann Teile dieser Umgebung starten oder
+bereitstellen, ist aber keine spezielle Server-Voraussetzung von Microsoft MCP.
+Mit aktiviertem Memory-Fallback verhindert ein nicht verfuegbarer oder nicht
+antwortender Secret Service die Delegated-Anmeldung nicht. Nach dem Wechsel zum
+Memory-Cache bleibt dieser fuer die Lebensdauer des Prozesses aktiv; nach einer
+Erholung des Providers den Server neu starten, um den persistenten Speicher
+erneut zu versuchen.
