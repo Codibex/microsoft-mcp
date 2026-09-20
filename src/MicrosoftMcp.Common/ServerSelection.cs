@@ -11,7 +11,7 @@ public static class ServerSelection
     private static readonly IReadOnlyDictionary<string, string[]> DefaultScopes =
         new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
-            ["outlook"] = ["Mail.Read", "Mail.ReadWrite"],
+            ["outlook"] = ["Mail.Read", "Mail.ReadWrite", "MailboxSettings.Read"],
             ["onedrive"] = ["Files.Read", "Files.ReadWrite"],
             ["calendar"] = ["Calendars.Read", "Calendars.ReadWrite"],
             ["teams"] = [

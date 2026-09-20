@@ -28,7 +28,10 @@ public sealed class OutlookTools(IGraphMailService mail, ILogger<OutlookTools> l
     /// isError result with "[code] ... Next: ..." so the agent can act on it.
     /// Full detail (incl. stack) goes to the server log (stderr) only, never to
     /// the client. Cancellations still propagate.</summary>
-    private async Task<CallToolResult> InvokeAsync<T>(string operation, Func<Task<T>> call)
+    private async Task<CallToolResult> InvokeAsync<T>(
+        string operation,
+        Func<Task<T>> call,
+        string resource = "message")
     {
         try
         {
@@ -41,7 +44,7 @@ public sealed class OutlookTools(IGraphMailService mail, ILogger<OutlookTools> l
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            var mapped = GraphErrorMapper.ToGraphServiceException(ex, operation);
+            var mapped = GraphErrorMapper.ToGraphServiceException(ex, operation, resource);
             log.LogError(ex, "Tool {Operation} failed unexpectedly ({Code})", operation, mapped.Code);
             return ToolResult.Fail(mapped);
         }
@@ -64,14 +67,14 @@ public sealed class OutlookTools(IGraphMailService mail, ILogger<OutlookTools> l
 
     [McpServerTool, Description("List all visible mail folders recursively with ids, parent ids, paths and counts. Needed to pick a move destination.")]
     public Task<CallToolResult> outlook_list_folders(CancellationToken ct = default) =>
-        InvokeAsync("outlook_list_folders", () => mail.ListFoldersAsync(ct));
+        InvokeAsync("outlook_list_folders", () => mail.ListFoldersAsync(ct), "folder");
 
     [McpServerTool, Description("Create a mail folder. Pass the parent folder id for a child folder or null explicitly for a top-level folder. Returns the new folder with id.")]
     public Task<CallToolResult> outlook_create_folder(
         [Description("Display name of the new folder")] string displayName,
-        [Description("Parent folder id; pass null for a top-level folder")] string? parentFolderId,
+        [Description("Parent folder id; pass null for a top-level folder")] string? parentFolderId = null,
         CancellationToken ct = default) =>
-        InvokeAsync("outlook_create_folder", () => mail.CreateFolderAsync(displayName, parentFolderId, ct));
+        InvokeAsync("outlook_create_folder", () => mail.CreateFolderAsync(displayName, parentFolderId, ct), "folder");
 
     [McpServerTool, Description("Move a mail to another folder. Destination: well-known name (inbox, archive, deleteditems, drafts), folder id, displayName or path from outlook_list_folders. Reversible. Failures return isError with [code] and a Next-hint.")]
     public Task<CallToolResult> outlook_move_email(
@@ -136,13 +139,13 @@ public sealed class OutlookTools(IGraphMailService mail, ILogger<OutlookTools> l
         CancellationToken ct = default) =>
         InvokeAsync("outlook_list_attachments", () => mail.ListAttachmentsAsync(messageId, ct));
 
-    [McpServerTool, Description("Read an attachment. Text files come back decoded (truncated at 20000 chars), binary files as base64. Attachments above maxBytes are rejected with attachment-too-large. Nested messages and OneDrive links are reported, not downloaded.")]
+    [McpServerTool, Description("Read an attachment. Text files come back decoded (truncated at 20000 chars), binary files as base64. Attachments above maxBytes are rejected with attachment-too-large. Nested messages and reference attachments are reported, not downloaded; Graph v1.0 does not guarantee a source URL for reference attachments.")]
     public Task<CallToolResult> outlook_read_attachment(
         [Description("Graph message id")] string messageId,
         [Description("Attachment id from outlook_list_attachments")] string attachmentId,
         [Description("Max bytes to download, up to 2097152")] int maxBytes = 786432,
         CancellationToken ct = default) =>
-        InvokeAsync("outlook_read_attachment", () => mail.ReadAttachmentAsync(messageId, attachmentId, maxBytes, ct));
+        InvokeAsync("outlook_read_attachment", () => mail.ReadAttachmentAsync(messageId, attachmentId, maxBytes, ct), "attachment");
 
     [McpServerTool, Description("List available Outlook categories (master list) for labeling.")]
     public Task<CallToolResult> outlook_list_categories(CancellationToken ct = default) =>

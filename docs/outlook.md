@@ -44,7 +44,7 @@ always reversible (trash, no hard delete).
 3. **Authentication → Add a platform → Mobile and desktop applications**
    → enable `http://localhost` (browser login).
 4. **API permissions → Add → Microsoft Graph → Delegated:**
-  `Mail.Read`, `Mail.ReadWrite` (`offline_access` is added automatically).
+  `Mail.Read`, `Mail.ReadWrite`, `MailboxSettings.Read` (`offline_access` is added automatically).
   Consent yourself or ask
    your admin, depending on the tenant.
 
@@ -71,7 +71,7 @@ then confirm the code from the server log in your browser.
 
 1. Steps 1–2 from recipe A (no redirect URI needed).
 2. **API permissions → Add → Microsoft Graph → Application:**
-   `Mail.ReadWrite` → **Grant admin consent**.
+  `Mail.ReadWrite` and `MailboxSettings.Read` → **Grant admin consent**.
 3. **Certificates & secrets → New client secret** →
    copy the value immediately (shown only once).
 
@@ -152,8 +152,8 @@ contains its Graph `id`, `parentId`, display name, item counts and a derived
 well-known folder name, a Graph id, a unique display name or such a path.
 Paths follow the Outlook folder hierarchy; the Graph id remains the canonical
 way to address a folder when names are ambiguous.
-When calling `outlook_create_folder`, pass the parent folder id explicitly;
-use `null` for a top-level folder.
+When calling `outlook_create_folder`, pass the parent folder id for a child
+folder; omit it or use `null` for a top-level folder.
 
 `outlook_list_attachments`, `outlook_read_attachment`, `outlook_list_categories` · Organize:
 `outlook_move_email`, `outlook_archive_email`, `outlook_delete_email` (trash), `outlook_create_folder`,
@@ -163,7 +163,9 @@ use `null` for a top-level folder.
 `outlook_read_attachment` returns text files decoded (truncated at 20000 chars)
 and binary files as base64; downloads above `maxBytes` (default 768 KB,
 max 2097152) are rejected with `attachment-too-large`. Nested messages
-and OneDrive links are reported, not downloaded.
+and reference attachments are reported, not downloaded. Graph v1.0 reference
+attachments do not expose a source URL; `SourceUrl` is always `null` for this
+v1.0 client.
 
 Mail drafts can also be created and edited without a `policy.json`; no
 administrative recipient or AI-disclosure rules apply in that case. This is
@@ -172,11 +174,14 @@ messages and drafts, but `Mail.ReadWrite` is required for
 `outlook_create_draft`, `outlook_create_reply_draft`,
 `outlook_create_forward_draft`, and `outlook_update_draft` because they write
 to the mailbox. `Mail.Send` is not required because this server does not send
-messages.
+messages. `MailboxSettings.Read` is required for
+`outlook_list_categories`, which reads the Outlook master category list.
+Message category updates through `outlook_set_categories` use `Mail.ReadWrite`.
 
 
 `message-not-found`, `folder-not-found`, `mailbox-unavailable`, `invalid-request`,
 `attachment-too-large`,
+`attachment-not-found`,
 `auth-misconfigured`, `auth-failed`, `access-denied`, `throttled`,
 
 ## 9. Troubleshooting
@@ -388,6 +393,6 @@ Precedence: user-secrets / env override `appsettings.json`.
 | `Graph:ClientId` | `Graph__ClientId` | – (required) | From section 2 |
 | `Graph:UserIdOrUpn` | `Graph__UserIdOrUpn` | `me` | Recipe B: mailbox UPN (required) |
 | `Graph:DelegatedFlow` | `Graph__DelegatedFlow` | `Auto` | Recipe A: `Auto` (= browser), `InteractiveBrowser`, `DeviceCode` (headless) |
-| `Graph:DelegatedScopes` | `Graph__DelegatedScopes` | (host template) | Outlook template: `Mail.Read,Mail.ReadWrite`. Only change for special tenants |
+| `Graph:DelegatedScopes` | `Graph__DelegatedScopes` | (host template) | Outlook template: `Mail.Read,Mail.ReadWrite,MailboxSettings.Read`. Only change for special tenants |
 | `Graph:ClientSecret` | `Graph__ClientSecret` | – | Recipe B only |
 | `Graph:AppCredential` | `Graph__AppCredential` | `ClientSecret` | `ClientSecret`, `ManagedIdentity` (`Certificate`: not wired yet) |

@@ -56,13 +56,13 @@ microsoft-mcp doctor --servers outlook,calendar
 
    | Domain | Scopes |
    |---|---|
-   | `outlook` | `Mail.Read`, `Mail.ReadWrite` |
+  | `outlook` | `Mail.Read`, `Mail.ReadWrite`, `MailboxSettings.Read` |
    | `onedrive` | `Files.Read`, `Files.ReadWrite` |
   | `calendar` | `Calendars.Read`, `Calendars.ReadWrite` |
   | `teams` | `User.Read`, `Team.ReadBasic.All`, `Channel.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMember.Read.All`, `ChannelMessage.Send`, `Chat.ReadBasic`, `Chat.Read`, `ChatMessage.Send`, `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All` |
 
    Then consent (yourself or your admin). App-Only (Outlook only):
-   application permission `Mail.ReadWrite` + admin consent + client secret.
+  application permissions `Mail.ReadWrite` and `MailboxSettings.Read` + admin consent + client secret.
 
 Personal-only apps use token version 2 + `PersonalMicrosoftAccount` and
 `TenantId=consumers`. Apps supporting org + personal accounts use token

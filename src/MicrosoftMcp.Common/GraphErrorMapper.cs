@@ -48,7 +48,7 @@ public static partial class GraphErrorMapper
         };
 
     /// <summary>Maps Graph/Kiota failures. Resource selects the not-found
-    /// wording: "message" (mail), "calendar", "event", "drive" or "folder".</summary>
+    /// wording: "message" (mail), "attachment", "calendar", "event", "drive" or "folder".</summary>
     public static GraphServiceException ToGraphServiceException(
         Exception ex, string operation, string resource = "message") =>
         ex switch
@@ -105,6 +105,7 @@ public static partial class GraphErrorMapper
     internal static GraphServiceException NotFoundFor(string resource, string operation) =>
         resource switch
         {
+            "attachment" => GraphServiceException.AttachmentNotFound("<unknown>", operation),
             "calendar" => GraphServiceException.CalendarNotFound("<unknown>", operation),
             "event" => GraphServiceException.EventNotFound("<unknown>", operation),
             "drive" => GraphServiceException.DriveItemNotFound("<unknown>", operation),

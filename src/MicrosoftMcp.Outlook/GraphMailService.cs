@@ -10,6 +10,8 @@ public sealed class GraphMailService(
     IOptions<GraphAuthOptions> options,
     IOptions<OutlookPolicyOptions> policy) : IGraphMailService
 {
+    private const string EarliestSortableMessageDate = "1900-01-01T00:00:00Z";
+
     private static readonly string[] FolderSelect =
         ["id", "displayName", "parentFolderId", "totalItemCount", "unreadItemCount", "childFolderCount"];
 
@@ -327,22 +329,34 @@ public sealed class GraphMailService(
         string messageId, CancellationToken ct = default)
     {
         RequireId(messageId);
-        if (IsMe)
+        var result = new List<AttachmentInfo>();
+        string? nextLink = null;
+        do
         {
-            var page = await client.Me.Messages[messageId].Attachments.GetAsync(c =>
-            {
-                c.QueryParameters.Top = 100;
-                c.QueryParameters.Select = ["id", "name", "contentType", "size", "isInline"];
-            }, ct).ConfigureAwait(false);
-            return [.. (page?.Value ?? []).Select(EmailMapper.MapAttachment)];
-        }
+            var page = IsMe
+                ? string.IsNullOrWhiteSpace(nextLink)
+                    ? await client.Me.Messages[messageId].Attachments.GetAsync(c =>
+                    {
+                        c.QueryParameters.Top = 100;
+                        c.QueryParameters.Select = ["id", "name", "contentType", "size", "isInline"];
+                    }, ct).ConfigureAwait(false)
+                    : await client.Me.Messages[messageId].Attachments
+                        .WithUrl(nextLink!).GetAsync(cancellationToken: ct).ConfigureAwait(false)
+                : string.IsNullOrWhiteSpace(nextLink)
+                    ? await client.Users[_options.UserIdOrUpn].Messages[messageId].Attachments.GetAsync(c =>
+                    {
+                        c.QueryParameters.Top = 100;
+                        c.QueryParameters.Select = ["id", "name", "contentType", "size", "isInline"];
+                    }, ct).ConfigureAwait(false)
+                    : await client.Users[_options.UserIdOrUpn].Messages[messageId].Attachments
+                        .WithUrl(nextLink!).GetAsync(cancellationToken: ct).ConfigureAwait(false);
 
-        var userPage = await client.Users[_options.UserIdOrUpn].Messages[messageId].Attachments.GetAsync(c =>
-        {
-            c.QueryParameters.Top = 100;
-            c.QueryParameters.Select = ["id", "name", "contentType", "size", "isInline"];
-        }, ct).ConfigureAwait(false);
-        return [.. (userPage?.Value ?? []).Select(EmailMapper.MapAttachment)];
+            result.AddRange((page?.Value ?? []).Select(EmailMapper.MapAttachment));
+            nextLink = page?.OdataNextLink;
+        }
+        while (!string.IsNullOrWhiteSpace(nextLink));
+
+        return result;
     }
 
     public async Task<AttachmentContent> ReadAttachmentAsync(
@@ -356,30 +370,49 @@ public sealed class GraphMailService(
 
         int cap = Math.Clamp(maxBytes, 1, 2097152);
 
-        Attachment? att = IsMe
+        async Task<Attachment?> GetAttachmentAsync(string[] select) => IsMe
             ? await client.Me.Messages[messageId].Attachments[attachmentId].GetAsync(c =>
-                c.QueryParameters.Select = ["id", "name", "contentType", "size", "isInline", "contentBytes"],
-                ct).ConfigureAwait(false)
+                c.QueryParameters.Select = select, ct).ConfigureAwait(false)
             : await client.Users[_options.UserIdOrUpn].Messages[messageId].Attachments[attachmentId].GetAsync(c =>
-                c.QueryParameters.Select = ["id", "name", "contentType", "size", "isInline", "contentBytes"],
-                ct).ConfigureAwait(false);
+                c.QueryParameters.Select = select, ct).ConfigureAwait(false);
+
+        Attachment? att = await GetAttachmentAsync(
+            ["id", "name", "contentType", "size", "isInline"]).ConfigureAwait(false);
 
         if (att is null)
         {
-            throw GraphServiceException.InvalidRequest(
-                $"Attachment '{attachmentId}' was not found on message '{messageId}'.",
-                "call outlook_list_attachments to get valid attachment ids");
+            throw GraphServiceException.AttachmentNotFound(attachmentId, "outlook_read_attachment");
+        }
+
+        if (att is FileAttachment file)
+        {
+            if (file.Size is > 0 && file.Size > cap)
+            {
+                throw GraphServiceException.AttachmentTooLarge(
+                    file.Name ?? "?", file.Size.Value, cap);
+            }
+
+            Attachment? content = await GetAttachmentAsync(
+                ["id", "name", "contentType", "size", "isInline", "contentBytes"])
+                .ConfigureAwait(false);
+            if (content is not FileAttachment contentFile)
+            {
+                throw GraphServiceException.InvalidRequest(
+                    $"Attachment '{attachmentId}' did not return file content.",
+                    "call outlook_list_attachments to get a valid file attachment id");
+            }
+
+            return MapFileAttachment(contentFile, cap);
         }
 
         return att switch
         {
-            FileAttachment file => MapFileAttachment(file, cap),
             ItemAttachment item => new AttachmentContent(
                 item.Id ?? string.Empty, item.Name ?? string.Empty, item.ContentType,
                 item.Size ?? 0, "nested", null, null, null, false),
             ReferenceAttachment reference => new AttachmentContent(
                 reference.Id ?? string.Empty, reference.Name ?? string.Empty, reference.ContentType,
-                reference.Size ?? 0, "reference", null, null, ReferenceUrl(reference), false),
+                reference.Size ?? 0, "reference", null, null, null, false),
             _ => new AttachmentContent(
                 att.Id ?? string.Empty, att.Name ?? string.Empty, att.ContentType,
                 att.Size ?? 0, "unknown", null, null, null, false)
@@ -410,9 +443,6 @@ public sealed class GraphMailService(
             bytes.Length, "base64", null, Convert.ToBase64String(bytes), null, false);
     }
 
-    private static string? ReferenceUrl(ReferenceAttachment reference) =>
-        reference.AdditionalData.TryGetValue("sourceUrl", out var url) ? url?.ToString() : null;
-
     private static bool IsTextContent(string? contentType)
     {
         if (string.IsNullOrWhiteSpace(contentType))
@@ -430,16 +460,28 @@ public sealed class GraphMailService(
 
     public async Task<IReadOnlyList<CategoryInfo>> ListCategoriesAsync(CancellationToken ct = default)
     {
-        if (IsMe)
+        var result = new List<CategoryInfo>();
+        string? nextLink = null;
+        do
         {
-            var page = await client.Me.Outlook.MasterCategories
-                .GetAsync(c => c.QueryParameters.Top = 100, ct).ConfigureAwait(false);
-            return [.. (page?.Value ?? []).Select(EmailMapper.MapCategory)];
-        }
+            var page = IsMe
+                ? string.IsNullOrWhiteSpace(nextLink)
+                    ? await client.Me.Outlook.MasterCategories
+                        .GetAsync(c => c.QueryParameters.Top = 100, ct).ConfigureAwait(false)
+                    : await client.Me.Outlook.MasterCategories
+                        .WithUrl(nextLink!).GetAsync(cancellationToken: ct).ConfigureAwait(false)
+                : string.IsNullOrWhiteSpace(nextLink)
+                    ? await client.Users[_options.UserIdOrUpn].Outlook.MasterCategories
+                        .GetAsync(c => c.QueryParameters.Top = 100, ct).ConfigureAwait(false)
+                    : await client.Users[_options.UserIdOrUpn].Outlook.MasterCategories
+                        .WithUrl(nextLink!).GetAsync(cancellationToken: ct).ConfigureAwait(false);
 
-        var userPage = await client.Users[_options.UserIdOrUpn].Outlook.MasterCategories
-            .GetAsync(c => c.QueryParameters.Top = 100, ct).ConfigureAwait(false);
-        return [.. (userPage?.Value ?? []).Select(EmailMapper.MapCategory)];
+            result.AddRange((page?.Value ?? []).Select(EmailMapper.MapCategory));
+            nextLink = page?.OdataNextLink;
+        }
+        while (!string.IsNullOrWhiteSpace(nextLink));
+
+        return result;
     }
 
     public async Task<EmailDetail> SetCategoriesAsync(
@@ -512,7 +554,7 @@ public sealed class GraphMailService(
                 var page = await client.Me.Messages.GetAsync(c =>
                 {
                     c.QueryParameters.Top = top;
-                    c.QueryParameters.Search = $"\"{query.Query}\"";
+                    c.QueryParameters.Search = BuildMessageSearch(query.Query!, query.From);
                     c.QueryParameters.Select = SummarySelect;
                 }, ct).ConfigureAwait(false);
                 return [.. page?.Value ?? []];
@@ -521,15 +563,13 @@ public sealed class GraphMailService(
             var userPage = await client.Users[_options.UserIdOrUpn].Messages.GetAsync(c =>
             {
                 c.QueryParameters.Top = top;
-                c.QueryParameters.Search = $"\"{query.Query}\"";
+                c.QueryParameters.Search = BuildMessageSearch(query.Query!, query.From);
                 c.QueryParameters.Select = SummarySelect;
             }, ct).ConfigureAwait(false);
             return [.. userPage?.Value ?? []];
         }
 
-        string? filter = string.IsNullOrWhiteSpace(query.From)
-            ? null
-            : $"from/emailAddress/address eq '{query.From!.Replace("'", "''")}'";
+        string? filter = BuildFromFilter(query.From);
         if (IsMe)
         {
             var page = await client.Me.Messages.GetAsync(c =>
@@ -562,7 +602,7 @@ public sealed class GraphMailService(
                 var page = await client.Me.MailFolders[folderId].Messages.GetAsync(c =>
                 {
                     c.QueryParameters.Top = top;
-                    c.QueryParameters.Search = $"\"{query.Query}\"";
+                    c.QueryParameters.Search = BuildMessageSearch(query.Query!, query.From);
                     c.QueryParameters.Select = SummarySelect;
                 }, ct).ConfigureAwait(false);
                 return [.. page?.Value ?? []];
@@ -571,15 +611,13 @@ public sealed class GraphMailService(
             var userPage = await client.Users[_options.UserIdOrUpn].MailFolders[folderId].Messages.GetAsync(c =>
             {
                 c.QueryParameters.Top = top;
-                c.QueryParameters.Search = $"\"{query.Query}\"";
+                c.QueryParameters.Search = BuildMessageSearch(query.Query!, query.From);
                 c.QueryParameters.Select = SummarySelect;
             }, ct).ConfigureAwait(false);
             return [.. userPage?.Value ?? []];
         }
 
-        string? filter = string.IsNullOrWhiteSpace(query.From)
-            ? null
-            : $"from/emailAddress/address eq '{query.From!.Replace("'", "''")}'";
+        string? filter = BuildFromFilter(query.From);
         if (IsMe)
         {
             var page = await client.Me.MailFolders[folderId].Messages.GetAsync(c =>
@@ -601,6 +639,28 @@ public sealed class GraphMailService(
         }, ct).ConfigureAwait(false);
         return [.. filtered?.Value ?? []];
     }
+
+    private static string? BuildFromFilter(string? from) =>
+        string.IsNullOrWhiteSpace(from)
+            ? null
+            : $"receivedDateTime ge {EarliestSortableMessageDate} and from/emailAddress/address eq '{EscapeODataString(from.Trim())}'";
+
+    private static string BuildMessageSearch(string query, string? from)
+    {
+        string queryClause = $"\"{EscapeSearchExpression(query.Trim())}\"";
+        if (string.IsNullOrWhiteSpace(from))
+        {
+            return queryClause;
+        }
+
+        string fromClause = $"\"from:{EscapeSearchExpression(from.Trim())}\"";
+        return $"{queryClause} AND {fromClause}";
+    }
+
+    private static string EscapeODataString(string value) => value.Replace("'", "''");
+
+    private static string EscapeSearchExpression(string value) =>
+        value.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
     private async Task<IReadOnlyList<string>> GetReplyTargetsAsync(string messageId, CancellationToken ct)
     {
@@ -773,7 +833,7 @@ public sealed class GraphMailService(
         string folderId,
         string path)
     {
-        if (folder.ChildFolderCount is not 0)
+        if (folder.ChildFolderCount is > 0)
         {
             queue.Enqueue(new FolderNode(folderId, path));
         }
