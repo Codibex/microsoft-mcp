@@ -20,6 +20,19 @@ if (SetupCli.IsSetupCommand(args))
     return SetupCli.Run(args);
 }
 
+// A bare --help/--version must print usage instead of starting a stdio server.
+if (HostHelp.ShouldShowHelp(args))
+{
+    Console.Out.WriteLine(HostHelp.UsageText());
+    return 0;
+}
+
+if (HostHelp.ShouldShowVersion(args))
+{
+    Console.Out.WriteLine(HostHelp.VersionText());
+    return 0;
+}
+
 // One binary, selectable domains: --servers outlook,calendar (or MCP_SERVERS env).
 // Run separate processes per domain for isolation, or one process for everything.
 string? serversArg = ArgValue(args, "--servers")

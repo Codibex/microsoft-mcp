@@ -179,6 +179,8 @@ messages. `MailboxSettings.Read` is required for
 Message category updates through `outlook_set_categories` use `Mail.ReadWrite`.
 
 
+## 8. Error codes (returned as `isError` results with a `Next:` hint)
+
 `message-not-found`, `folder-not-found`, `mailbox-unavailable`, `invalid-request`,
 `attachment-too-large`,
 `attachment-not-found`,
@@ -391,6 +393,6 @@ Precedence: user-secrets / env override `appsettings.json`.
 | `Graph:ClientId` | `Graph__ClientId` | – (required) | From section 2 |
 | `Graph:UserIdOrUpn` | `Graph__UserIdOrUpn` | `me` | Recipe B: mailbox UPN (required) |
 | `Graph:DelegatedFlow` | `Graph__DelegatedFlow` | `Auto` | Recipe A: `Auto` (= browser), `InteractiveBrowser`, `DeviceCode` (headless) |
-| `Graph:DelegatedScopes` | `Graph__DelegatedScopes` | (host template) | Outlook template: `Mail.Read,Mail.ReadWrite,MailboxSettings.Read`. Only change for special tenants |
+| `Graph:DelegatedScopes` | `Graph__DelegatedScopes__0`, `__1`, … (indexed; a single plain string is ignored) | (host template) | Outlook template: `Mail.Read,Mail.ReadWrite,MailboxSettings.Read`. Only change for special tenants |
 | `Graph:ClientSecret` | `Graph__ClientSecret` | – | Recipe B only |
 | `Graph:AppCredential` | `Graph__AppCredential` | `ClientSecret` | `ClientSecret`, `ManagedIdentity` (`Certificate`: not wired yet) |

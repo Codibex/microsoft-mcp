@@ -8,7 +8,7 @@ Local MCP servers (Stdio) for Microsoft 365 via Microsoft Graph.
 | Outlook email triage (17 tools, drafts only, no send) | `microsoft-mcp-outlook` | [docs/outlook.md](docs/outlook.md) | ✅ Live-verified (personal account) |
 | OneDrive files (9 tools, read/create/move, no delete) | `microsoft-mcp-onedrive` | [docs/onedrive.md](docs/onedrive.md) | Implemented |
 | Calendar (6 tools, delegated writes) | `microsoft-mcp-calendar` | [docs/calendar.md](docs/calendar.md) | Implemented |
-| Teams (12 tools, read-only) | `microsoft-mcp-teams` | [docs/teams.md](docs/teams.md) | Implemented |
+| Teams (13 tools, read-only) | `microsoft-mcp-teams` | [docs/teams.md](docs/teams.md) | Implemented |
 | SharePoint sites + files (10 tools, explicit driveId, read/create/move, no delete) | `microsoft-mcp-sharepoint` | [docs/sharepoint.md](docs/sharepoint.md) | Implemented |
 | To Do tasks (4 tools, add/complete, no delete) | `microsoft-mcp-todo` | [docs/todo.md](docs/todo.md) | Implemented |
 | Planner (4 tools, read-only) | `microsoft-mcp-planner` | [docs/planner.md](docs/planner.md) | Implemented |
