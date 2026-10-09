@@ -182,8 +182,10 @@ public sealed class GraphMailServiceTests
         setup.Handler.Requests.Should().HaveCount(2);
         Uri.UnescapeDataString(setup.Handler.Requests[0].RequestUri!.Query)
             .Should().NotContain("contentBytes");
-        Uri.UnescapeDataString(setup.Handler.Requests[1].RequestUri!.Query)
-            .Should().Contain("contentBytes");
+        // Graph rejects contentBytes inside $select (400): content fetch must
+        // use the default projection (no $select at all).
+        setup.Handler.Requests[1].RequestUri!.Query
+            .Should().NotContain("$select");
     }
 
     [Fact]

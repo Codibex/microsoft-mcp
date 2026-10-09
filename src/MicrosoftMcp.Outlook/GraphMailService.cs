@@ -370,11 +370,21 @@ public sealed class GraphMailService(
 
         int cap = Math.Clamp(maxBytes, 1, 2097152);
 
-        async Task<Attachment?> GetAttachmentAsync(string[] select) => IsMe
+        async Task<Attachment?> GetAttachmentAsync(string[]? select) => IsMe
             ? await client.Me.Messages[messageId].Attachments[attachmentId].GetAsync(c =>
-                c.QueryParameters.Select = select, ct).ConfigureAwait(false)
+            {
+                if (select is not null)
+                {
+                    c.QueryParameters.Select = select;
+                }
+            }, ct).ConfigureAwait(false)
             : await client.Users[_options.UserIdOrUpn].Messages[messageId].Attachments[attachmentId].GetAsync(c =>
-                c.QueryParameters.Select = select, ct).ConfigureAwait(false);
+            {
+                if (select is not null)
+                {
+                    c.QueryParameters.Select = select;
+                }
+            }, ct).ConfigureAwait(false);
 
         Attachment? att = await GetAttachmentAsync(
             ["id", "name", "contentType", "size", "isInline"]).ConfigureAwait(false);
@@ -392,8 +402,14 @@ public sealed class GraphMailService(
                     file.Name ?? "?", file.Size.Value, cap);
             }
 
-            Attachment? content = await GetAttachmentAsync(
-                ["id", "name", "contentType", "size", "isInline", "contentBytes"])
+            // contentBytes exists only on the derived fileAttachment type, not on the
+            // base attachment type (see fileAttachment / attachment resource docs).
+            // $select is validated against microsoft.graph.attachment, so
+            // $select=contentBytes fails with 400 "Could not find a property named
+            // 'contentBytes'...". The documented pattern (attachment-get, Example 1)
+            // is a plain GET without $select, which returns contentBytes in the
+            // default projection — same as the SDK snippet GetAsync() with no options.
+            Attachment? content = await GetAttachmentAsync(null)
                 .ConfigureAwait(false);
             if (content is not FileAttachment contentFile)
             {
