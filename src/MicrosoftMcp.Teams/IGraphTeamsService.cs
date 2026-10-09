@@ -1,6 +1,6 @@
 namespace MicrosoftMcp.Teams;
 
-/// <summary>Teams access for the signed-in user with guarded message sending.</summary>
+/// <summary>Read-only Teams access for the signed-in user.</summary>
 public interface IGraphTeamsService
 {
     Task<IReadOnlyList<TeamInfo>> ListTeamsAsync(CancellationToken ct = default);
@@ -16,10 +16,6 @@ public interface IGraphTeamsService
         string chatId, int top = 25, CancellationToken ct = default);
     Task<MessageDetail> ReadChatMessageAsync(
         string chatId, string messageId, CancellationToken ct = default);
-    Task<MessageDetail> SendChannelMessageAsync(
-        string teamId, string channelId, string body, CancellationToken ct = default);
-    Task<MessageDetail> SendChatMessageAsync(
-        string chatId, string body, CancellationToken ct = default);
     Task<IReadOnlyList<MeetingTranscriptInfo>> ListMeetingTranscriptsAsync(
         string meetingId, int top = 25, CancellationToken ct = default);
     Task<MeetingTranscriptDetail> ReadMeetingTranscriptAsync(

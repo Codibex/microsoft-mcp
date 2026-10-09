@@ -256,14 +256,16 @@ or disclosure guard.
 |---|---|---|
 | `version` | integer, `1` | Version of the structured document. It is required when `outlook`, `calendar` or `teams` is present; only version `1` is currently supported. |
 
-The following properties are supported by `outlook` and `teams`:
+The following properties are supported by `outlook`
+(a `teams` section in existing files is still parsed for compatibility
+but no longer enforced, since the Teams server is read-only):
 
 | Property | Type and default | Meaning |
 |---|---|---|
-| `requireInternalRecipients` | boolean, `false` | Require every mail recipient or Teams conversation member to pass the configured allowlist and identity checks. When `true`, at least one allowed domain or exact address is required. |
+| `requireInternalRecipients` | boolean, `false` | Require every mail recipient to pass the configured allowlist and identity checks. When `true`, at least one allowed domain or exact address is required. |
 | `allowedRecipientDomains` | string array, `[]` | Allow a domain and its subdomains, for example `firma.de` also allows `mail.firma.de`. The comparison is case-insensitive. |
 | `allowedRecipientAddresses` | string array, `[]` | Allow exact SMTP addresses. This is OR-combined with the domain list. |
-| `aiDisclosureEnabled` | boolean, `false` | Enable server-side disclosure insertion. Outlook applies it to drafts; Teams applies it to guarded message sends. |
+| `aiDisclosureEnabled` | boolean, `false` | Enable server-side disclosure insertion. Outlook applies it to drafts. |
 | `aiDisclosureText` | string, `""` | Text appended when disclosure is enabled. It must be non-empty when `aiDisclosureEnabled` is `true`; callers cannot omit or replace it. |
 
 The `calendar` section has its own attendee policy:
@@ -274,15 +276,10 @@ The `calendar` section has its own attendee policy:
 | `allowedAttendeeDomains` | string array, `[]` | Allow an attendee domain and its subdomains, case-insensitively. |
 | `allowedAttendeeAddresses` | string array, `[]` | Allow exact attendee SMTP addresses. This is OR-combined with the domain list. |
 
-The `teams` section uses the same recipient and disclosure fields as Outlook.
-An omitted section or explicit `"teams": {}` is still valid, but means no Teams
-recipient restriction or disclosure and should therefore only be used
-intentionally. The deployment scripts use the same messaging defaults for
-Outlook and Teams. Teams additionally verifies conversation members, rejects
-guest or unverifiable members, and checks a concrete `Graph:TenantId` against
-member tenant ids before sending. With `requireInternalRecipients` enabled,
-`common`, `consumers`, and `organizations` fail closed because they do not
-identify a resource tenant. Calendar never inherits Outlook disclosure fields.
+The `teams` section is still parsed for compatibility but no longer enforced:
+the Teams server is read-only and ignores it. An omitted section or explicit
+`"teams": {}` remains valid. The deployment scripts keep the same messaging
+defaults for Outlook and Teams. Calendar never inherits Outlook disclosure fields.
 
 The old flat policy properties (`requireInternalRecipients`,
 `allowedRecipientDomains`, `allowedRecipientAddresses`,

@@ -66,9 +66,9 @@ builder.Services.Configure<GraphAuthOptions>(o =>
 var mcp = builder.Services.AddMcpServer().WithStdioServerTransport();
 
 // Shared admin-owned policy (policy.json only, never env).
-// Loaded once for messaging and calendar writes; validated + audit-logged here.
+// Loaded once for Outlook and calendar writes; validated + audit-logged here.
 EffectivePolicySet? policies = null;
-if (enabled.Contains("outlook") || enabled.Contains("teams") || enabled.Contains("calendar"))
+if (enabled.Contains("outlook") || enabled.Contains("calendar"))
 {
     policies = MessagingPolicySetup.InitializePolicies();
 }
@@ -93,7 +93,7 @@ if (enabled.Contains("calendar"))
 
 if (enabled.Contains("teams"))
 {
-    builder.Services.AddTeams(policies?.Teams);
+    builder.Services.AddTeams();
     mcp.WithToolsFromAssembly(typeof(TeamsTools).Assembly);
 }
 

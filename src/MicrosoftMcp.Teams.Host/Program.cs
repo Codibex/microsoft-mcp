@@ -26,10 +26,7 @@ builder.Configuration
 
 builder.Services
     .AddGraphCommon(builder.Configuration)
-    .AddTeams(MessagingPolicySetup.InitializePolicies().Teams);
-
-// Shared messaging policy (policy.json) is validated here so a broken admin
-// policy fails fast on every messaging host. Send tools enforce it in the service.
+    .AddTeams();
 
 builder.Services
     .AddMcpServer()
@@ -42,6 +39,6 @@ var app = builder.Build();
 // effective mode to stderr (always visible: the file log level is Warning).
 var graph = app.Services.GetRequiredService<IOptions<GraphAuthOptions>>().Value;
 Console.Error.WriteLine(
-    $"[startup] Teams auth mode: {graph.AuthMode} (guarded writes, flow {graph.DelegatedFlow})");
+    $"[startup] Teams auth mode: {graph.AuthMode} (read-only, flow {graph.DelegatedFlow})");
 
 await app.RunAsync();

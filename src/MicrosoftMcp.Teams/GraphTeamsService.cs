@@ -8,19 +8,15 @@ using System.Text.Json;
 
 namespace MicrosoftMcp.Teams;
 
-/// <summary>Teams access for the signed-in user. Message writes are guarded by
-/// the admin-owned Teams policy before Graph is called.</summary>
+/// <summary>Read-only Teams access for the signed-in user.</summary>
 public sealed class GraphTeamsService : IGraphTeamsService
 {
     private readonly GraphServiceClient _client;
     private readonly string _userIdOrUpn;
-    private readonly string _tenantId;
-    private readonly TeamsPolicyOptions _policy;
 
     public GraphTeamsService(
         GraphServiceClient client,
-        IOptions<GraphAuthOptions> options,
-        IOptions<TeamsPolicyOptions>? policy = null)
+        IOptions<GraphAuthOptions> options)
     {
         // Teamwork APIs via /me/* require a signed-in user. App-only would
         // need a different permission/path scheme (out of scope).
@@ -32,8 +28,6 @@ public sealed class GraphTeamsService : IGraphTeamsService
 
         _client = client;
         _userIdOrUpn = options.Value.UserIdOrUpn;
-        _tenantId = options.Value.TenantId;
-        _policy = policy?.Value ?? new TeamsPolicyOptions();
     }
 
     public async Task<IReadOnlyList<TeamInfo>> ListTeamsAsync(CancellationToken ct = default)
@@ -142,191 +136,6 @@ public sealed class GraphTeamsService : IGraphTeamsService
             ? throw GraphServiceException.TeamsMessageNotFound(messageId, "teams_read_chat_message")
             : TeamsMapper.MapDetail(msg);
     }
-
-    public async Task<MessageDetail> SendChannelMessageAsync(
-        string teamId, string channelId, string body, CancellationToken ct = default)
-    {
-        RequireId(teamId, "teamId", "call teams_list_teams to get valid team ids");
-        RequireId(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
-        RequireBody(body);
-
-        string normalizedTeamId = teamId.Trim();
-        string normalizedChannelId = channelId.Trim();
-        await ValidateChannelMembersAsync(normalizedTeamId, normalizedChannelId, ct).ConfigureAwait(false);
-
-        var message = new ChatMessage
-        {
-            Body = new ItemBody
-            {
-                ContentType = BodyType.Html,
-                Content = MessageDisclosure.Apply(body, isHtml: true, _policy)
-            }
-        };
-        ChatMessage? created = await _client.Teams[normalizedTeamId].Channels[normalizedChannelId]
-            .Messages.PostAsync(message, cancellationToken: ct).ConfigureAwait(false);
-        return created is null
-            ? throw GraphServiceException.GraphError(0, null, "Channel message creation returned no result.")
-            : TeamsMapper.MapDetail(created);
-    }
-
-    public async Task<MessageDetail> SendChatMessageAsync(
-        string chatId, string body, CancellationToken ct = default)
-    {
-        RequireId(chatId, "chatId", "call teams_list_chats to get valid chat ids");
-        RequireBody(body);
-
-        string normalizedChatId = chatId.Trim();
-        await ValidateChatMembersAsync(normalizedChatId, ct).ConfigureAwait(false);
-
-        var message = new ChatMessage
-        {
-            Body = new ItemBody
-            {
-                ContentType = BodyType.Html,
-                Content = MessageDisclosure.Apply(body, isHtml: true, _policy)
-            }
-        };
-        ChatMessage? created = await _client.Chats[normalizedChatId]
-            .Messages.PostAsync(message, cancellationToken: ct).ConfigureAwait(false);
-        return created is null
-            ? throw GraphServiceException.GraphError(0, null, "Chat message creation returned no result.")
-            : TeamsMapper.MapDetail(created);
-    }
-
-    private async Task ValidateChannelMembersAsync(
-        string teamId, string channelId, CancellationToken ct)
-    {
-        if (!_policy.RequireInternalRecipients)
-        {
-            return;
-        }
-
-        var page = await _client.Teams[teamId].Channels[channelId].AllMembers.GetAsync(c =>
-        {
-            c.QueryParameters.Select = ["id", "displayName", "email", "tenantId", "userId", "roles"];
-        }, ct).ConfigureAwait(false)
-            ?? throw GraphServiceException.InvalidRequest(
-                "Cannot verify all channel members because Graph returned no member page.",
-                "retry the send or ask your admin to review the Teams policy");
-        var members = new List<ConversationMember>();
-        while (true)
-        {
-            members.AddRange(page.Value ?? []);
-            if (string.IsNullOrWhiteSpace(page.OdataNextLink))
-            {
-                break;
-            }
-
-            page = await _client.Teams[teamId].Channels[channelId].AllMembers
-                .WithUrl(page.OdataNextLink)
-                .GetAsync(cancellationToken: ct)
-                .ConfigureAwait(false)
-                ?? throw GraphServiceException.InvalidRequest(
-                    "Cannot verify all channel members because Graph returned no member page.",
-                    "retry the send or ask your admin to review the Teams policy");
-        }
-
-        ValidateMembers(members, "channel");
-    }
-
-    private async Task ValidateChatMembersAsync(string chatId, CancellationToken ct)
-    {
-        if (!_policy.RequireInternalRecipients)
-        {
-            return;
-        }
-
-        var page = await _client.Chats[chatId].Members.GetAsync(cancellationToken: ct)
-            .ConfigureAwait(false)
-            ?? throw GraphServiceException.InvalidRequest(
-                "Cannot verify all chat members because Graph returned no member page.",
-                "retry the send or ask your admin to review the Teams policy");
-        var members = new List<ConversationMember>();
-        while (true)
-        {
-            members.AddRange(page.Value ?? []);
-            if (string.IsNullOrWhiteSpace(page.OdataNextLink))
-            {
-                break;
-            }
-
-            page = await _client.Chats[chatId].Members
-                .WithUrl(page.OdataNextLink)
-                .GetAsync(cancellationToken: ct)
-                .ConfigureAwait(false)
-                ?? throw GraphServiceException.InvalidRequest(
-                    "Cannot verify all chat members because Graph returned no member page.",
-                    "retry the send or ask your admin to review the Teams policy");
-        }
-
-        ValidateMembers(members, "chat");
-    }
-
-    private void ValidateMembers(
-        IEnumerable<ConversationMember> members, string conversationType)
-    {
-        ConversationMember[] all = [.. members];
-        AadUserConversationMember[] users = [.. all.OfType<AadUserConversationMember>()];
-        if (users.Length != all.Length || users.Length == 0)
-        {
-            throw GraphServiceException.InvalidRequest(
-                $"Cannot verify all {conversationType} members for an internal-only message.",
-                "use a conversation containing verifiable user members, or ask your admin to review policy.json");
-        }
-
-        string[] addresses = [.. users.Select(member => member.Email)
-            .OfType<string>()
-            .Where(address => !string.IsNullOrWhiteSpace(address))];
-        if (addresses.Length != users.Length)
-        {
-            throw GraphServiceException.InvalidRequest(
-                $"Cannot verify all {conversationType} members because an email address is missing.",
-                "use a conversation whose members expose email addresses, or ask your admin to review policy.json");
-        }
-
-        RecipientGuard.ValidateRecipients(addresses, _policy, $"{conversationType} member");
-
-        foreach (AadUserConversationMember member in users)
-        {
-            if (member.Roles?.Any(role =>
-                    string.Equals(role, "guest", StringComparison.OrdinalIgnoreCase)) == true)
-            {
-                throw GraphServiceException.InvalidRequest(
-                    $"{conversationType} member '{member.Email}' has the guest role.",
-                    "use an internal-only conversation, or ask your admin to review policy.json");
-            }
-        }
-
-        if (!IsConcreteTenant(_tenantId))
-        {
-            throw GraphServiceException.InvalidRequest(
-                $"Cannot verify {conversationType} member tenants because Graph:TenantId is not a concrete tenant id.",
-                "set Graph:TenantId to the organization's tenant GUID before sending with internal recipients required");
-        }
-
-        foreach (AadUserConversationMember member in users)
-        {
-            if (string.IsNullOrWhiteSpace(member.TenantId))
-            {
-                throw GraphServiceException.InvalidRequest(
-                    $"Cannot verify the tenant of {conversationType} member '{member.Email}'.",
-                    "use a conversation whose members expose tenant identities, or ask your admin to review policy.json");
-            }
-
-            if (!string.Equals(member.TenantId, _tenantId, StringComparison.OrdinalIgnoreCase))
-            {
-                throw GraphServiceException.InvalidRequest(
-                    $"{conversationType} member '{member.Email}' belongs to a different tenant.",
-                    "use an internal-only conversation, or ask your admin to review policy.json");
-            }
-        }
-    }
-
-    private static bool IsConcreteTenant(string tenantId) =>
-        !string.IsNullOrWhiteSpace(tenantId)
-        && !tenantId.Equals("common", StringComparison.OrdinalIgnoreCase)
-        && !tenantId.Equals("consumers", StringComparison.OrdinalIgnoreCase)
-        && !tenantId.Equals("organizations", StringComparison.OrdinalIgnoreCase);
 
     public async Task<IReadOnlyList<MeetingTranscriptInfo>> ListMeetingTranscriptsAsync(
         string meetingId, int top = 25, CancellationToken ct = default)
@@ -509,16 +318,6 @@ public sealed class GraphTeamsService : IGraphTeamsService
         if (string.IsNullOrWhiteSpace(value))
         {
             throw GraphServiceException.InvalidRequest($"{what} must not be empty.", hint);
-        }
-    }
-
-    private static void RequireBody(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw GraphServiceException.InvalidRequest(
-                "body must not be empty.",
-                "pass a non-empty message body, then retry");
         }
     }
 }

@@ -2,8 +2,8 @@
 
 Local MCP server (Stdio) for Teams access via Microsoft Graph. Same pattern as
 the [Outlook server](outlook.md): Stdio, `isError` results with `[code]` hints,
-delegated auth via the shared `Common` library. Message sends are limited to the
-two guarded send tools described below; no other write operations are exposed.
+delegated auth via the shared `Common` library. The server is strictly
+read-only; no write operations are exposed.
 
 ## 1. Prerequisites
 
@@ -17,7 +17,7 @@ permissions (no admin needed in most tenants, otherwise ask yours):
 
 **API permissions → Add → Microsoft Graph → Delegated:**
 `User.Read`, `Team.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMember.Read.All`,
-`Channel.ReadBasic.All`, `ChannelMessage.Send`, `Chat.ReadBasic`, `Chat.Read`, `ChatMessage.Send`,
+`Channel.ReadBasic.All`, `Chat.ReadBasic`, `Chat.Read`,
 `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All`.
 
 `OnlineMeetingAiInsight.Read.All` accesses the Meeting AI Insights API. The
@@ -77,7 +77,7 @@ fails fast on missing values with a `Next:` hint.
 
 For production use take the published binary (or a release asset).
 
-## 6. Tools (14)
+## 6. Tools (12)
 
 - `teams_list_teams` – joined teams with id and name
 - `teams_list_channels` – channels of a team
@@ -85,11 +85,9 @@ For production use take the published binary (or a release asset).
 - `teams_list_message_replies` – thread replies to a channel message
 - `teams_read_channel_message` – full message (HTML content truncated at
   8000 chars, reactions, mentions)
-- `teams_send_channel_message` – send a guarded message to an existing channel
 - `teams_list_chats` – recent 1:1 and group chats
 - `teams_list_chat_messages` – messages of a chat
 - `teams_read_chat_message` – full chat message
-- `teams_send_chat_message` – send a guarded message to an existing chat
 - `teams_list_meeting_transcripts` – transcripts of a scheduled online meeting
 - `teams_read_meeting_transcript` – VTT content of a transcript
 - `teams_list_meeting_insights` – AI insight metadata for a completed meeting
@@ -126,39 +124,8 @@ Details + stack traces go to the server log (stderr) only, never to the client.
 
 ## 9. Enterprise policy
 
-The shared admin-owned versioned `policy.json` (same file and format as
-[Outlook](outlook.md), with the complete property reference in
-[the policy reference](outlook.md#policy-v1-schema), loaded from the OS-specific system
-path, with `Messaging__*` env ignored) is validated at startup of every Teams
-host. Configure the `teams` section with the same domain/exact-address and
-disclosure fields as Outlook:
-
-```json
-"teams": {
-  "requireInternalRecipients": true,
-  "allowedRecipientDomains": ["firma.de"],
-  "allowedRecipientAddresses": [],
-  "aiDisclosureEnabled": true,
-  "aiDisclosureText": "This message was created by AI and must be reviewed before sending."
-}
-```
-
-Before either send, the server lists all conversation members across every
-Graph page and verifies every member as an `aadUserConversationMember`, with a
-non-empty email address allowed by `policy.json`. Channel checks include
-indirect members of shared channels. When internal recipients are required, a
-concrete `Graph:TenantId` must match each member's tenant id; the tenant
-selectors `common`, `consumers`, and `organizations` fail closed because they
-cannot identify the resource tenant. Guest roles, foreign tenants, unknown
-member types, and missing identity data are rejected before Graph receives the
-message POST.
-
-The disclosure is appended server-side by `MessageDisclosure.Apply`; it is not a
-tool parameter and cannot be omitted or changed by the caller. The send tools
-are `teams_send_channel_message` and `teams_send_chat_message`, and they only
-target existing Graph channel/chat ids.
-
-Note the platform limit: Teams chat messages do not pass Exchange transport
-rules, so unlike mail there is no server-side disclaimer backstop. The code
-guard, admin-owned policy, scope assignment, and Purview controls (DLP /
-Communication Compliance) should be used together.
+The server is read-only and enforces no `policy.json` section: there are no
+recipients to guard and no disclosure to apply. A `teams` section in an
+existing policy file is still parsed for compatibility but ignored by this
+host. Recipient and disclosure rules continue to apply to
+[Outlook](outlook.md) drafts and [Calendar](calendar.md) attendees.
