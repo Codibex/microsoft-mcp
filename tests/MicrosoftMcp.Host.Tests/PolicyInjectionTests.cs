@@ -22,17 +22,15 @@ public sealed class PolicyInjectionTests
             RequireInternalAttendees = true,
             AllowedAttendeeDomains = ["calendar.example"]
         };
-        var teams = new TeamsPolicyOptions();
 
         using ServiceProvider provider = new ServiceCollection()
             .AddOutlook(outlook)
             .AddCalendar(calendar)
-            .AddTeams(teams)
+            .AddTeams()
             .BuildServiceProvider();
 
         Assert.Same(outlook, provider.GetRequiredService<IOptions<OutlookPolicyOptions>>().Value);
         Assert.Same(calendar, provider.GetRequiredService<IOptions<CalendarPolicyOptions>>().Value);
-        Assert.Same(teams, provider.GetRequiredService<IOptions<TeamsPolicyOptions>>().Value);
     }
 
     [Fact]

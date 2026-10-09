@@ -1,7 +1,9 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-  Deploys the admin-owned versioned policy.json (Outlook, Teams, Calendar + AI disclosure).
+  Deploys the admin-owned versioned policy.json (Outlook + AI disclosure, Calendar attendees).
+  The Teams server is read-only and ignores policy, so no teams section is
+  written (older files with one still parse).
 
 .DESCRIPTION
   Builds policy.json, atomically writes it to the admin-owned system location
@@ -86,13 +88,8 @@ $policy = [ordered]@{
     allowedAttendeeDomains   = $attendeeDomains
     allowedAttendeeAddresses = $attendeeAddresses
   }
-  teams = [ordered]@{
-    requireInternalRecipients = $RequireInternalRecipients
-    allowedRecipientDomains   = @($AllowedRecipientDomains | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    allowedRecipientAddresses = @($AllowedRecipientAddresses | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    aiDisclosureEnabled       = $AiDisclosureEnabled
-    aiDisclosureText          = $AiDisclosureText
-  }
+  # Note: no teams section. The Teams server is read-only and ignores policy;
+  # a teams section in older files is still parsed but never enforced.
 }
 
 $dir = Split-Path -Parent $PolicyPath

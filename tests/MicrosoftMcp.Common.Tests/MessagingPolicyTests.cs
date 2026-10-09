@@ -437,6 +437,38 @@ public sealed class MessagingPolicyTests
         }
     }
 
+    // Teams policy is compatibility-only (read-only server consumes no policy)
+
+    [Fact]
+    public void PolicySetValidator_ignores_invalid_teams_section()
+    {
+        var policies = new EffectivePolicySet(
+            new OutlookPolicyOptions(),
+            new CalendarPolicyOptions(),
+            new TeamsPolicyOptions { RequireInternalRecipients = true },
+            SourceVersion: 1,
+            IsLegacy: false);
+
+        Assert.Null(PolicySetValidator.Validate(policies));
+    }
+
+    [Fact]
+    public void EffectivePolicySet_teams_only_is_not_restrictive()
+    {
+        var policies = new EffectivePolicySet(
+            new OutlookPolicyOptions(),
+            new CalendarPolicyOptions(),
+            new TeamsPolicyOptions
+            {
+                RequireInternalRecipients = true,
+                AllowedRecipientDomains = ["firma.de"]
+            },
+            SourceVersion: 1,
+            IsLegacy: false);
+
+        Assert.False(policies.IsRestrictive);
+    }
+
     private static void MakeReadOnly(string path)
     {
         if (OperatingSystem.IsWindows())

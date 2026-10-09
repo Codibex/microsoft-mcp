@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MicrosoftMcp.Common;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -10,12 +9,9 @@ namespace MicrosoftMcp.Teams;
 
 public static class TeamsServiceRegistration
 {
-    public static IServiceCollection AddTeams(
-        this IServiceCollection services, TeamsPolicyOptions? policy = null)
+    public static IServiceCollection AddTeams(this IServiceCollection services)
     {
         services.AddSingleton<IGraphTeamsService, GraphTeamsService>();
-        services.AddSingleton<IOptions<TeamsPolicyOptions>>(
-            Options.Create(policy ?? new TeamsPolicyOptions()));
         return services;
     }
 }
@@ -78,16 +74,6 @@ public sealed class TeamsTools(IGraphTeamsService teams, ILogger<TeamsTools> log
         CancellationToken ct = default) =>
         InvokeAsync("teams_read_channel_message", () => teams.ReadChannelMessageAsync(teamId, channelId, messageId, ct));
 
-    [McpServerTool, Description("Send a message to an existing team channel. The server applies policy and disclosure checks.")]
-    public Task<CallToolResult> teams_send_channel_message(
-        [Description("Team id from teams_list_teams")] string teamId,
-        [Description("Channel id from teams_list_channels")] string channelId,
-        [Description("Message body")] string body,
-        CancellationToken ct = default) =>
-        InvokeAsync(
-            "teams_send_channel_message",
-            () => teams.SendChannelMessageAsync(teamId, channelId, body, ct));
-
     [McpServerTool, Description("List recent chats (1:1 and group). Read-only.")]
     public Task<CallToolResult> teams_list_chats(
         [Description("Max chats 1-50")] int top = 25,
@@ -107,15 +93,6 @@ public sealed class TeamsTools(IGraphTeamsService teams, ILogger<TeamsTools> log
         [Description("Message id")] string messageId,
         CancellationToken ct = default) =>
         InvokeAsync("teams_read_chat_message", () => teams.ReadChatMessageAsync(chatId, messageId, ct));
-
-    [McpServerTool, Description("Send a message to an existing 1:1 or group chat. The server applies policy and disclosure checks.")]
-    public Task<CallToolResult> teams_send_chat_message(
-        [Description("Chat id from teams_list_chats")] string chatId,
-        [Description("Message body")] string body,
-        CancellationToken ct = default) =>
-        InvokeAsync(
-            "teams_send_chat_message",
-            () => teams.SendChatMessageAsync(chatId, body, ct));
 
     [McpServerTool, Description("List transcripts of a scheduled online meeting. Read-only, available after transcription.")]
     public Task<CallToolResult> teams_list_meeting_transcripts(

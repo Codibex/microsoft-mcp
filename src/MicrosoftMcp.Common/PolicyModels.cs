@@ -44,7 +44,9 @@ public sealed class CalendarPolicyOptions
     public bool IsRestrictive => RequireInternalAttendees;
 }
 
-/// <summary>Teams policy: conversation-member restrictions plus disclosure.</summary>
+/// <summary>Teams policy, kept for compatibility with existing policy files.
+/// The read-only Teams server consumes no policy; this section is parsed but
+/// never enforced.</summary>
 public sealed class TeamsPolicyOptions : DisclosurePolicyOptions
 {
 }
@@ -59,5 +61,7 @@ public sealed record EffectivePolicySet(
 {
     public bool MigrationRequired => IsLegacy;
 
-    public bool IsRestrictive => Outlook.IsRestrictive || Calendar.IsRestrictive || Teams.IsRestrictive;
+    public bool IsRestrictive => Outlook.IsRestrictive || Calendar.IsRestrictive;
+    // Note: Teams is intentionally excluded. The Teams server is read-only and
+    // consumes no policy, so a teams section must not trigger file protection.
 }

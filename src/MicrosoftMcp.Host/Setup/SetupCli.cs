@@ -204,7 +204,7 @@ public static class SetupCli
             + (auth == AuthMode.AppOnly
                 ? " (+ application Mail.ReadWrite and MailboxSettings.Read, admin consent, client secret)"
                 : ""));
-        Console.Out.WriteLine("Policy: versioned policy.json with outlook, calendar and teams sections; legacy flat files remain compatible.");
+        Console.Out.WriteLine("Policy: versioned policy.json with outlook and calendar sections (a teams section in older files is parsed but ignored); legacy flat files remain compatible.");
         if (headless)
         {
             Console.Out.WriteLine("Headless: set Graph__DelegatedFlow=DeviceCode and confirm the code from stderr.");
