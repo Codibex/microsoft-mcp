@@ -64,6 +64,7 @@ public sealed class GraphPlannerService : IGraphPlannerService
         RequireId(groupId, "groupId", "use the Microsoft 365 group id backing the plan");
         string gid = groupId.Trim();
         int take = Math.Clamp(top, 1, 100);
+        var plans = new List<PlannerPlan>();
         try
         {
             var page = await _client.Groups[gid].Planner.Plans.GetAsync(c =>
@@ -71,12 +72,26 @@ public sealed class GraphPlannerService : IGraphPlannerService
                 c.QueryParameters.Top = Math.Min(take, 50);
                 c.QueryParameters.Select = PlanSelect;
             }, ct).ConfigureAwait(false);
-            return [.. (page?.Value ?? []).Take(take).Select(PlannerMapper.MapPlan)];
+            while (page is not null && plans.Count < take)
+            {
+                plans.AddRange(page.Value ?? []);
+                if (string.IsNullOrWhiteSpace(page.OdataNextLink) || plans.Count >= take)
+                {
+                    break;
+                }
+
+                page = await _client.Groups[gid].Planner.Plans
+                    .WithUrl(page.OdataNextLink)
+                    .GetAsync(cancellationToken: ct)
+                    .ConfigureAwait(false);
+            }
         }
         catch (ApiException ex) when (ex.ResponseStatusCode == 404)
         {
             throw GraphServiceException.GroupNotFound(gid, "planner_list_plans");
         }
+
+        return [.. plans.Take(take).Select(PlannerMapper.MapPlan)];
     }
 
     public async Task<IReadOnlyList<PlannerTaskSummary>> ListPlanTasksAsync(

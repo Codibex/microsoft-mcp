@@ -87,7 +87,7 @@ internal sealed class FakeGraphTodoService : IGraphTodoService
     {
         Require(subject, "subject", "pass the commitment text");
         if (!string.IsNullOrWhiteSpace(importance)
-            && !"low,normal,high".Contains(importance.Trim().ToLowerInvariant()))
+            && !new[] { "low", "normal", "high" }.Contains(importance.Trim().ToLowerInvariant()))
         {
             throw GraphServiceException.InvalidRequest(
                 $"Unknown importance '{importance}'.", "use low, normal or high");

@@ -113,16 +113,17 @@ public sealed class GraphTodoServiceTests
     public async Task CompleteTask_patches_status_completed()
     {
         var handler = new SequenceHandler(
+            Response("""{"id":"l-1","displayName":"Tasks","wellknownListName":"none"}"""),
             Response("""{"id":"t-1","title":"Hi","status":"completed"}"""));
         var service = Create(handler);
 
         var done = await service.CompleteTaskAsync("t-1", "l-1");
 
         done.Status.Should().Be("Completed");
-        handler.Requests.Should().HaveCount(1);
-        handler.Requests[0].Method.Should().Be(new HttpMethod("PATCH"));
-        handler.Requests[0].RequestUri!.AbsolutePath.Should().Be("/v1.0/me/todo/lists/l-1/tasks/t-1");
-        handler.RequestBodies[0].Should().Contain("\"status\":\"completed\"");
+        handler.Requests.Should().HaveCount(2);
+        handler.Requests[1].Method.Should().Be(new HttpMethod("PATCH"));
+        handler.Requests[1].RequestUri!.AbsolutePath.Should().Be("/v1.0/me/todo/lists/l-1/tasks/t-1");
+        handler.RequestBodies[1].Should().Contain("\"status\":\"completed\"");
     }
 
     [Fact]
@@ -147,6 +148,7 @@ public sealed class GraphTodoServiceTests
     public async Task CompleteTask_unknown_id_maps_to_todo_task_not_found()
     {
         var handler = new SequenceHandler(
+            Response("""{"id":"l-1","displayName":"Tasks","wellknownListName":"none"}"""),
             new HttpResponseMessage(HttpStatusCode.NotFound)
             {
                 Content = new StringContent(
@@ -160,6 +162,30 @@ public sealed class GraphTodoServiceTests
             () => service.CompleteTaskAsync("nope", "l-1"));
 
         ex.Code.Should().Be("todo-task-not-found");
+    }
+
+    [Fact]
+    public async Task CompleteTask_invalid_list_maps_to_todo_list_not_found()
+    {
+        var handler = new SequenceHandler(
+            new HttpResponseMessage(HttpStatusCode.NotFound)
+            {
+                Content = new StringContent(
+                    """{"error":{"code":"ErrorItemNotFound","message":"Not found"}}""",
+                    Encoding.UTF8,
+                    "application/json")
+            });
+        var service = Create(handler);
+
+        // The list is validated before patching, so an invalid list reports
+        // [todo-list-not-found] even though the PATCH path would also 404.
+        var ex = await Assert.ThrowsAsync<GraphServiceException>(
+            () => service.CompleteTaskAsync("t-1", "no-list"));
+
+        ex.Code.Should().Be("todo-list-not-found");
+        handler.Requests.Should().HaveCount(1);
+        handler.Requests[0].Method.Should().Be(HttpMethod.Get);
+        handler.Requests[0].RequestUri!.AbsolutePath.Should().Be("/v1.0/me/todo/lists/no-list");
     }
 
     private static HttpResponseMessage Response(string json) => new(HttpStatusCode.OK)

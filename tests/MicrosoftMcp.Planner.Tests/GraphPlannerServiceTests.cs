@@ -55,6 +55,21 @@ public sealed class GraphPlannerServiceTests
     }
 
     [Fact]
+    public async Task ListPlans_follows_paging_until_take()
+    {
+        var handler = new SequenceHandler(
+            Response("""{"value":[{"id":"plan-1","title":"A"}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/groups/g-eng/planner/plans?$skiptoken=next"}"""),
+            Response("""{"value":[{"id":"plan-2","title":"B"}]}"""));
+        var service = Create(handler);
+
+        var plans = await service.ListPlansAsync("g-eng");
+
+        plans.Select(p => p.Id).Should().Equal("plan-1", "plan-2");
+        handler.Requests.Should().HaveCount(2);
+        handler.Requests[1].RequestUri!.Query.Should().Contain("$skiptoken=next");
+    }
+
+    [Fact]
     public async Task ListPlans_unknown_group_maps_to_group_not_found()
     {
         var handler = new SequenceHandler(

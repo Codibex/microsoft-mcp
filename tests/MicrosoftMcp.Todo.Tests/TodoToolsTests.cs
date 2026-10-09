@@ -77,9 +77,11 @@ public sealed class TodoToolsTests
         ToolResults.Fail(await tools.todo_list_tasks("no-list")).Should().Contain("[todo-list-not-found]");
         ToolResults.Fail(await tools.todo_add_task("  ")).Should().Contain("[invalid-request]");
         ToolResults.Fail(await tools.todo_add_task("Hi", importance: "urgent")).Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.todo_add_task("Hi", importance: "norm")).Should().Contain("[invalid-request]");
         ToolResults.Fail(await tools.todo_add_task("Hi", dueDateTime: "kein-datum")).Should().Contain("[invalid-request]");
         ToolResults.Fail(await tools.todo_complete_task("nope")).Should().Contain("[todo-task-not-found]");
         ToolResults.Fail(await tools.todo_complete_task("t-1", "l-shared")).Should().Contain("[todo-task-not-found]");
+        ToolResults.Fail(await tools.todo_complete_task("t-1", "no-list")).Should().Contain("[todo-list-not-found]");
     }
 
     [Fact]

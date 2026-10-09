@@ -61,7 +61,7 @@ public sealed class GraphTodoService : IGraphTodoService
         string? listId = null, bool includeCompleted = false, int top = 50,
         CancellationToken ct = default)
     {
-        string lid = await ResolveListIdAsync(listId, ct).ConfigureAwait(false);
+        string lid = await ResolveListIdAsync(listId, "todo_list_tasks", ct).ConfigureAwait(false);
         int take = Math.Clamp(top, 1, 100);
         var matched = new List<TodoTask>();
         var page = await _client.Me.Todo.Lists[lid].Tasks.GetAsync(c =>
@@ -107,7 +107,7 @@ public sealed class GraphTodoService : IGraphTodoService
                 "pass the commitment text, e.g. \"Send the offer by Friday\"");
         }
 
-        string lid = await ResolveListIdAsync(listId, ct).ConfigureAwait(false);
+        string lid = await ResolveListIdAsync(listId, "todo_add_task", ct).ConfigureAwait(false);
         var task = new TodoTask
         {
             Title = subject.Trim()
@@ -160,7 +160,9 @@ public sealed class GraphTodoService : IGraphTodoService
         string tid = taskId.Trim();
         if (!string.IsNullOrWhiteSpace(listId))
         {
-            string lid = listId.Trim();
+            // Validate the list first so an invalid list reports
+            // [todo-list-not-found] instead of [todo-task-not-found].
+            string lid = await ResolveListIdAsync(listId, "todo_complete_task", ct).ConfigureAwait(false);
             return await PatchCompletedAsync(lid, tid, ct).ConfigureAwait(false);
         }
 
@@ -222,7 +224,7 @@ public sealed class GraphTodoService : IGraphTodoService
             : TodoMapper.MapDetail(patched, listId);
     }
 
-    private async Task<string> ResolveListIdAsync(string? listId, CancellationToken ct)
+    private async Task<string> ResolveListIdAsync(string? listId, string operation, CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(listId))
         {
@@ -233,14 +235,14 @@ public sealed class GraphTodoService : IGraphTodoService
                     .GetAsync(cancellationToken: ct).ConfigureAwait(false);
                 if (existing?.Id is null)
                 {
-                    throw GraphServiceException.TodoListNotFound(lid, "todo_list_tasks");
+                    throw GraphServiceException.TodoListNotFound(lid, operation);
                 }
 
                 return existing.Id;
             }
             catch (ApiException ex) when (ex.ResponseStatusCode == 404)
             {
-                throw GraphServiceException.TodoListNotFound(lid, "todo_list_tasks");
+                throw GraphServiceException.TodoListNotFound(lid, operation);
             }
         }
 
