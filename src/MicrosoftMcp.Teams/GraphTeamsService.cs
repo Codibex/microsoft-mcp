@@ -62,6 +62,32 @@ public sealed class GraphTeamsService : IGraphTeamsService
         return [.. channels.Select(TeamsMapper.MapChannel)];
     }
 
+    public async Task<ChannelFilesFolderInfo> GetChannelFilesFolderAsync(
+        string teamId, string channelId, CancellationToken ct = default)
+    {
+        RequireId(teamId, "teamId", "call teams_list_teams to get valid team ids");
+        RequireId(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
+        string tid = teamId.Trim();
+        string cid = channelId.Trim();
+        var folder = await _client.Teams[tid].Channels[cid].FilesFolder.GetAsync(c =>
+        {
+            c.QueryParameters.Select = ["id", "name", "webUrl", "parentReference"];
+        }, ct).ConfigureAwait(false);
+        if (folder?.Id is null)
+        {
+            throw GraphServiceException.ChannelFilesFolderNotFound(channelId, "teams_get_channel_files_folder");
+        }
+
+        return new ChannelFilesFolderInfo(
+            tid,
+            cid,
+            folder.ParentReference?.DriveId,
+            folder.Id,
+            folder.Name,
+            folder.ParentReference?.SiteId,
+            folder.WebUrl);
+    }
+
     public async Task<IReadOnlyList<MessageSummary>> ListChannelMessagesAsync(
         string teamId, string channelId, int top = 25, CancellationToken ct = default)
     {

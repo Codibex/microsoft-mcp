@@ -50,7 +50,7 @@ public static class SetupCli
         }
         catch (InvalidOperationException ex)
         {
-            return Fail(json, ex.Message + " Next: use --servers outlook,onedrive,calendar,teams.");
+            return Fail(json, ex.Message + " Next: use --servers outlook,onedrive,calendar,teams,sharepoint.");
         }
 
         return command switch

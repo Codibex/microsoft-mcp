@@ -49,6 +49,13 @@ public sealed class TeamsTools(IGraphTeamsService teams, ILogger<TeamsTools> log
         CancellationToken ct = default) =>
         InvokeAsync("teams_list_channels", () => teams.ListChannelsAsync(teamId, ct), "channel");
 
+    [McpServerTool, Description("Resolve the SharePoint files folder behind a channel (driveId + folderId). Bridge into the sharepoint_* tools (explicit-drive path). Read-only.")]
+    public Task<CallToolResult> teams_get_channel_files_folder(
+        [Description("Team id from teams_list_teams")] string teamId,
+        [Description("Channel id from teams_list_channels")] string channelId,
+        CancellationToken ct = default) =>
+        InvokeAsync("teams_get_channel_files_folder", () => teams.GetChannelFilesFolderAsync(teamId, channelId, ct), "channel");
+
     [McpServerTool, Description("List messages of a channel (newest first).")]
     public Task<CallToolResult> teams_list_channel_messages(
         [Description("Team id")] string teamId,

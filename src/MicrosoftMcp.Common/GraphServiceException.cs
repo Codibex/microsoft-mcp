@@ -37,6 +37,26 @@ public sealed class GraphServiceException : Exception
         $"Drive item '{itemRef}' was not found during {operation}.",
         "call onedrive_list_children or onedrive_search_files to get a valid id or /path (ids change on move)");
 
+    public static GraphServiceException SharePointItemNotFound(string itemRef, string operation) => Create(
+        "item-not-found",
+        $"Drive item '{itemRef}' was not found during {operation}.",
+        "call sharepoint_list_children or sharepoint_search_files with the driveId to get a valid id or /path (ids change on move)");
+
+    public static GraphServiceException SiteNotFound(string siteId, string operation) => Create(
+        "site-not-found",
+        $"SharePoint site '{siteId}' was not found during {operation}.",
+        "call sharepoint_search_sites to get valid site ids");
+
+    public static GraphServiceException SharePointDriveNotFound(string driveId, string operation) => Create(
+        "drive-not-found",
+        $"Drive '{driveId}' was not found during {operation}.",
+        "call sharepoint_list_site_drives with the site id, or teams_get_channel_files_folder for a channel, to get valid drive ids");
+
+    public static GraphServiceException ChannelFilesFolderNotFound(string channelId, string operation) => Create(
+        "channel-files-folder-not-found",
+        $"Files folder for channel '{channelId}' was not found during {operation}.",
+        "call teams_list_channels for the team to get valid channel ids; the channel may have no file storage yet");
+
     public static GraphServiceException CalendarNotFound(string calendarId, string operation) => Create(
         "calendar-not-found",
         $"Calendar '{calendarId}' was not found during {operation}.",
