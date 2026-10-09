@@ -85,7 +85,7 @@ public sealed class DriveTools(IGraphDriveService drive, ILogger<DriveTools> log
         CancellationToken ct = default) =>
         InvokeAsync("onedrive_create_folder", () => drive.CreateFolderAsync(name, parentRef, ct));
 
-    [McpServerTool, Description("Upload a file. Pass localPath (absolute host path, read from disk so bytes bypass the model context) or small inline content. Up to 4194304 bytes use simple upload, larger local files (up to 104857600 bytes) a resumable session.")]
+    [McpServerTool, Description("Upload a file. Pass localPath (absolute host path, read from disk so bytes bypass the model context) or small inline content. Up to 4194304 bytes use simple upload, larger local files (up to 104857600 bytes) a resumable session. Existing names get a renamed copy, never overwritten.")]
     public Task<CallToolResult> onedrive_upload_file(
         [Description("Plain file name, e.g. \"notiz.txt\"")] string fileName,
         [Description("Parent reference: \"root\", folder id, or /path")] string? parentRef = null,

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.IO.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Graph;
 using Microsoft.Graph.Drives.Item.Items.Item.CreateUploadSession;
@@ -24,11 +25,16 @@ public sealed class GraphDriveService : IGraphDriveService
     private const long MaxResumableUploadBytes = 104_857_600;
     // Fragment size: Graph requires multiples of 320 KiB, recommends 5-10 MiB.
     private const int UploadChunkSize = 5_242_880; // 5 MiB = 16 x 320 KiB
+    // Children are paged at the Graph maximum; the client-side scan stops here
+    // so one tool call cannot page a pathological folder forever.
+    private const int PageSize = 200;
+    private const int MaxScannedChildren = 5000;
     private const int MaxDownloadBytes = 2_097_152;
     private const int MaxTextChars = 20000;
 
     private readonly GraphServiceClient _client;
     private readonly HttpClient _uploadHttp;
+    private readonly IFileSystem _fileSystem;
     private static readonly HttpClient SharedUploadHttp = new();
     private string? _driveId;
     private string? _rootId;
@@ -36,7 +42,8 @@ public sealed class GraphDriveService : IGraphDriveService
     public GraphDriveService(
         GraphServiceClient client,
         IOptions<GraphAuthOptions> options,
-        HttpClient? uploadHttp = null)
+        HttpClient? uploadHttp = null,
+        IFileSystem? fileSystem = null)
     {
         // OneDrive via /me/drive requires a signed-in user. App-only would
         // need Sites.Selected + a different path scheme (out of scope).
@@ -50,6 +57,7 @@ public sealed class GraphDriveService : IGraphDriveService
         // Upload-session fragment PUTs go to a preauthenticated upload URL and
         // must NOT carry the Graph Authorization header, hence a separate client.
         _uploadHttp = uploadHttp ?? SharedUploadHttp;
+        _fileSystem = fileSystem ?? new FileSystem();
     }
 
     public async Task<DriveInfoDto> GetDriveAsync(CancellationToken ct = default)
@@ -84,17 +92,33 @@ public sealed class GraphDriveService : IGraphDriveService
     {
         int take = Math.Clamp(top, 1, 200);
         var builder = await ItemBuilderAsync(folderRef, ct).ConfigureAwait(false);
+        // NOTE: Graph supports $orderby only for name/size/lastModifiedDateTime
+        // ("folder" would yield 400), and $top applies before any client-side
+        // sort. Page the full candidate set first, then sort folders-first and
+        // apply Take so later-named folders are not silently omitted.
+        var children = new List<DriveItem>();
         var page = await builder.Children.GetAsync(c =>
         {
-            c.QueryParameters.Top = take;
+            c.QueryParameters.Top = PageSize;
             c.QueryParameters.Select = ItemSelect;
-            // NOTE: Graph supports $orderby only for name/size/lastModifiedDateTime
-            // ("folder" would yield 400). Folders-first is applied client-side below.
             c.QueryParameters.Orderby = ["name"];
         }, ct).ConfigureAwait(false);
-        return [.. (page?.Value ?? []).Select(DriveMapper.MapItem)
+        while (page is not null && children.Count < MaxScannedChildren)
+        {
+            children.AddRange(page.Value ?? []);
+            if (string.IsNullOrWhiteSpace(page.OdataNextLink) || children.Count >= MaxScannedChildren)
+            {
+                break;
+            }
+
+            page = await builder.Children.WithUrl(page.OdataNextLink)
+                .GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        }
+
+        return [.. children.Select(DriveMapper.MapItem)
             .OrderByDescending(i => i.IsFolder)
-            .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)];
+            .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(take)];
     }
 
     public async Task<IReadOnlyList<DriveItemSummary>> SearchAsync(
@@ -165,7 +189,7 @@ public sealed class GraphDriveService : IGraphDriveService
         string itemRef, string localPath, bool overwrite = false, CancellationToken ct = default)
     {
         string dest = PathResolver.RequireAbsolutePath(localPath);
-        if (File.Exists(dest) && !overwrite)
+        if (_fileSystem.File.Exists(dest) && !overwrite)
         {
             throw GraphServiceException.InvalidRequest(
                 $"Local file '{dest}' already exists.",
@@ -182,26 +206,57 @@ public sealed class GraphDriveService : IGraphDriveService
                 "download files only; use onedrive_list_children to browse folders");
         }
 
-        string driveId = await DriveIdAsync(ct).ConfigureAwait(false);
-        var builder = ItemBuilderFor(driveId, await RootIdAsync(ct).ConfigureAwait(false), itemRef);
-        await using var source = await builder.Content.GetAsync(cancellationToken: ct).ConfigureAwait(false)
-            ?? throw GraphServiceException.GraphError(0, null, "Download returned no content.");
-
-        string? directory = Path.GetDirectoryName(dest);
+        string? directory = _fileSystem.Path.GetDirectoryName(dest);
         if (directory is not null)
         {
-            Directory.CreateDirectory(directory);
+            _fileSystem.Directory.CreateDirectory(directory);
         }
 
-        await using (var target = File.Create(dest))
+        // Stream into an adjacent temp file, then move atomically: the Exists
+        // check above cannot protect a direct File.Create against concurrent
+        // creators, and a failed/cancelled copy must not leave a partial dest.
+        string tempPath = $"{dest}.{Guid.NewGuid():N}.tmp";
+        try
         {
-            await source.CopyToAsync(target, ct).ConfigureAwait(false);
+            string driveId = await DriveIdAsync(ct).ConfigureAwait(false);
+            var builder = ItemBuilderFor(driveId, await RootIdAsync(ct).ConfigureAwait(false), itemRef);
+            await using var source = await builder.Content.GetAsync(cancellationToken: ct).ConfigureAwait(false)
+                ?? throw GraphServiceException.GraphError(0, null, "Download returned no content.");
+            await using (var target = _fileSystem.File.Open(
+                tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await source.CopyToAsync(target, ct).ConfigureAwait(false);
+            }
+
+            _fileSystem.File.Move(tempPath, dest, overwrite);
+        }
+        catch
+        {
+            TryDelete(tempPath);
+            throw;
         }
 
-        long size = new FileInfo(dest).Length;
+        long size = _fileSystem.FileInfo.New(dest).Length;
         return new FileContentDto(
             item.Id ?? string.Empty, item.Name ?? string.Empty, item.File?.MimeType,
             size, "file", null, null, false, dest);
+    }
+
+    private void TryDelete(string path)
+    {
+        try
+        {
+            if (_fileSystem.File.Exists(path))
+            {
+                _fileSystem.File.Delete(path);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     public async Task<DriveItemSummary> CreateFolderAsync(
@@ -287,8 +342,12 @@ public sealed class GraphDriveService : IGraphDriveService
 
         string driveId = await DriveIdAsync(ct).ConfigureAwait(false);
         string parentId = await ResolveIdAsync(parentRef ?? "root", ct).ConfigureAwait(false);
+        // Simple PUT replaces by default; resolve a free name first so inline
+        // uploads follow the same rename-on-conflict policy as the rest.
+        string uniqueName = await ResolveUniqueNameAsync(driveId, parentId, fileName.Trim(), ct)
+            .ConfigureAwait(false);
         using var stream = new MemoryStream(bytes);
-        var created = await _client.Drives[driveId].Items[parentId].ItemWithPath(fileName.Trim()).Content
+        var created = await _client.Drives[driveId].Items[parentId].ItemWithPath(uniqueName).Content
             .PutAsync(stream, cancellationToken: ct).ConfigureAwait(false);
         return created is null
             ? throw GraphServiceException.GraphError(0, null, "Upload returned no result.")
@@ -301,7 +360,7 @@ public sealed class GraphDriveService : IGraphDriveService
         string fileName, string parentRef, string localPath, CancellationToken ct)
     {
         string full = PathResolver.RequireAbsolutePath(localPath);
-        var info = new FileInfo(full);
+        var info = _fileSystem.FileInfo.New(full);
         if (!info.Exists)
         {
             throw GraphServiceException.InvalidRequest(
@@ -321,8 +380,10 @@ public sealed class GraphDriveService : IGraphDriveService
 
         if (info.Length <= MaxSimpleUploadBytes)
         {
-            await using var stream = File.OpenRead(full);
-            var created = await _client.Drives[driveId].Items[parentId].ItemWithPath(fileName.Trim()).Content
+            string uniqueName = await ResolveUniqueNameAsync(driveId, parentId, fileName.Trim(), ct)
+                .ConfigureAwait(false);
+            await using var stream = _fileSystem.File.OpenRead(full);
+            var created = await _client.Drives[driveId].Items[parentId].ItemWithPath(uniqueName).Content
                 .PutAsync(stream, cancellationToken: ct).ConfigureAwait(false);
             return created is null
                 ? throw GraphServiceException.GraphError(0, null, "Upload returned no result.")
@@ -353,7 +414,7 @@ public sealed class GraphDriveService : IGraphDriveService
         string uploadUrl = session?.UploadUrl
             ?? throw GraphServiceException.GraphError(0, null, "Upload session returned no upload URL.");
 
-        await using var file = File.OpenRead(localPath);
+        await using var file = _fileSystem.File.OpenRead(localPath);
         byte[] buffer = new byte[UploadChunkSize];
         long offset = 0;
         while (offset < totalBytes)
@@ -398,6 +459,63 @@ public sealed class GraphDriveService : IGraphDriveService
         }
 
         throw GraphServiceException.GraphError(0, null, "Upload session completed without a final result.");
+    }
+
+    /// <summary>Rename-on-conflict for simple PUTs (which replace by
+    /// default): returns <paramref name="fileName"/> when free, else
+    /// "stem 1.ext", "stem 2.ext", … – the same outcome the resumable branch
+    /// gets server-side via conflictBehavior=rename.</summary>
+    private async Task<string> ResolveUniqueNameAsync(
+        string driveId, string parentId, string fileName, CancellationToken ct)
+    {
+        var taken = await ListChildNamesAsync(driveId, parentId, ct).ConfigureAwait(false);
+        if (!taken.Contains(fileName))
+        {
+            return fileName;
+        }
+
+        string stem = Path.GetFileNameWithoutExtension(fileName);
+        string ext = Path.GetExtension(fileName);
+        for (int i = 1; ; i++)
+        {
+            string candidate = $"{stem} {i}{ext}";
+            if (!taken.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    private async Task<HashSet<string>> ListChildNamesAsync(
+        string driveId, string parentId, CancellationToken ct)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var page = await _client.Drives[driveId].Items[parentId].Children.GetAsync(c =>
+        {
+            c.QueryParameters.Top = PageSize;
+            c.QueryParameters.Select = ["name"];
+        }, ct).ConfigureAwait(false);
+        while (page is not null && names.Count < MaxScannedChildren)
+        {
+            foreach (var child in page.Value ?? [])
+            {
+                if (child.Name is not null)
+                {
+                    names.Add(child.Name);
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(page.OdataNextLink) || names.Count >= MaxScannedChildren)
+            {
+                break;
+            }
+
+            page = await _client.Drives[driveId].Items[parentId].Children
+                .WithUrl(page.OdataNextLink)
+                .GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        }
+
+        return names;
     }
 
     private static DriveItemSummary MapSessionResult(string json)

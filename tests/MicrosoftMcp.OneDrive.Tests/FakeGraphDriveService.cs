@@ -1,5 +1,6 @@
 namespace MicrosoftMcp.OneDrive.Tests;
 
+using System.IO.Abstractions;
 using MicrosoftMcp.Common;
 
 /// <summary>In-memory fake of <see cref="IGraphDriveService"/>. No Graph, no network.</summary>
@@ -16,10 +17,12 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
     }
 
     private readonly Dictionary<string, Node> _nodes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IFileSystem _fileSystem;
     private int _counter;
 
-    public FakeGraphDriveService()
+    public FakeGraphDriveService(IFileSystem? fileSystem = null)
     {
+        _fileSystem = fileSystem ?? new FileSystem();
         Add(new Node { Id = "root", Name = "root", IsFolder = true });
         Add(new Node { Id = "f-docs", Name = "Dokumente", IsFolder = true, ParentId = "root" });
         Add(new Node
@@ -154,7 +157,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
         string itemRef, string localPath, bool overwrite = false, CancellationToken ct = default)
     {
         string dest = PathResolver.RequireAbsolutePath(localPath);
-        if (File.Exists(dest) && !overwrite)
+        if (_fileSystem.File.Exists(dest) && !overwrite)
         {
             throw GraphServiceException.InvalidRequest(
                 $"Local file '{dest}' already exists.",
@@ -169,13 +172,13 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
                 "download files only; use onedrive_list_children to browse folders");
         }
 
-        string? directory = Path.GetDirectoryName(dest);
+        string? directory = _fileSystem.Path.GetDirectoryName(dest);
         if (directory is not null)
         {
-            Directory.CreateDirectory(directory);
+            _fileSystem.Directory.CreateDirectory(directory);
         }
 
-        File.WriteAllBytes(dest, node.Content);
+        _fileSystem.File.WriteAllBytes(dest, node.Content);
         return Task.FromResult(new FileContentDto(
             node.Id, node.Name, node.MimeType, node.Content.Length, "file",
             null, null, false, dest));
@@ -229,14 +232,14 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
             }
 
             string full = PathResolver.RequireAbsolutePath(localPath);
-            if (!File.Exists(full))
+            if (!_fileSystem.File.Exists(full))
             {
                 throw GraphServiceException.InvalidRequest(
                     $"Local file '{full}' does not exist.",
                     "pass the absolute path of an existing file on the host");
             }
 
-            bytes = File.ReadAllBytes(full);
+            bytes = _fileSystem.File.ReadAllBytes(full);
             if (bytes.Length > 104_857_600)
             {
                 throw GraphServiceException.InvalidRequest(
