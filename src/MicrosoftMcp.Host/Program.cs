@@ -7,6 +7,7 @@ using MicrosoftMcp.Calendar;
 using MicrosoftMcp.Common;
 using MicrosoftMcp.OneDrive;
 using MicrosoftMcp.Outlook;
+using MicrosoftMcp.SharePoint;
 using MicrosoftMcp.Teams;
 using MicrosoftMcp.Host.Setup;
 using ModelContextProtocol.Server;
@@ -95,6 +96,12 @@ if (enabled.Contains("teams"))
 {
     builder.Services.AddTeams();
     mcp.WithToolsFromAssembly(typeof(TeamsTools).Assembly);
+}
+
+if (enabled.Contains("sharepoint"))
+{
+    builder.Services.AddSharePoint();
+    mcp.WithToolsFromAssembly(typeof(SharePointTools).Assembly);
 }
 
 var app = builder.Build();

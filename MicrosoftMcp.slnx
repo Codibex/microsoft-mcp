@@ -6,6 +6,8 @@
     <Project Path="src/MicrosoftMcp.Host/MicrosoftMcp.Host.csproj" />
     <Project Path="src/MicrosoftMcp.OneDrive.Host/MicrosoftMcp.OneDrive.Host.csproj" />
     <Project Path="src/MicrosoftMcp.OneDrive/MicrosoftMcp.OneDrive.csproj" />
+    <Project Path="src/MicrosoftMcp.SharePoint.Host/MicrosoftMcp.SharePoint.Host.csproj" />
+    <Project Path="src/MicrosoftMcp.SharePoint/MicrosoftMcp.SharePoint.csproj" />
     <Project Path="src/MicrosoftMcp.Outlook.Host/MicrosoftMcp.Outlook.Host.csproj" />
     <Project Path="src/MicrosoftMcp.Outlook/MicrosoftMcp.Outlook.csproj" />
     <Project Path="src/MicrosoftMcp.Teams.Host/MicrosoftMcp.Teams.Host.csproj" />
@@ -16,6 +18,7 @@
     <Project Path="tests/MicrosoftMcp.Common.Tests/MicrosoftMcp.Common.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Host.Tests/MicrosoftMcp.Host.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.OneDrive.Tests/MicrosoftMcp.OneDrive.Tests.csproj" />
+    <Project Path="tests/MicrosoftMcp.SharePoint.Tests/MicrosoftMcp.SharePoint.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Outlook.Tests/MicrosoftMcp.Outlook.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Teams.Tests/MicrosoftMcp.Teams.Tests.csproj" />
   </Folder>

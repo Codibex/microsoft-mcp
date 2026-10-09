@@ -6,7 +6,7 @@ namespace MicrosoftMcp.Common;
 /// scopes (requested scopes follow the selection).</summary>
 public static class ServerSelection
 {
-    public static readonly IReadOnlyList<string> All = ["outlook", "onedrive", "calendar", "teams"];
+    public static readonly IReadOnlyList<string> All = ["outlook", "onedrive", "calendar", "teams", "sharepoint"];
 
     private static readonly IReadOnlyDictionary<string, string[]> DefaultScopes =
         new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
@@ -16,9 +16,10 @@ public static class ServerSelection
             ["calendar"] = ["Calendars.Read", "Calendars.ReadWrite"],
             ["teams"] = [
                 "User.Read", "Team.ReadBasic.All", "Channel.ReadBasic.All", "ChannelMessage.Read.All",
-                "Chat.ReadBasic", "Chat.Read",
+                "Chat.ReadBasic", "Chat.Read", "Files.Read.All",
                 "OnlineMeetingTranscript.Read.All", "OnlineMeetingAiInsight.Read.All"
-            ]
+            ],
+            ["sharepoint"] = ["Sites.Read.All", "Files.Read", "Files.ReadWrite"]
         };
 
     /// <summary>Parses "--servers outlook,calendar" / MCP_SERVERS. Null or

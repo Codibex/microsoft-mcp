@@ -62,6 +62,39 @@ public sealed class GraphTeamsService : IGraphTeamsService
         return [.. channels.Select(TeamsMapper.MapChannel)];
     }
 
+    public async Task<ChannelFilesFolderInfo> GetChannelFilesFolderAsync(
+        string teamId, string channelId, CancellationToken ct = default)
+    {
+        RequireId(teamId, "teamId", "call teams_list_teams to get valid team ids");
+        RequireId(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
+        string tid = teamId.Trim();
+        string cid = channelId.Trim();
+        // NOTE: the v1.0 filesFolder endpoint documents no OData query
+        // parameters, so no $select is sent (it would fail with HTTP 400).
+        var folder = await _client.Teams[tid].Channels[cid].FilesFolder
+            .GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        if (folder?.Id is null)
+        {
+            throw GraphServiceException.ChannelFilesFolderNotFound(channelId, "teams_get_channel_files_folder");
+        }
+
+        if (string.IsNullOrWhiteSpace(folder.ParentReference?.DriveId))
+        {
+            throw GraphServiceException.InvalidRequest(
+                $"Files folder for channel '{channelId}' has no drive id.",
+                "the channel storage may not be provisioned yet; open the Files tab in Teams once, then retry");
+        }
+
+        return new ChannelFilesFolderInfo(
+            tid,
+            cid,
+            folder.ParentReference?.DriveId,
+            folder.Id,
+            folder.Name,
+            folder.ParentReference?.SiteId,
+            folder.WebUrl);
+    }
+
     public async Task<IReadOnlyList<MessageSummary>> ListChannelMessagesAsync(
         string teamId, string channelId, int top = 25, CancellationToken ct = default)
     {

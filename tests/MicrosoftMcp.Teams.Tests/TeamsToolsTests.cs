@@ -95,6 +95,21 @@ public sealed class TeamsToolsTests
     }
 
     [Fact]
+    public async Task Channel_files_folder_bridges_into_sharepoint_drives()
+    {
+        var tools = Create(new FakeGraphTeamsService());
+
+        var folder = ToolResults.Ok<ChannelFilesFolderInfo>(
+            await tools.teams_get_channel_files_folder("t-eng", "c-general"));
+        folder.TeamId.Should().Be("t-eng");
+        folder.DriveId.Should().NotBeNullOrEmpty();
+        folder.FolderId.Should().NotBeNullOrEmpty();
+
+        ToolResults.Fail(await tools.teams_get_channel_files_folder("t-eng", "no-channel"))
+            .Should().Contain("[channel-not-found]");
+    }
+
+    [Fact]
     public async Task Tool_errors_carry_codes_and_hints()
     {
         var tools = Create(new FakeGraphTeamsService());

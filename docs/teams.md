@@ -17,8 +17,13 @@ permissions (no admin needed in most tenants, otherwise ask yours):
 
 **API permissions → Add → Microsoft Graph → Delegated:**
 `User.Read`, `Team.ReadBasic.All`, `ChannelMessage.Read.All`,
-`Channel.ReadBasic.All`, `Chat.ReadBasic`, `Chat.Read`,
+`Channel.ReadBasic.All`, `Chat.ReadBasic`, `Chat.Read`, `Files.Read.All`,
 `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All`.
+
+`Files.Read.All` (least-privileged delegated scope for work accounts) is
+required by `teams_get_channel_files_folder`: channel files live in
+SharePoint, so a Teams-only launch without any Files permission returns
+403 on the bridge (see the [SharePoint guide](sharepoint.md)).
 
 `OnlineMeetingAiInsight.Read.All` accesses the Meeting AI Insights API. The
 signed-in user must have a Microsoft 365 Copilot license. The transcript and
@@ -77,10 +82,14 @@ fails fast on missing values with a `Next:` hint.
 
 For production use take the published binary (or a release asset).
 
-## 6. Tools (12)
+## 6. Tools (13)
 
 - `teams_list_teams` – joined teams with id and name
 - `teams_list_channels` – channels of a team
+- `teams_get_channel_files_folder` – SharePoint files folder behind a channel
+  (`driveId` + `folderId` for the `sharepoint_*` tools, see the
+  [SharePoint guide](sharepoint.md); channel files live in the team's group
+  site library, chat attachments live in the sender's OneDrive)
 - `teams_list_channel_messages` – channel messages (pass `teamId` + `channelId`)
 - `teams_list_message_replies` – thread replies to a channel message
 - `teams_read_channel_message` – full message (HTML content truncated at

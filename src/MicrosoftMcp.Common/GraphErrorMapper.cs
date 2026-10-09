@@ -109,6 +109,8 @@ public static partial class GraphErrorMapper
             "calendar" => GraphServiceException.CalendarNotFound("<unknown>", operation),
             "event" => GraphServiceException.EventNotFound("<unknown>", operation),
             "drive" => GraphServiceException.DriveItemNotFound("<unknown>", operation),
+            "sharepoint-drive" => GraphServiceException.SharePointItemNotFound("<unknown>", operation),
+            "sharepoint-site" => GraphServiceException.SiteNotFound("<unknown>", operation),
             "folder" => GraphServiceException.FolderNotFound("<unknown>"),
             "team" => GraphServiceException.TeamNotFound("<unknown>", operation),
             "channel" => GraphServiceException.ChannelNotFound("<unknown>", operation),

@@ -5,6 +5,11 @@ public interface IGraphTeamsService
 {
     Task<IReadOnlyList<TeamInfo>> ListTeamsAsync(CancellationToken ct = default);
     Task<IReadOnlyList<ChannelInfo>> ListChannelsAsync(string teamId, CancellationToken ct = default);
+    /// <summary>Resolves the SharePoint files folder behind a channel.
+    /// Bridge into the sharepoint_* tools: the returned driveId/folderId
+    /// address the channel library on its explicit-drive path.</summary>
+    Task<ChannelFilesFolderInfo> GetChannelFilesFolderAsync(
+        string teamId, string channelId, CancellationToken ct = default);
     Task<IReadOnlyList<MessageSummary>> ListChannelMessagesAsync(
         string teamId, string channelId, int top = 25, CancellationToken ct = default);
     Task<IReadOnlyList<MessageSummary>> ListMessageRepliesAsync(

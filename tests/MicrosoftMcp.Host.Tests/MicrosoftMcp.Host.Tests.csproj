@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\src\MicrosoftMcp.OneDrive\MicrosoftMcp.OneDrive.csproj" />
     <ProjectReference Include="..\..\src\MicrosoftMcp.Calendar\MicrosoftMcp.Calendar.csproj" />
     <ProjectReference Include="..\..\src\MicrosoftMcp.Teams\MicrosoftMcp.Teams.csproj" />
+    <ProjectReference Include="..\..\src\MicrosoftMcp.SharePoint\MicrosoftMcp.SharePoint.csproj" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />

@@ -13,6 +13,18 @@ public sealed record ChannelInfo(
     string? Description,
     string? MembershipType);
 
+/// <summary>SharePoint file storage behind a channel. The driveId/folderId
+/// pair plugs directly into the sharepoint_* tools (explicit-drive path),
+/// keeping the fixed-drive onedrive_* tools untouched.</summary>
+public sealed record ChannelFilesFolderInfo(
+    string TeamId,
+    string ChannelId,
+    string? DriveId,
+    string FolderId,
+    string? FolderName,
+    string? SiteId,
+    string? WebUrl);
+
 public sealed record ChatInfo(
     string Id,
     string? Topic,
