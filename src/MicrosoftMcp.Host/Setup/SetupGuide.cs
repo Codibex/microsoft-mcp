@@ -38,6 +38,21 @@ public static class SetupGuide
         return null;
     }
 
+    /// <summary>Validates the account type against the selected domains. Null = valid.
+    /// SharePoint and Planner run on Sites/Group APIs that have no personal-account
+    /// support, so a personal-only app (<c>consumers</c>) can never work for them.</summary>
+    public static string? ValidateAccountCombination(IReadOnlyList<string> servers, string account)
+    {
+        if (account.Equals("personal", StringComparison.OrdinalIgnoreCase)
+            && servers.Any(s => s.Equals("sharepoint", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("planner", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "SharePoint and Planner need a work account (Sites/Group APIs don't support personal accounts). Next: use --account work with your org tenant GUID, or drop sharepoint,planner from --servers (see docs/sharepoint.md §2, docs/planner.md §2).";
+        }
+
+        return null;
+    }
+
     /// <summary>Scope union for the selection (least privilege).</summary>
     public static IReadOnlyList<string> ScopesFor(IReadOnlyList<string> servers)
     {

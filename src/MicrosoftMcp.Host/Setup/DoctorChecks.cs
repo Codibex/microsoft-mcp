@@ -90,6 +90,12 @@ public static class DoctorChecks
             ? new SetupCheck("authmode", true, $"AuthMode {options.AuthMode} fits servers {string.Join(",", servers)}.", null)
             : new SetupCheck("authmode", false, $"AuthMode {options.AuthMode} does not fit servers {string.Join(",", servers)}.", comboError));
 
+        SetupCheck? accountCheck = AccountCheck(servers, options);
+        if (accountCheck is not null)
+        {
+            checks.Add(accountCheck);
+        }
+
         checks.Add(CacheCheck(options, secretServiceAvailable ?? IsSecretServiceAvailable));
 
         if (options.AuthMode == AuthMode.AppOnly)
@@ -132,6 +138,53 @@ public static class DoctorChecks
                 : "Next (headless only): set Graph__DelegatedFlow=DeviceCode."));
 
         return checks;
+    }
+
+    /// <summary>SharePoint/Planner need a work account; otherwise no account check applies.</summary>
+    private static SetupCheck? AccountCheck(IReadOnlyList<string> servers, GraphAuthOptions options)
+    {
+        bool needsWorkAccount = servers.Contains("sharepoint", StringComparer.OrdinalIgnoreCase)
+            || servers.Contains("planner", StringComparer.OrdinalIgnoreCase);
+        if (!needsWorkAccount)
+        {
+            return null;
+        }
+
+        if (options.TenantId.Equals("consumers", StringComparison.OrdinalIgnoreCase))
+        {
+            return new SetupCheck(
+                "account",
+                false,
+                "TenantId 'consumers' is personal-only, but sharepoint/planner need a work account (Sites/Group APIs).",
+                "Next: set Graph__TenantId to your org tenant GUID and sign in with a work account (see docs/sharepoint.md §2, docs/planner.md §2).");
+        }
+
+        if (options.TenantId.Equals("common", StringComparison.OrdinalIgnoreCase))
+        {
+            return new SetupCheck(
+                "account",
+                true,
+                "TenantId 'common' allows personal logins too, but sharepoint/planner need a work login.",
+                "Next: sign in with a work account; personal logins fail (see docs/sharepoint.md §2, docs/planner.md §2).");
+        }
+
+        if (options.TenantId.Equals("organizations", StringComparison.OrdinalIgnoreCase)
+            || Guid.TryParse(options.TenantId, out _))
+        {
+            return new SetupCheck(
+                "account",
+                true,
+                "Account type fits sharepoint/planner (org tenant).",
+                null);
+        }
+
+        return new SetupCheck(
+            "account",
+            false,
+            string.IsNullOrWhiteSpace(options.TenantId)
+                ? "TenantId is missing, so the account type cannot be validated for sharepoint/planner."
+                : $"TenantId '{options.TenantId}' is neither a GUID nor a known value, so the account type cannot be validated for sharepoint/planner.",
+            "Next: set Graph__TenantId to your org tenant GUID first (see the tenant check above).");
     }
 
     private static SetupCheck CacheCheck(GraphAuthOptions options, Func<bool> secretServiceAvailable)

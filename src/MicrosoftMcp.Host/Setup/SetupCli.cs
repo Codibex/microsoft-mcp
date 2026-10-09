@@ -172,6 +172,12 @@ public static class SetupCli
             return Fail(json, comboError);
         }
 
+        string? accountError = SetupGuide.ValidateAccountCombination(servers, account);
+        if (accountError is not null)
+        {
+            return Fail(json, accountError);
+        }
+
         SetupClient client = SetupGuide.ParseClient(Opt(opts, "client"));
         string binary = Opt(opts, "binary") ?? "/path/to/microsoft-mcp";
         bool headless = Has(opts, "headless");

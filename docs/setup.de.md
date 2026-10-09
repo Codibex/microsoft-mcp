@@ -31,14 +31,31 @@ Regel: eigenes Postfach → Delegated. Service/fremde Postfächer → App-Only
 
 ## 1. Binary (kein SDK nötig)
 
-Release-Assets von GitHub nehmen (linux-x64/arm64, win-x64/arm64,
-osx-arm64) oder lokal `dotnet publish`. `dotnet run` ist nur für
-Entwicklung. Pfad merken, z. B. `/opt/microsoft-mcp/microsoft-mcp`.
+Release-Asset für die eigene Plattform von GitHub nehmen (linux-x64/arm64,
+win-x64/arm64, osx-arm64; jedes Zip enthält `microsoft-mcp` plus
+`appsettings.json`), entpacken und den Binary-Pfad merken, z. B.
+`/opt/microsoft-mcp/microsoft-mcp` (unter Linux/macOS ausführbar machen:
+`chmod +x /opt/microsoft-mcp/microsoft-mcp`). Oder lokal bauen:
 
-Prüfen:
+```bash
+dotnet publish src/MicrosoftMcp.Host -c Release -o /opt/microsoft-mcp
+```
+
+Eigenständige Binaries pro Plattform (ohne .NET-Runtime) werden wie in
+`.github/workflows/release.yml` gebaut:
+
+```bash
+dotnet publish src/MicrosoftMcp.Host -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o /opt/microsoft-mcp
+```
+
+`dotnet run` ist nur für Entwicklung.
+
+Prüfen, dass das Binary startet (Tenant/Client schlagen hier noch FAIL –
+sie kommen in §2; der komplett grüne Lauf folgt in §4):
 
 ```bash
 microsoft-mcp doctor --servers outlook,calendar
+microsoft-mcp --help
 ```
 
 ## 2. Entra-App (einmalig)
@@ -192,17 +209,25 @@ einer Änderung am Binary oder an der Policy muss der MCP-Client neu starten.
 
 - Eingaben: `--servers` (Teilmenge von `outlook,onedrive,calendar,teams,sharepoint,todo,planner`,
   leer = alle), `--account work|personal`, `--auth delegated|apponly`,
-  `--client vscode|claude|opencode|codex|openclaw|hermes|generic`,
-  `--binary PATH`, `--headless`, `--json`.
+  `--client vscode|claude|opencode|codex|openclaw|hermes|generic`
+  (unbekannte Namen fallen auf `generic` zurück), `--binary PATH`, `--headless`, `--json`.
+  `--account`/`--auth`/`--client`/`--binary`/`--headless` wirken nur bei `setup`,
+  `--write`/`--path` nur bei `policy migrate`; `doctor` liest nur `--servers`/`--json`.
 - `setup` braucht keine Secrets, schreibt keine Secrets, Exit 0 bei
   gültiger Kombination, 2 bei ungültiger (z. B. `teams` + `apponly`,
-  `onedrive`/`calendar`/`teams`/`sharepoint`/`todo`/`planner` + `apponly`).
+  `onedrive`/`calendar`/`teams`/`sharepoint`/`todo`/`planner` + `apponly`,
+  `sharepoint`/`planner` + `--account personal`: Sites-/Group-APIs brauchen ein Arbeitskonto).
 - `doctor` liest dieselbe Config wie der Host
   (`appsettings.json` beim Binary + Env + User-Secrets), prüft offline:
   `TenantId`-Format (GUID oder `common|consumers|organizations`),
-  `ClientId`-GUID, AuthMode vs. Domains, Scopes vs. Auswahl,
+  `ClientId`-GUID, AuthMode vs. Domains, Kontotyp vs. Domains
+  (`consumers` schlägt bei `sharepoint`/`planner` fehl), Scopes vs. Auswahl,
   `DelegatedFlow`, `policy.json`-Fund/Schutz (nur Warnung wenn fehlend).
-  Kein Netzwerk, kein Token. `--json` → `{ "checks": [{ "id", "ok", "message", "next", "migrationRequired" }] }`.
+  Kein Netzwerk, kein Token. `--json` → `{ "servers": [...], "checks": [{ "id", "ok", "message", "next", "migrationRequired" }] }`.
+  Explizite Scopes überschreiben den Auswahl-Default: `Graph:DelegatedScopes`-Array
+  in `appsettings.json` oder indizierte Env-Vars (`Graph__DelegatedScopes__0`,
+  `Graph__DelegatedScopes__1`, …). Ein einzelner schlichter
+  `Graph__DelegatedScopes`-String wird nicht gebunden und behält den Auswahl-Default.
 - `policy migrate --json` prüft standardmäßig nur. Mit `--write` wird die
   Migration explizit atomar ausgeführt. Das Ergebnis enthält
   `migrationRequired`, `written`, `backupPath` und `targetVersion`; Secrets
