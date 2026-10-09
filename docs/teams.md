@@ -77,10 +77,14 @@ fails fast on missing values with a `Next:` hint.
 
 For production use take the published binary (or a release asset).
 
-## 6. Tools (12)
+## 6. Tools (13)
 
 - `teams_list_teams` – joined teams with id and name
 - `teams_list_channels` – channels of a team
+- `teams_get_channel_files_folder` – SharePoint files folder behind a channel
+  (`driveId` + `folderId` for the `sharepoint_*` tools, see the
+  [SharePoint guide](sharepoint.md); channel files live in the team's group
+  site library, chat attachments live in the sender's OneDrive)
 - `teams_list_channel_messages` – channel messages (pass `teamId` + `channelId`)
 - `teams_list_message_replies` – thread replies to a channel message
 - `teams_read_channel_message` – full message (HTML content truncated at
