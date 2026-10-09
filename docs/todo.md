@@ -100,7 +100,9 @@ Example prompt: "What did I promise this week? Check
 API quirk (handled inside the tools): the To Do backend rejects
 `$select` with `400 RequestBroker--ParseUri` on list, list-tasks and
 single-task reads, so the tools never send it (`$top` and `$filter` on
-`status` are supported; newest-first ordering is applied client-side).
+`status` are supported). There is no documented `$orderby` either, so
+newest-first ordering is applied client-side after paging (the scan
+stops after 500 tasks, same pattern as SharePoint).
 
 ## 7. Error codes (returned as `isError` results with a `Next:` hint)
 

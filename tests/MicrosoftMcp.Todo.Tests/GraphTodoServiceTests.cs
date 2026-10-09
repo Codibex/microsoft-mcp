@@ -87,6 +87,31 @@ public sealed class GraphTodoServiceTests
     }
 
     [Fact]
+    public async Task ListTasks_pages_before_sorting_so_newer_tasks_win()
+    {
+        var handler = new SequenceHandler(
+            Response("""{"id":"l-1","displayName":"Tasks","wellknownListName":"none"}"""),
+            Response("""
+                {"value":[
+                    {"id":"t-old","title":"Old","status":"notStarted","createdDateTime":"2026-09-01T10:00:00Z"}
+                ],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/todo/lists/l-1/tasks?$skiptoken=next"}
+                """),
+            Response("""
+                {"value":[
+                    {"id":"t-new","title":"New","status":"notStarted","createdDateTime":"2026-10-01T10:00:00Z"}
+                ]}
+                """));
+        var service = Create(handler);
+
+        // take=1: stopping at the first page would return t-old.
+        var tasks = await service.ListTasksAsync("l-1", top: 1);
+
+        tasks.Select(t => t.Id).Should().Equal("t-new");
+        handler.Requests.Should().HaveCount(3);
+        handler.Requests[2].RequestUri!.Query.Should().Contain("$skiptoken=next");
+    }
+
+    [Fact]
     public async Task AddTask_posts_documented_wire_shape()
     {
         var handler = new SequenceHandler(

@@ -110,7 +110,11 @@ public sealed class GraphPlannerServiceTests
                 {"id":"task-1","planId":"plan-1","bucketId":"b-1","title":"Offer",
                  "assignments":{"user-alice":{"@odata.type":"#microsoft.graph.plannerAssignment"}}}
                 """),
-            Response("""{"description":"  Angebot an Contoso  "}"""),
+            Response("""
+                {"description":"  Angebot an Contoso  ",
+                 "checklist":{"chk1":{"@odata.type":"#microsoft.graph.plannerChecklistItem",
+                    "title":"Entwurf","isChecked":false,"orderHint":"a"}}}
+                """),
             Response("""{"id":"b-1","name":"To do"}"""));
         var service = Create(handler);
 
@@ -119,6 +123,7 @@ public sealed class GraphPlannerServiceTests
         detail.Description.Should().Be("Angebot an Contoso");
         detail.BucketName.Should().Be("To do");
         detail.AssigneeIds.Should().Contain("user-alice");
+        detail.Checklist.Should().ContainSingle(c => c.Title == "Entwurf" && c.IsChecked == false);
         handler.Requests.Should().HaveCount(3);
         handler.Requests[0].RequestUri!.AbsolutePath.Should().Be("/v1.0/planner/tasks/task-1");
         handler.Requests[1].RequestUri!.AbsolutePath.Should().Be("/v1.0/planner/tasks/task-1/details");

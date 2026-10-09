@@ -16,6 +16,11 @@ public sealed class GraphTodoService : IGraphTodoService
     // GETs (confirmed by docs-adjacent reports + StackOverflow 74298587 /
     // 79609269), so no request below sends $select. $top and $filter on
     // status are supported; ordering is done client-side.
+    // The request has no $orderby (support undocumented), so newest-first
+    // ordering is applied client-side after paging. The scan stops after
+    // MaxScannedTasks raw items so one call cannot page a pathological
+    // list forever (same pattern as SharePoint's MaxScannedChildren).
+    private const int MaxScannedTasks = 500;
     private readonly GraphServiceClient _client;
 
     public GraphTodoService(
@@ -64,6 +69,7 @@ public sealed class GraphTodoService : IGraphTodoService
         string lid = await ResolveListIdAsync(listId, "todo_list_tasks", ct).ConfigureAwait(false);
         int take = Math.Clamp(top, 1, 100);
         var matched = new List<TodoTask>();
+        int scanned = 0;
         var page = await _client.Me.Todo.Lists[lid].Tasks.GetAsync(c =>
         {
             c.QueryParameters.Top = Math.Min(take, 50);
@@ -72,13 +78,16 @@ public sealed class GraphTodoService : IGraphTodoService
                 c.QueryParameters.Filter = "status ne 'completed'";
             }
         }, ct).ConfigureAwait(false);
-        while (page is not null && matched.Count < take)
+        // Page through (up to the scan cap) before sorting: stopping at
+        // `take` matches could omit newer tasks sitting behind nextLink.
+        while (page is not null && scanned < MaxScannedTasks)
         {
-            IEnumerable<TodoTask> batch = includeCompleted
-                ? page.Value ?? []
-                : (page.Value ?? []).Where(t => t.Status != GraphTaskStatus.Completed);
-            matched.AddRange(batch);
-            if (string.IsNullOrWhiteSpace(page.OdataNextLink) || matched.Count >= take)
+            IReadOnlyList<TodoTask> raw = page.Value ?? [];
+            scanned += raw.Count;
+            matched.AddRange(includeCompleted
+                ? raw
+                : raw.Where(t => t.Status != GraphTaskStatus.Completed));
+            if (string.IsNullOrWhiteSpace(page.OdataNextLink) || scanned >= MaxScannedTasks)
             {
                 break;
             }
