@@ -97,6 +97,11 @@ Example prompt: "What did I promise this week? Check
 `todo_add_task` with a due date. Tick off what is done with
 `todo_complete_task`."
 
+API quirk (handled inside the tools): the To Do backend rejects
+`$select` with `400 RequestBroker--ParseUri` on list, list-tasks and
+single-task reads, so the tools never send it (`$top` and `$filter` on
+`status` are supported; newest-first ordering is applied client-side).
+
 ## 7. Error codes (returned as `isError` results with a `Next:` hint)
 
 `todo-list-not-found`, `todo-task-not-found`, `invalid-request`,

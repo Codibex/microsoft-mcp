@@ -11,13 +11,11 @@ namespace MicrosoftMcp.Todo;
 /// Add + complete only – no delete.</summary>
 public sealed class GraphTodoService : IGraphTodoService
 {
-    private static readonly string[] ListSelect = ["id", "displayName", "isOwner", "isShared", "wellknownListName"];
-    private static readonly string[] TaskSelect =
-        ["id", "title", "status", "importance", "dueDateTime", "createdDateTime", "lastModifiedDateTime", "hasAttachments"];
-    private static readonly string[] TaskDetailSelect =
-        ["id", "title", "status", "importance", "dueDateTime", "reminderDateTime", "completedDateTime",
-            "createdDateTime", "lastModifiedDateTime", "hasAttachments", "categories", "body"];
-
+    // NOTE: the To Do backend (Exchange) rejects $select with
+    // 400 RequestBroker--ParseUri on lists, list-tasks and single-task
+    // GETs (confirmed by docs-adjacent reports + StackOverflow 74298587 /
+    // 79609269), so no request below sends $select. $top and $filter on
+    // status are supported; ordering is done client-side.
     private readonly GraphServiceClient _client;
 
     public GraphTodoService(
@@ -41,7 +39,6 @@ public sealed class GraphTodoService : IGraphTodoService
         var page = await _client.Me.Todo.Lists.GetAsync(c =>
         {
             c.QueryParameters.Top = 100;
-            c.QueryParameters.Select = ListSelect;
         }, ct).ConfigureAwait(false);
         while (page is not null)
         {
@@ -66,21 +63,22 @@ public sealed class GraphTodoService : IGraphTodoService
     {
         string lid = await ResolveListIdAsync(listId, ct).ConfigureAwait(false);
         int take = Math.Clamp(top, 1, 100);
-        var tasks = new List<TodoTask>();
+        var matched = new List<TodoTask>();
         var page = await _client.Me.Todo.Lists[lid].Tasks.GetAsync(c =>
         {
             c.QueryParameters.Top = Math.Min(take, 50);
-            c.QueryParameters.Select = TaskSelect;
-            c.QueryParameters.Orderby = ["createdDateTime desc"];
             if (!includeCompleted)
             {
                 c.QueryParameters.Filter = "status ne 'completed'";
             }
         }, ct).ConfigureAwait(false);
-        while (page is not null && tasks.Count < take)
+        while (page is not null && matched.Count < take)
         {
-            tasks.AddRange(page.Value ?? []);
-            if (string.IsNullOrWhiteSpace(page.OdataNextLink) || tasks.Count >= take)
+            IEnumerable<TodoTask> batch = includeCompleted
+                ? page.Value ?? []
+                : (page.Value ?? []).Where(t => t.Status != GraphTaskStatus.Completed);
+            matched.AddRange(batch);
+            if (string.IsNullOrWhiteSpace(page.OdataNextLink) || matched.Count >= take)
             {
                 break;
             }
@@ -91,10 +89,10 @@ public sealed class GraphTodoService : IGraphTodoService
                 .ConfigureAwait(false);
         }
 
-        IEnumerable<TodoTask> filtered = includeCompleted
-            ? tasks
-            : tasks.Where(t => t.Status != GraphTaskStatus.Completed);
-        return [.. filtered.Take(take).Select(t => TodoMapper.MapSummary(t, lid))];
+        return [.. matched
+            .OrderByDescending(t => t.CreatedDateTime ?? DateTimeOffset.MinValue)
+            .Take(take)
+            .Select(t => TodoMapper.MapSummary(t, lid))];
     }
 
     public async Task<TodoTaskDetail> AddTaskAsync(
@@ -174,7 +172,7 @@ public sealed class GraphTodoService : IGraphTodoService
             try
             {
                 TodoTask? existing = await _client.Me.Todo.Lists[list.Id].Tasks[tid]
-                    .GetAsync(c => c.QueryParameters.Select = ["id"], ct).ConfigureAwait(false);
+                    .GetAsync(cancellationToken: ct).ConfigureAwait(false);
                 if (existing?.Id is null)
                 {
                     continue;
@@ -211,7 +209,7 @@ public sealed class GraphTodoService : IGraphTodoService
             try
             {
                 patched = await _client.Me.Todo.Lists[listId].Tasks[taskId]
-                    .GetAsync(c => c.QueryParameters.Select = TaskDetailSelect, ct).ConfigureAwait(false);
+                    .GetAsync(cancellationToken: ct).ConfigureAwait(false);
             }
             catch (ApiException ex) when (ex.ResponseStatusCode == 404)
             {
@@ -232,7 +230,7 @@ public sealed class GraphTodoService : IGraphTodoService
             try
             {
                 TodoTaskList? existing = await _client.Me.Todo.Lists[lid]
-                    .GetAsync(c => c.QueryParameters.Select = ListSelect, ct).ConfigureAwait(false);
+                    .GetAsync(cancellationToken: ct).ConfigureAwait(false);
                 if (existing?.Id is null)
                 {
                     throw GraphServiceException.TodoListNotFound(lid, "todo_list_tasks");
