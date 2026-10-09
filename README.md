@@ -10,13 +10,15 @@ Local MCP servers (Stdio) for Microsoft 365 via Microsoft Graph.
 | Calendar (6 tools, delegated writes) | `microsoft-mcp-calendar` | [docs/calendar.md](docs/calendar.md) | Implemented |
 | Teams (12 tools, read-only) | `microsoft-mcp-teams` | [docs/teams.md](docs/teams.md) | Implemented |
 | SharePoint sites + files (10 tools, explicit driveId, read/create/move, no delete) | `microsoft-mcp-sharepoint` | [docs/sharepoint.md](docs/sharepoint.md) | Implemented |
+| To Do tasks (4 tools, add/complete, no delete) | `microsoft-mcp-todo` | [docs/todo.md](docs/todo.md) | Implemented |
+| Planner (4 tools, read-only) | `microsoft-mcp-planner` | [docs/planner.md](docs/planner.md) | Implemented |
 
 Shared foundations (delegated + app-only auth, `isError` results with
 `[code]` + `Next:` hints, censoring logs) live in `src/MicrosoftMcp.Common`.
 
 ## Unified host (alternative)
 
-One binary `microsoft-mcp` (`src/MicrosoftMcp.Host`) with all 55 tools,
+One binary `microsoft-mcp` (`src/MicrosoftMcp.Host`) with all 63 tools,
 domains selectable per process: `microsoft-mcp --servers outlook,calendar`
 (or `MCP_SERVERS` env; default without arguments: all). Requested scopes
 follow the selection unless `Graph:DelegatedScopes` is set explicitly.
@@ -66,6 +68,10 @@ src/MicrosoftMcp.Teams/         # teams service + tools (lib)
 src/MicrosoftMcp.Teams.Host/    # microsoft-mcp-teams (exe)
 src/MicrosoftMcp.SharePoint/      # sharepoint sites + explicit-drive files (lib)
 src/MicrosoftMcp.SharePoint.Host/ # microsoft-mcp-sharepoint (exe)
+src/MicrosoftMcp.Todo/            # todo tasks + lists (lib)
+src/MicrosoftMcp.Todo.Host/       # microsoft-mcp-todo (exe)
+src/MicrosoftMcp.Planner/         # planner plans + tasks, read-only (lib)
+src/MicrosoftMcp.Planner.Host/    # microsoft-mcp-planner (exe)
 tests/                          # xUnit + NSubstitute, incl. in-memory fakes
 ```
 
@@ -85,7 +91,7 @@ MCP C# SDK 2.2.0. The server negotiates up to **2025-11-25** via the
 classic `initialize` handshake and advertises **2026-07-28** via the new
 `server/discover` flow with per-request `_meta` metadata. Tool names are
 globally unique with domain prefixes (`outlook_*`, `onedrive_*`,
-`calendar_*`, `teams_*`, `sharepoint_*`); the spec requires uniqueness within a server
+`calendar_*`, `teams_*`, `sharepoint_*`, `todo_*`, `planner_*`); the spec requires uniqueness within a server
 and recommends identifier-prefixing for aggregated domains.
 
 ## License

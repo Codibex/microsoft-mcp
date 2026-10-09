@@ -32,7 +32,7 @@ public static class SetupGuide
         if (auth == AuthMode.AppOnly
             && servers.Any(s => !s.Equals("outlook", StringComparison.OrdinalIgnoreCase)))
         {
-            return "AppOnly is only valid with outlook. Next: use --auth delegated for onedrive, calendar, teams, sharepoint (/me/* and /sites/* APIs require a signed-in user).";
+            return "AppOnly is only valid with outlook. Next: use --auth delegated for onedrive, calendar, teams, sharepoint, todo, planner (/me/* and /sites/* APIs require a signed-in user).";
         }
 
         return null;

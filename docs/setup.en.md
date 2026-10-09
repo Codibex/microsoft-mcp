@@ -3,14 +3,14 @@
 Goal: a running MCP server in your client with exactly one Entra app.
 Source of truth for agents and the CLI: this file
 (same content as `setup.de.md`). Domain details live in `outlook.md`,
-`onedrive.md`, `calendar.md`, `teams.md`, `sharepoint.md`.
+`onedrive.md`, `calendar.md`, `teams.md`, `sharepoint.md`, `todo.md`, `planner.md`.
 
 ## 0. Three questions first (don't guess)
 
 1. **Account:** work (org tenant, GUID) or personal (`outlook.com` etc.)?
    For a personal-only app use `TenantId=consumers`; for an app supporting
    both org and personal accounts use `TenantId=common`.
-2. **Domains:** which of `outlook,onedrive,calendar,teams,sharepoint`?
+2. **Domains:** which of `outlook,onedrive,calendar,teams,sharepoint,todo,planner`?
    Unified host: `microsoft-mcp --servers outlook,calendar` (or `MCP_SERVERS`),
    no argument means all.
 3. **Client:** see table — file, key and snippet format depend on
@@ -27,7 +27,7 @@ Source of truth for agents and the CLI: this file
 
 Rule: own mailbox → Delegated. Service/foreign mailboxes → App-Only
 (`outlook` only, admin consent required). `onedrive`, `calendar`, `teams`,
-`sharepoint` need Delegated (`/me/*` and `/sites/*`).
+`sharepoint`, `todo`, `planner` need Delegated (`/me/*` and `/sites/*`).
 
 ## 1. Binary (no SDK needed)
 
@@ -61,6 +61,8 @@ microsoft-mcp doctor --servers outlook,calendar
   | `calendar` | `Calendars.Read`, `Calendars.ReadWrite` |
    | `teams` | `User.Read`, `Team.ReadBasic.All`, `Channel.ReadBasic.All`, `ChannelMessage.Read.All`, `Chat.ReadBasic`, `Chat.Read`, `Files.Read.All`, `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All` |
    | `sharepoint` | `Sites.Read.All`, `Files.Read`, `Files.ReadWrite` |
+   | `todo` | `Tasks.Read`, `Tasks.ReadWrite`, `Tasks.Read.Shared`, `Tasks.ReadWrite.Shared` (`.Shared` covers lists shared with you) |
+   | `planner` | `Tasks.Read`, `Group.Read.All` (plans live on Microsoft 365 groups; read-only) |
 
    Then consent (yourself or your admin). App-Only (Outlook only):
   application permissions `Mail.ReadWrite` and `MailboxSettings.Read` + admin consent + client secret.
@@ -182,13 +184,13 @@ after the binary or policy file changes.
 
 ## Machine contract (for `setup`/`doctor`/`policy migrate`)
 
-- Inputs: `--servers` (subset of `outlook,onedrive,calendar,teams,sharepoint`,
+- Inputs: `--servers` (subset of `outlook,onedrive,calendar,teams,sharepoint,todo,planner`,
   empty = all), `--account work|personal`, `--auth delegated|apponly`,
   `--client vscode|claude|opencode|codex|openclaw|hermes|generic`,
   `--binary PATH`, `--headless`, `--json`.
 - `setup` needs no secrets, writes no secrets, exit 0 for a
   valid combination, 2 for an invalid one (e.g. `teams` + `apponly`,
-  `onedrive`/`calendar`/`teams`/`sharepoint` + `apponly`).
+  `onedrive`/`calendar`/`teams`/`sharepoint`/`todo`/`planner` + `apponly`).
 - `doctor` reads the same config as the host
   (`appsettings.json` next to the binary + env + user-secrets), checks offline:
   `TenantId` format (GUID or `common|consumers|organizations`),

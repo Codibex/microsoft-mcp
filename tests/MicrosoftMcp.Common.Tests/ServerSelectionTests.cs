@@ -7,7 +7,7 @@ public sealed class ServerSelectionTests
 {
     [Fact]
     public void Empty_selects_all_in_stable_order() =>
-        ServerSelection.Parse(null).Should().Equal("outlook", "onedrive", "calendar", "teams", "sharepoint");
+        ServerSelection.Parse(null).Should().Equal("outlook", "onedrive", "calendar", "teams", "sharepoint", "todo", "planner");
 
     [Fact]
     public void Parses_and_normalizes_selection() =>
@@ -26,7 +26,7 @@ public sealed class ServerSelectionTests
         ServerSelection.DefaultScopesFor(["teams"]).Should().Contain("Chat.Read");
         ServerSelection.DefaultScopesFor(["outlook"]).Should()
             .NotContain(s => s.StartsWith("Files", StringComparison.Ordinal));
-        ServerSelection.DefaultScopesFor(ServerSelection.All).Should().HaveCount(2 + 3 + 2 + 9 + 1);
+        ServerSelection.DefaultScopesFor(ServerSelection.All).Should().HaveCount(22);
     }
 
     [Fact]
@@ -37,5 +37,23 @@ public sealed class ServerSelectionTests
         ServerSelection.DefaultScopesFor(["teams", "sharepoint"]).Should().Contain("Channel.ReadBasic.All");
         // Least-privileged delegated scope for the Teams filesFolder bridge (work accounts).
         ServerSelection.DefaultScopesFor(["teams"]).Should().Contain("Files.Read.All");
+    }
+
+    [Fact]
+    public void Todo_scopes_include_shared_variants()
+    {
+        ServerSelection.DefaultScopesFor(["todo"]).Should()
+            .BeEquivalentTo("Tasks.Read", "Tasks.ReadWrite", "Tasks.Read.Shared", "Tasks.ReadWrite.Shared");
+    }
+
+    [Fact]
+    public void Planner_scopes_cover_tasks_and_groups_read_only()
+    {
+        ServerSelection.DefaultScopesFor(["planner"]).Should()
+            .BeEquivalentTo("Tasks.Read", "Group.Read.All");
+        // Tasks.Read is shared between todo and planner (deduped in the union).
+        ServerSelection.DefaultScopesFor(["todo", "planner"]).Should().Contain("Group.Read.All");
+        ServerSelection.DefaultScopesFor(["todo", "planner"]).Should()
+            .HaveCount(5);
     }
 }

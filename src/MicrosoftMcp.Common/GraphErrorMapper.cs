@@ -118,6 +118,11 @@ public static partial class GraphErrorMapper
             "teams-message" => GraphServiceException.TeamsMessageNotFound("<unknown>", operation),
             "meeting-transcript" => GraphServiceException.MeetingTranscriptNotFound("<unknown>", operation),
             "meeting-insight" => GraphServiceException.MeetingInsightNotFound("<unknown>", operation),
+            "todo-list" => GraphServiceException.TodoListNotFound("<unknown>", operation),
+            "todo-task" => GraphServiceException.TodoTaskNotFound("<unknown>", operation),
+            "planner-plan" => GraphServiceException.PlannerPlanNotFound("<unknown>", operation),
+            "planner-task" => GraphServiceException.PlannerTaskNotFound("<unknown>", operation),
+            "group" => GraphServiceException.GroupNotFound("<unknown>", operation),
             _ => GraphServiceException.MessageNotFound("<unknown>", operation)
         };
 

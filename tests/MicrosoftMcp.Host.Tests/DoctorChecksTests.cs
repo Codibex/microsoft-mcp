@@ -132,6 +132,28 @@ public sealed class DoctorChecksTests
     }
 
     [Fact]
+    public void Apponly_with_todo_and_planner_fails()
+    {
+        var options = Delegated();
+        options.AuthMode = AuthMode.AppOnly;
+        options.UserIdOrUpn = "mailbox@example.com";
+        options.ClientSecret = "secret";
+
+        DoctorChecks.Run(["todo"], options, policyPath: null, policyError: null)
+            .First(c => c.Id == "authmode").Ok.Should().BeFalse();
+        DoctorChecks.Run(["planner"], options, policyPath: null, policyError: null)
+            .First(c => c.Id == "authmode").Ok.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Valid_todo_planner_config_passes()
+    {
+        var checks = DoctorChecks.Run(["todo", "planner"], Delegated(), policyPath: null, policyError: null);
+
+        checks.Should().OnlyContain(c => c.Ok);
+    }
+
+    [Fact]
     public void Apponly_requires_mailbox_and_secret()
     {
         var options = Delegated();
