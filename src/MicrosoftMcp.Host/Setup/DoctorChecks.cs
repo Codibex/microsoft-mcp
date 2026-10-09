@@ -168,11 +168,23 @@ public static class DoctorChecks
                 "Next: sign in with a work account; personal logins fail (see docs/sharepoint.md §2, docs/planner.md §2).");
         }
 
+        if (options.TenantId.Equals("organizations", StringComparison.OrdinalIgnoreCase)
+            || Guid.TryParse(options.TenantId, out _))
+        {
+            return new SetupCheck(
+                "account",
+                true,
+                "Account type fits sharepoint/planner (org tenant).",
+                null);
+        }
+
         return new SetupCheck(
             "account",
-            true,
-            "Account type fits sharepoint/planner (org tenant).",
-            null);
+            false,
+            string.IsNullOrWhiteSpace(options.TenantId)
+                ? "TenantId is missing, so the account type cannot be validated for sharepoint/planner."
+                : $"TenantId '{options.TenantId}' is neither a GUID nor a known value, so the account type cannot be validated for sharepoint/planner.",
+            "Next: set Graph__TenantId to your org tenant GUID first (see the tenant check above).");
     }
 
     private static SetupCheck CacheCheck(GraphAuthOptions options, Func<bool> secretServiceAvailable)
