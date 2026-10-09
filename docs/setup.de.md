@@ -59,7 +59,7 @@ microsoft-mcp doctor --servers outlook,calendar
   | `outlook` | `Mail.Read`, `Mail.ReadWrite`, `MailboxSettings.Read` |
    | `onedrive` | `Files.Read`, `Files.ReadWrite` |
   | `calendar` | `Calendars.Read`, `Calendars.ReadWrite` |
-  | `teams` | `User.Read`, `Team.ReadBasic.All`, `Channel.ReadBasic.All`, `ChannelMessage.Read.All`, `Chat.ReadBasic`, `Chat.Read`, `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All` |
+   | `teams` | `User.Read`, `Team.ReadBasic.All`, `Channel.ReadBasic.All`, `ChannelMessage.Read.All`, `Chat.ReadBasic`, `Chat.Read`, `Files.Read.All`, `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All` |
    | `sharepoint` | `Sites.Read.All`, `Files.Read`, `Files.ReadWrite` |
 
    Danach consentieren (selbst oder Admin). App-Only (nur Outlook):

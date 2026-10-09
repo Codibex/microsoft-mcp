@@ -16,7 +16,7 @@ public static class ServerSelection
             ["calendar"] = ["Calendars.Read", "Calendars.ReadWrite"],
             ["teams"] = [
                 "User.Read", "Team.ReadBasic.All", "Channel.ReadBasic.All", "ChannelMessage.Read.All",
-                "Chat.ReadBasic", "Chat.Read",
+                "Chat.ReadBasic", "Chat.Read", "Files.Read.All",
                 "OnlineMeetingTranscript.Read.All", "OnlineMeetingAiInsight.Read.All"
             ],
             ["sharepoint"] = ["Sites.Read.All", "Files.Read", "Files.ReadWrite"]

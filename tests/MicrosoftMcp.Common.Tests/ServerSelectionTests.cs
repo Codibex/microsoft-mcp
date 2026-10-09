@@ -26,7 +26,7 @@ public sealed class ServerSelectionTests
         ServerSelection.DefaultScopesFor(["teams"]).Should().Contain("Chat.Read");
         ServerSelection.DefaultScopesFor(["outlook"]).Should()
             .NotContain(s => s.StartsWith("Files", StringComparison.Ordinal));
-        ServerSelection.DefaultScopesFor(ServerSelection.All).Should().HaveCount(2 + 3 + 2 + 8 + 1);
+        ServerSelection.DefaultScopesFor(ServerSelection.All).Should().HaveCount(2 + 3 + 2 + 9 + 1);
     }
 
     [Fact]
@@ -35,5 +35,7 @@ public sealed class ServerSelectionTests
         ServerSelection.DefaultScopesFor(["sharepoint"]).Should()
             .BeEquivalentTo("Sites.Read.All", "Files.Read", "Files.ReadWrite");
         ServerSelection.DefaultScopesFor(["teams", "sharepoint"]).Should().Contain("Channel.ReadBasic.All");
+        // Least-privileged delegated scope for the Teams filesFolder bridge (work accounts).
+        ServerSelection.DefaultScopesFor(["teams"]).Should().Contain("Files.Read.All");
     }
 }

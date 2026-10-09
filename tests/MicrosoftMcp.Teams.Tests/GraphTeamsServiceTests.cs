@@ -134,6 +134,54 @@ public sealed class GraphTeamsServiceTests
         handler.Requests[1].RequestUri!.Query.Should().Contain("$skiptoken=next");
     }
 
+    [Fact]
+    public async Task GetChannelFilesFolder_uses_documented_path_without_select_and_maps_drive()
+    {
+        var handler = new SequenceHandler(
+            Response("""
+                {"id":"folder-1","name":"General","webUrl":"https://contoso.sharepoint.com/folder","parentReference":{"driveId":"drive-1","siteId":"site-1"}}
+                """));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var folder = await service.GetChannelFilesFolderAsync("team-1", "channel-1");
+
+        folder.TeamId.Should().Be("team-1");
+        folder.ChannelId.Should().Be("channel-1");
+        folder.DriveId.Should().Be("drive-1");
+        folder.FolderId.Should().Be("folder-1");
+        folder.SiteId.Should().Be("site-1");
+        handler.Requests.Should().HaveCount(1);
+        handler.Requests[0].RequestUri!.AbsolutePath.Should().Be(
+            "/v1.0/teams/team-1/channels/channel-1/filesFolder");
+        // The filesFolder endpoint documents no OData query parameters.
+        handler.Requests[0].RequestUri!.Query.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetChannelFilesFolder_rejects_response_without_drive_id()
+    {
+        var handler = new SequenceHandler(
+            Response("""{"id":"folder-1","name":"General"}"""));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var ex = await Assert.ThrowsAsync<GraphServiceException>(
+            () => service.GetChannelFilesFolderAsync("team-1", "channel-1"));
+
+        ex.Code.Should().Be("invalid-request");
+    }
+
     private static HttpResponseMessage Response(string json) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(json, Encoding.UTF8, "application/json")

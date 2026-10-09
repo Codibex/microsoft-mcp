@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -42,7 +43,10 @@ public sealed class GraphSharePointService : IGraphSharePointService
     private readonly HttpClient _uploadHttp;
     private readonly IFileSystem _fileSystem;
     private static readonly HttpClient SharedUploadHttp = new();
-    private readonly Dictionary<string, string> _rootIds = new(StringComparer.OrdinalIgnoreCase);
+    // Per-drive root ids. The service is a singleton serving concurrent tool
+    // calls, so the cache is concurrent; a duplicate fetch on a race is
+    // benign (last-writer-wins, same value).
+    private readonly ConcurrentDictionary<string, string> _rootIds = new(StringComparer.OrdinalIgnoreCase);
 
     public GraphSharePointService(
         GraphServiceClient client,
@@ -128,6 +132,7 @@ public sealed class GraphSharePointService : IGraphSharePointService
         string driveId, string itemRef, CancellationToken ct = default)
     {
         string drive = PathResolver.RequireDriveId(driveId);
+        await RequireDriveAsync(drive, "sharepoint_get_item", ct).ConfigureAwait(false);
         var item = await GetItemOrNullAsync(drive, itemRef, ct).ConfigureAwait(false);
         return item is null
             ? throw GraphServiceException.SharePointItemNotFound(itemRef, "sharepoint_get_item")
@@ -138,6 +143,7 @@ public sealed class GraphSharePointService : IGraphSharePointService
         string driveId, string folderRef = "root", int top = 50, CancellationToken ct = default)
     {
         string drive = PathResolver.RequireDriveId(driveId);
+        await RequireDriveAsync(drive, "sharepoint_list_children", ct).ConfigureAwait(false);
         int take = Math.Clamp(top, 1, 200);
         var builder = await ItemBuilderAsync(drive, folderRef, ct).ConfigureAwait(false);
         // NOTE: Graph supports $orderby only for name/size/lastModifiedDateTime
@@ -173,6 +179,7 @@ public sealed class GraphSharePointService : IGraphSharePointService
         string driveId, string query, int top = 25, CancellationToken ct = default)
     {
         string drive = PathResolver.RequireDriveId(driveId);
+        await RequireDriveAsync(drive, "sharepoint_search_files", ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(query))
         {
             throw GraphServiceException.InvalidRequest(
@@ -193,6 +200,7 @@ public sealed class GraphSharePointService : IGraphSharePointService
         string driveId, string itemRef, int maxBytes = 786432, CancellationToken ct = default)
     {
         string drive = PathResolver.RequireDriveId(driveId);
+        await RequireDriveAsync(drive, "sharepoint_download_file", ct).ConfigureAwait(false);
         int cap = Math.Clamp(maxBytes, 1, MaxDownloadBytes);
         var item = await GetItemOrNullAsync(drive, itemRef, ct).ConfigureAwait(false)
             ?? throw GraphServiceException.SharePointItemNotFound(itemRef, "sharepoint_download_file");
@@ -213,8 +221,25 @@ public sealed class GraphSharePointService : IGraphSharePointService
         var builder = ItemBuilderFor(drive, await RootIdAsync(drive, ct).ConfigureAwait(false), itemRef);
         await using var stream = await builder.Content.GetAsync(cancellationToken: ct).ConfigureAwait(false)
             ?? throw GraphServiceException.GraphError(0, null, "Download returned no content.");
+        // NOTE: metadata size can be missing or stale (file grown between the
+        // two requests), so the cap is enforced on the stream itself: read at
+        // most cap + 1 bytes and reject above the cap instead of trusting size.
         using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct).ConfigureAwait(false);
+        byte[] buffer = new byte[81_920];
+        long total = 0;
+        int read;
+        while ((read = await stream.ReadAsync(buffer.AsMemory(), ct).ConfigureAwait(false)) > 0)
+        {
+            total += read;
+            if (total > cap)
+            {
+                throw GraphServiceException.AttachmentTooLarge(
+                    item.Name ?? "?", (int)Math.Min(total, int.MaxValue), cap);
+            }
+
+            ms.Write(buffer.AsSpan(0, read));
+        }
+
         byte[] bytes = ms.ToArray();
 
         if (SharePointMapper.IsTextContent(item.File?.MimeType))
@@ -237,6 +262,7 @@ public sealed class GraphSharePointService : IGraphSharePointService
         string driveId, string itemRef, string localPath, bool overwrite = false, CancellationToken ct = default)
     {
         string drive = PathResolver.RequireDriveId(driveId);
+        await RequireDriveAsync(drive, "sharepoint_download_file", ct).ConfigureAwait(false);
         string dest = PathResolver.RequireAbsolutePath(localPath);
         if (_fileSystem.File.Exists(dest) && !overwrite)
         {
@@ -311,6 +337,7 @@ public sealed class GraphSharePointService : IGraphSharePointService
         string driveId, string name, string parentRef = "root", CancellationToken ct = default)
     {
         string drive = PathResolver.RequireDriveId(driveId);
+        await RequireDriveAsync(drive, "sharepoint_create_folder", ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['/', '\\']) >= 0)
         {
             throw GraphServiceException.InvalidRequest(
@@ -345,6 +372,7 @@ public sealed class GraphSharePointService : IGraphSharePointService
         CancellationToken ct = default)
     {
         string drive = PathResolver.RequireDriveId(driveId);
+        await RequireDriveAsync(drive, "sharepoint_upload_file", ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(fileName) || fileName.IndexOfAny(['/', '\\']) >= 0)
         {
             throw GraphServiceException.InvalidRequest(
@@ -604,6 +632,7 @@ public sealed class GraphSharePointService : IGraphSharePointService
         CancellationToken ct = default)
     {
         string drive = PathResolver.RequireDriveId(driveId);
+        await RequireDriveAsync(drive, "sharepoint_move_item", ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(itemId))
         {
             throw GraphServiceException.MissingRef("itemId");
@@ -639,8 +668,30 @@ public sealed class GraphSharePointService : IGraphSharePointService
         string rootId = (await _client.Drives[driveId].Root
             .GetAsync(c => c.QueryParameters.Select = ["id"], ct).ConfigureAwait(false))?.Id
             ?? throw GraphServiceException.GraphError(0, null, "Drive root returned no id.");
-        _rootIds[driveId] = rootId;
+        _rootIds.TryAdd(driveId, rootId);
         return rootId;
+    }
+
+    /// <summary>Validates that <paramref name="driveId"/> addresses a real
+    /// drive (cached root lookup): a 404 here means drive-not-found, while a
+    /// 404 on a later item lookup means item-not-found. Call first in every
+    /// public drive operation so the two cases stay distinguishable.</summary>
+    private async Task RequireDriveAsync(string driveId, string operation, CancellationToken ct)
+    {
+        try
+        {
+            await RootIdAsync(driveId, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            var mapped = GraphErrorMapper.ToGraphServiceException(ex, operation, "sharepoint-drive");
+            if (mapped.Code == "item-not-found")
+            {
+                throw GraphServiceException.SharePointDriveNotFound(driveId, operation);
+            }
+
+            throw mapped;
+        }
     }
 
     private async Task<string> ResolveIdAsync(string driveId, string itemRef, CancellationToken ct)

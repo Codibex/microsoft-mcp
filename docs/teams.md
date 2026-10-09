@@ -17,8 +17,13 @@ permissions (no admin needed in most tenants, otherwise ask yours):
 
 **API permissions → Add → Microsoft Graph → Delegated:**
 `User.Read`, `Team.ReadBasic.All`, `ChannelMessage.Read.All`,
-`Channel.ReadBasic.All`, `Chat.ReadBasic`, `Chat.Read`,
+`Channel.ReadBasic.All`, `Chat.ReadBasic`, `Chat.Read`, `Files.Read.All`,
 `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All`.
+
+`Files.Read.All` (least-privileged delegated scope for work accounts) is
+required by `teams_get_channel_files_folder`: channel files live in
+SharePoint, so a Teams-only launch without any Files permission returns
+403 on the bridge (see the [SharePoint guide](sharepoint.md)).
 
 `OnlineMeetingAiInsight.Read.All` accesses the Meeting AI Insights API. The
 signed-in user must have a Microsoft 365 Copilot license. The transcript and

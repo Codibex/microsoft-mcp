@@ -43,6 +43,10 @@ App-Only is **not** supported by this host: SharePoint access runs via
 `/sites/*` and needs a signed-in user (service access would require
 `Sites.Selected` and a different path scheme – out of scope).
 
+Work or school accounts only: the Sites APIs (`Sites.Read.All` delegated)
+are not supported for personal Microsoft accounts, so `TenantId=consumers`
+cannot work here – use your org tenant GUID.
+
 ## 3. Config (same 2 values as Outlook)
 
 ```bash
@@ -53,10 +57,8 @@ dotnet user-secrets set "Graph:ClientId" "<client-id>" \
 ```
 
 The host template defaults `DelegatedScopes` to the SharePoint scopes, so no
-scope config is needed. For supported personal-account scenarios, use
-`Graph:TenantId=consumers` with a personal-only app, or `common` with an org
-and personal app (see [Outlook troubleshooting](outlook.md#9-troubleshooting)).
-Headless:
+scope config is needed. Personal Microsoft accounts are not supported
+(see section 2); headless setups use
 `Graph:DelegatedFlow` = `DeviceCode`.
 SharePoint has no `policy.json` section because its tools do not send to
 recipients, invite attendees or append AI disclosures.
@@ -109,7 +111,8 @@ Teams shortcut: `teams_get_channel_files_folder("<teamId>", "<channelId>")`
 - `sharepoint_list_site_drives` – document libraries (drives) of a site
 - `sharepoint_get_item` – metadata of one file or folder on a drive
 - `sharepoint_list_children` – folder contents, folders first (default `root`, up to 200;
-  pages through all children before sorting, so folders are never cut off by paging)
+  pages up to 5000 children before sorting folders-first and applying top,
+  so very large folders may omit entries beyond that scan limit)
 - `sharepoint_search_files` – name/keyword search on a drive
 - `sharepoint_download_file` – without `localPath`: text decoded (truncated at
   20000 chars), binary as base64; above `maxBytes` (default 768 KB, max 2097152)

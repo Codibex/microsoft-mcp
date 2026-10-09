@@ -69,13 +69,20 @@ public sealed class GraphTeamsService : IGraphTeamsService
         RequireId(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
         string tid = teamId.Trim();
         string cid = channelId.Trim();
-        var folder = await _client.Teams[tid].Channels[cid].FilesFolder.GetAsync(c =>
-        {
-            c.QueryParameters.Select = ["id", "name", "webUrl", "parentReference"];
-        }, ct).ConfigureAwait(false);
+        // NOTE: the v1.0 filesFolder endpoint documents no OData query
+        // parameters, so no $select is sent (it would fail with HTTP 400).
+        var folder = await _client.Teams[tid].Channels[cid].FilesFolder
+            .GetAsync(cancellationToken: ct).ConfigureAwait(false);
         if (folder?.Id is null)
         {
             throw GraphServiceException.ChannelFilesFolderNotFound(channelId, "teams_get_channel_files_folder");
+        }
+
+        if (string.IsNullOrWhiteSpace(folder.ParentReference?.DriveId))
+        {
+            throw GraphServiceException.InvalidRequest(
+                $"Files folder for channel '{channelId}' has no drive id.",
+                "the channel storage may not be provisioned yet; open the Files tab in Teams once, then retry");
         }
 
         return new ChannelFilesFolderInfo(
