@@ -23,4 +23,18 @@ internal static class PathResolver
 
         return itemRef.Trim();
     }
+
+    /// <summary>Host paths for path-based up/download. Must be absolute so a
+    /// tool call can only address explicit locations (no CWD surprises).</summary>
+    internal static string RequireAbsolutePath(string localPath, string what = "localPath")
+    {
+        if (string.IsNullOrWhiteSpace(localPath) || !Path.IsPathFullyQualified(localPath.Trim()))
+        {
+            throw MicrosoftMcp.Common.GraphServiceException.InvalidRequest(
+                $"{what} must be an absolute path.",
+                "pass a full path, e.g. \"/home/user/datei.pdf\" or \"C:\\Daten\\datei.pdf\"");
+        }
+
+        return Path.GetFullPath(localPath.Trim());
+    }
 }

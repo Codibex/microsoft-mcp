@@ -150,6 +150,37 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
             null, Convert.ToBase64String(node.Content), false));
     }
 
+    public Task<FileContentDto> DownloadToFileAsync(
+        string itemRef, string localPath, bool overwrite = false, CancellationToken ct = default)
+    {
+        string dest = PathResolver.RequireAbsolutePath(localPath);
+        if (File.Exists(dest) && !overwrite)
+        {
+            throw GraphServiceException.InvalidRequest(
+                $"Local file '{dest}' already exists.",
+                "pass overwrite:true to replace it, or choose another localPath");
+        }
+
+        var node = Get(itemRef);
+        if (node.IsFolder)
+        {
+            throw GraphServiceException.InvalidRequest(
+                $"Drive item '{node.Name}' is a folder.",
+                "download files only; use onedrive_list_children to browse folders");
+        }
+
+        string? directory = Path.GetDirectoryName(dest);
+        if (directory is not null)
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        File.WriteAllBytes(dest, node.Content);
+        return Task.FromResult(new FileContentDto(
+            node.Id, node.Name, node.MimeType, node.Content.Length, "file",
+            null, null, false, dest));
+    }
+
     public Task<DriveItemSummary> CreateFolderAsync(
         string name, string parentRef = "root", CancellationToken ct = default)
     {
@@ -177,6 +208,7 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
         string? parentRef = null,
         string? contentText = null,
         string? contentBase64 = null,
+        string? localPath = null,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(fileName) || fileName.IndexOfAny(['/', '\\']) >= 0)
@@ -187,28 +219,56 @@ internal sealed class FakeGraphDriveService : IGraphDriveService
         }
 
         byte[] bytes;
-        try
+        if (localPath is not null)
         {
-            bytes = contentText is not null
-                ? System.Text.Encoding.UTF8.GetBytes(contentText)
-                : contentBase64 is not null
-                    ? Convert.FromBase64String(contentBase64)
-                    : throw GraphServiceException.InvalidRequest(
-                        "Either contentText or contentBase64 is required.",
-                        "pass text directly or base64 for binary files");
-        }
-        catch (FormatException)
-        {
-            throw GraphServiceException.InvalidRequest(
-                "contentBase64 is not valid base64.",
-                "pass correctly padded base64, or use contentText for text files");
-        }
+            if (contentText is not null || contentBase64 is not null)
+            {
+                throw GraphServiceException.InvalidRequest(
+                    "Provide either localPath or inline content, not both.",
+                    "use localPath for files on disk, contentText for small snippets");
+            }
 
-        if (bytes.Length > 4_194_304)
+            string full = PathResolver.RequireAbsolutePath(localPath);
+            if (!File.Exists(full))
+            {
+                throw GraphServiceException.InvalidRequest(
+                    $"Local file '{full}' does not exist.",
+                    "pass the absolute path of an existing file on the host");
+            }
+
+            bytes = File.ReadAllBytes(full);
+            if (bytes.Length > 104_857_600)
+            {
+                throw GraphServiceException.InvalidRequest(
+                    $"Local file is {bytes.Length} bytes, above the 104857600 byte tool limit.",
+                    "upload it via the OneDrive UI (API sessions support up to 250 GB)");
+            }
+        }
+        else
         {
-            throw GraphServiceException.InvalidRequest(
-                $"File is {bytes.Length} bytes, above the 4194304 byte simple-upload limit.",
-                "split the file or upload it via OneDrive UI");
+            try
+            {
+                bytes = contentText is not null
+                    ? System.Text.Encoding.UTF8.GetBytes(contentText)
+                    : contentBase64 is not null
+                        ? Convert.FromBase64String(contentBase64)
+                        : throw GraphServiceException.InvalidRequest(
+                            "Either contentText, contentBase64 or localPath is required.",
+                            "pass text directly, base64 for small binaries, or a localPath for files on disk");
+            }
+            catch (FormatException)
+            {
+                throw GraphServiceException.InvalidRequest(
+                    "contentBase64 is not valid base64.",
+                    "pass correctly padded base64, or use contentText for text files");
+            }
+
+            if (bytes.Length > 4_194_304)
+            {
+                throw GraphServiceException.InvalidRequest(
+                    $"Inline content is {bytes.Length} bytes, above the 4194304 byte simple-upload limit.",
+                    "write the content to a file and pass its absolute localPath (resumable upload)");
+            }
         }
 
         var parent = Get(parentRef ?? "root");

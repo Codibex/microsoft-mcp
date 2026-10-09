@@ -19,7 +19,8 @@ public sealed record DriveItemSummary(
     DateTimeOffset? LastModified,
     int ChildCount);
 
-/// <summary>File content. Encoding is text or base64 (see read limits).</summary>
+/// <summary>File content. Encoding is text, base64 or file (saved to
+/// <see cref="LocalPath"/> on the host; bytes bypass the model context).</summary>
 public sealed record FileContentDto(
     string Id,
     string Name,
@@ -28,4 +29,5 @@ public sealed record FileContentDto(
     string Encoding,
     string? Text,
     string? DataBase64,
-    bool Truncated);
+    bool Truncated,
+    string? LocalPath = null);

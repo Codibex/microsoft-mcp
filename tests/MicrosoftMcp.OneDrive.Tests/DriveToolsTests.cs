@@ -96,6 +96,73 @@ public sealed class DriveToolsTests
     }
 
     [Fact]
+    public async Task Upload_from_local_path_reads_bytes_from_disk()
+    {
+        var tools = Create(new FakeGraphDriveService());
+        string path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, "Dateiinhalt von Platte");
+            var uploaded = ToolResults.Ok<DriveItemSummary>(
+                await tools.onedrive_upload_file("platte.txt", "root", localPath: path));
+            uploaded.Name.Should().Be("platte.txt");
+
+            var downloaded = ToolResults.Ok<FileContentDto>(await tools.onedrive_download_file(uploaded.Id));
+            downloaded.Text.Should().Be("Dateiinhalt von Platte");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Upload_local_path_validation_errors_carry_codes()
+    {
+        var tools = Create(new FakeGraphDriveService());
+        string missing = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        ToolResults.Fail(await tools.onedrive_upload_file("x.txt", localPath: "relativ/pfad.txt"))
+            .Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.onedrive_upload_file("x.txt", localPath: missing))
+            .Should().Contain("[invalid-request]");
+        ToolResults.Fail(await tools.onedrive_upload_file("x.txt", contentText: "a", localPath: missing))
+            .Should().Contain("[invalid-request]");
+    }
+
+    [Fact]
+    public async Task Download_to_local_path_bypasses_model_context()
+    {
+        var tools = Create(new FakeGraphDriveService());
+        string dir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        string dest = Path.Combine(dir, "notiz.txt");
+        try
+        {
+            var saved = ToolResults.Ok<FileContentDto>(
+                await tools.onedrive_download_file("f-note", localPath: dest));
+            saved.Encoding.Should().Be("file");
+            saved.LocalPath.Should().Be(dest);
+            saved.Text.Should().BeNull();
+            saved.DataBase64.Should().BeNull();
+            File.ReadAllText(dest).Should().Contain("Hallo Welt");
+
+            ToolResults.Fail(await tools.onedrive_download_file("f-note", localPath: dest))
+                .Should().Contain("[invalid-request]");
+
+            var again = ToolResults.Ok<FileContentDto>(
+                await tools.onedrive_download_file("f-note", localPath: dest, overwrite: true));
+            again.LocalPath.Should().Be(dest);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task Upload_validation_errors_carry_codes()
     {
         var tools = Create(new FakeGraphDriveService());
