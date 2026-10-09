@@ -97,6 +97,31 @@ public sealed class GraphServiceException : Exception
         $"Meeting insight '{insightId}' was not found during {operation}.",
         "call teams_list_meeting_insights with the online meeting id to get valid insight ids");
 
+    public static GraphServiceException TodoListNotFound(string listId, string operation) => Create(
+        "todo-list-not-found",
+        $"To Do list '{listId}' was not found during {operation}.",
+        "call todo_list_lists to get valid list ids");
+
+    public static GraphServiceException TodoTaskNotFound(string taskId, string operation) => Create(
+        "todo-task-not-found",
+        $"To Do task '{taskId}' was not found during {operation}.",
+        "call todo_list_tasks to get valid task ids (use 'id', not a web link)");
+
+    public static GraphServiceException PlannerPlanNotFound(string planId, string operation) => Create(
+        "planner-plan-not-found",
+        $"Planner plan '{planId}' was not found during {operation}.",
+        "call planner_list_plans with the group id to get valid plan ids");
+
+    public static GraphServiceException PlannerTaskNotFound(string taskId, string operation) => Create(
+        "planner-task-not-found",
+        $"Planner task '{taskId}' was not found during {operation}.",
+        "call planner_list_my_tasks or planner_list_plan_tasks to get valid task ids");
+
+    public static GraphServiceException GroupNotFound(string groupId, string operation) => Create(
+        "group-not-found",
+        $"Group '{groupId}' was not found during {operation}.",
+        "verify the group id (Microsoft 365 group backing the plan) and that Group.Read.All is consented");
+
     public static GraphServiceException MissingRef(string what = "itemRef") => Create(
         "invalid-request",
         $"{what} must not be empty.",

@@ -12,6 +12,10 @@
     <Project Path="src/MicrosoftMcp.Outlook/MicrosoftMcp.Outlook.csproj" />
     <Project Path="src/MicrosoftMcp.Teams.Host/MicrosoftMcp.Teams.Host.csproj" />
     <Project Path="src/MicrosoftMcp.Teams/MicrosoftMcp.Teams.csproj" />
+    <Project Path="src/MicrosoftMcp.Todo.Host/MicrosoftMcp.Todo.Host.csproj" />
+    <Project Path="src/MicrosoftMcp.Todo/MicrosoftMcp.Todo.csproj" />
+    <Project Path="src/MicrosoftMcp.Planner.Host/MicrosoftMcp.Planner.Host.csproj" />
+    <Project Path="src/MicrosoftMcp.Planner/MicrosoftMcp.Planner.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MicrosoftMcp.Calendar.Tests/MicrosoftMcp.Calendar.Tests.csproj" />
@@ -21,5 +25,7 @@
     <Project Path="tests/MicrosoftMcp.SharePoint.Tests/MicrosoftMcp.SharePoint.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Outlook.Tests/MicrosoftMcp.Outlook.Tests.csproj" />
     <Project Path="tests/MicrosoftMcp.Teams.Tests/MicrosoftMcp.Teams.Tests.csproj" />
+    <Project Path="tests/MicrosoftMcp.Todo.Tests/MicrosoftMcp.Todo.Tests.csproj" />
+    <Project Path="tests/MicrosoftMcp.Planner.Tests/MicrosoftMcp.Planner.Tests.csproj" />
   </Folder>
 </Solution>

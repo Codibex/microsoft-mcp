@@ -13,6 +13,8 @@ public sealed class SetupGuideTests
         SetupGuide.ValidateCombination(["outlook", "calendar"], AuthMode.AppOnly).Should().NotBeNull();
         SetupGuide.ValidateCombination(["teams"], AuthMode.AppOnly).Should().NotBeNull();
         SetupGuide.ValidateCombination(["onedrive"], AuthMode.AppOnly).Should().NotBeNull();
+        SetupGuide.ValidateCombination(["todo"], AuthMode.AppOnly).Should().NotBeNull();
+        SetupGuide.ValidateCombination(["planner"], AuthMode.AppOnly).Should().NotBeNull();
     }
 
     [Fact]
