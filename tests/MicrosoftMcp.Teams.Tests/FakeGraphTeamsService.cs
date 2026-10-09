@@ -79,6 +79,21 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
             [.. _channels.Values.Where(c => c.TeamId == teamId.Trim()).Select(c => c.Channel)]);
     }
 
+    public Task<ChannelFilesFolderInfo> GetChannelFilesFolderAsync(
+        string teamId, string channelId, CancellationToken ct = default)
+    {
+        Require(teamId, "teamId", "call teams_list_teams to get valid team ids");
+        Require(channelId, "channelId", "call teams_list_channels for the team to get valid channel ids");
+        if (!_channels.TryGetValue(channelId.Trim(), out var ch) || ch.TeamId != teamId.Trim())
+        {
+            throw GraphServiceException.ChannelNotFound(channelId, "fake");
+        }
+
+        return Task.FromResult(new ChannelFilesFolderInfo(
+            teamId.Trim(), ch.Channel.Id, $"drive-{ch.Channel.Id}", $"folder-{ch.Channel.Id}",
+            ch.Channel.DisplayName, "site-eng", "https://contoso.sharepoint.com/folder"));
+    }
+
     private IReadOnlyList<StoredMessage> Thread(string ownerId, string? parentId, int top) =>
         [.. _messages.Values
             .Where(m => m.OwnerId == ownerId && m.ParentId == parentId)

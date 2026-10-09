@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using MicrosoftMcp.Calendar;
 using MicrosoftMcp.OneDrive;
 using MicrosoftMcp.Outlook;
+using MicrosoftMcp.SharePoint;
 using MicrosoftMcp.Teams;
 using ModelContextProtocol.Server;
 
@@ -20,7 +21,8 @@ public sealed class ToolNamingTests
         (typeof(OutlookTools), "outlook_"),
         (typeof(DriveTools), "onedrive_"),
         (typeof(CalendarTools), "calendar_"),
-        (typeof(TeamsTools), "teams_")
+        (typeof(TeamsTools), "teams_"),
+        (typeof(SharePointTools), "sharepoint_")
     ];
 
     private static IReadOnlyList<(string ToolSet, string Name)> AllTools() =>
@@ -33,7 +35,7 @@ public sealed class ToolNamingTests
     public void All_tool_names_are_unique_across_domains()
     {
         var names = AllTools().Select(t => t.Name).ToList();
-        names.Should().HaveCount(44);
+        names.Should().HaveCount(55);
         names.Should().OnlyHaveUniqueItems();
     }
 
