@@ -19,12 +19,7 @@
     "requireInternalAttendees": true,
     "allowedAttendeeDomains": ["firma.de", "tochter.firma.de"],
     "allowedAttendeeAddresses": []
-  },
-  "teams": {
-    "requireInternalRecipients": true,
-    "allowedRecipientDomains": ["firma.de", "tochter.firma.de"],
-    "allowedRecipientAddresses": [],
-    "aiDisclosureEnabled": true,
-    "aiDisclosureText": "Hinweis: Diese Nachricht wurde von einer KI erstellt und muss vor dem Versand geprüft werden."
   }
+  // Note: no "teams" section. The Teams server is read-only and ignores
+  // policy; a "teams" section in older files is still parsed but never enforced.
 }

@@ -29,13 +29,10 @@ public static class PolicySetValidator
             return outlook.FailureMessage;
         }
 
+        // No Teams validation: the Teams server is read-only and consumes no
+        // policy. The teams section is still deserialized for compatibility
+        // with existing policy files, but never enforced.
         ValidateOptionsResult calendar = new CalendarPolicyValidator().Validate(null, policies.Calendar);
-        if (calendar.Failed)
-        {
-            return calendar.FailureMessage;
-        }
-
-        ValidateOptionsResult teams = new MessagingPolicyValidator().Validate(null, policies.Teams);
-        return teams.Failed ? teams.FailureMessage : null;
+        return calendar.Failed ? calendar.FailureMessage : null;
     }
 }

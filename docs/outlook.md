@@ -250,7 +250,8 @@ per Skript — siehe 10.1):
 document accepts comments and trailing commas, but unknown properties are
 rejected. Sections are optional; an omitted section uses its unrestricted
 defaults. OneDrive has no policy section because it has no recipient, attendee
-or disclosure guard.
+or disclosure guard. Teams is likewise read-only: a `teams` section in older
+files is still accepted by the parser but never enforced.
 
 | Property | Type and default | Meaning |
 |---|---|---|

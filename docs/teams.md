@@ -16,7 +16,7 @@ In the **same app registration** (or a new one), add the delegated
 permissions (no admin needed in most tenants, otherwise ask yours):
 
 **API permissions → Add → Microsoft Graph → Delegated:**
-`User.Read`, `Team.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMember.Read.All`,
+`User.Read`, `Team.ReadBasic.All`, `ChannelMessage.Read.All`,
 `Channel.ReadBasic.All`, `Chat.ReadBasic`, `Chat.Read`,
 `OnlineMeetingTranscript.Read.All`, `OnlineMeetingAiInsight.Read.All`.
 
