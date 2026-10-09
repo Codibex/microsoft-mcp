@@ -84,15 +84,29 @@ Every item tool accepts `"root"`, an item id (from `onedrive_list_children` or
 - `onedrive_get_drive` – default drive with quota (total/used/remaining)
 - `onedrive_list_drives` – accessible drives (own OneDrive, shared libraries)
 - `onedrive_get_item` – metadata of one file or folder
-- `onedrive_list_children` – folder contents, folders first (default `root`, up to 200)
+- `onedrive_list_children` – folder contents, folders first (default `root`, up to 200;
+  pages through all children before sorting, so folders are never cut off by paging)
 - `onedrive_search_files` – name/keyword search across the drive
-- `onedrive_download_file` – text decoded (truncated at 20000 chars), binary as
-  base64; above `maxBytes` (default 768 KB, max 2097152) rejected with
-  `attachment-too-large`
+- `onedrive_download_file` – without `localPath`: text decoded (truncated at
+  20000 chars), binary as base64; above `maxBytes` (default 768 KB, max 2097152)
+  rejected with `attachment-too-large`. **With `localPath` (absolute host path):
+  streams the bytes to disk instead** – the result carries metadata + path only,
+  so large files bypass the model context. Downloads are atomic (temp file +
+  move) and refuse to overwrite without `overwrite: true`
 - `onedrive_create_folder` – renames on name conflict instead of failing
-- `onedrive_upload_file` – text or base64, simple upload up to 4194304 bytes
-  (larger files need resumable sessions – out of scope, use the OneDrive UI)
+- `onedrive_upload_file` – `localPath` (absolute host path, read from disk so
+  bytes bypass the model context) or small inline `contentText`/`contentBase64`.
+  Local files up to 4194304 bytes use simple upload, larger ones (up to
+  104857600 bytes) a resumable Graph upload session (`createUploadSession`,
+  same v1.0 endpoint – no endpoint switch needed). Existing names always get a
+  renamed copy (`name 1.ext`), never overwritten – on all upload paths.
+  Above the tool limit: OneDrive UI
 - `onedrive_move_item` – rename and/or reparent; move back to undo
+
+Large-file transfers never pass through the model: the model only sends short
+path strings (like `cp` arguments), the host process moves the bytes. Paths must
+be absolute. Note: like `cp`, a path-based upload can exfiltrate any host file
+the process can read – only point it at files you intend to share.
 
 ## 8. Error codes (returned as `isError` results with a `Next:` hint)
 
