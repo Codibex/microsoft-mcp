@@ -22,6 +22,15 @@ public sealed class GraphTeamsService : IGraphTeamsService
     /// forever (same pattern as GraphTodoService.MaxScannedTasks).</summary>
     private const int MaxScannedChats = 500;
 
+    /// <summary>Member cap for teams_list_chat_members (same idea as
+    /// MaxScannedChats; group chats stay far below this).</summary>
+    private const int MaxChatMembers = 500;
+
+    /// <summary>Page cap for teams_list_chat_members so empty or pathological
+    /// continuation pages cannot loop forever even if MaxChatMembers is never
+    /// reached.</summary>
+    private const int MaxChatMemberPages = 20;
+
     public GraphTeamsService(
         GraphServiceClient client,
         IOptions<GraphAuthOptions> options)
@@ -201,6 +210,50 @@ public sealed class GraphTeamsService : IGraphTeamsService
             return await _client.Me.Chats.GetAsync(c => c.QueryParameters.Top = ChatPageSize, ct)
                 .ConfigureAwait(false);
         }
+    }
+
+    /// <summary>Members of one chat. The endpoint documents no OData query
+    /// parameters, so only Graph's continuation link (if any) is followed,
+    /// bounded by MaxChatMembers and MaxChatMemberPages.</summary>
+    public async Task<IReadOnlyList<ChatMemberInfo>> ListChatMembersAsync(
+        string chatId, CancellationToken ct = default)
+    {
+        RequireId(chatId, "chatId", "call teams_list_chats to get valid chat ids");
+        string id = chatId.Trim();
+        var members = new List<ConversationMember>();
+        var page = await _client.Me.Chats[id].Members
+            .GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        int pages = 0;
+        while (page is not null)
+        {
+            pages++;
+            if (page.Value is { Count: > 0 } items)
+            {
+                int remaining = MaxChatMembers - members.Count;
+                if (items.Count <= remaining)
+                {
+                    members.AddRange(items);
+                }
+                else
+                {
+                    members.AddRange(items.Take(remaining));
+                }
+            }
+
+            if (members.Count >= MaxChatMembers
+                || pages >= MaxChatMemberPages
+                || string.IsNullOrWhiteSpace(page.OdataNextLink))
+            {
+                break;
+            }
+
+            page = await _client.Me.Chats[id].Members
+                .WithUrl(page.OdataNextLink)
+                .GetAsync(cancellationToken: ct)
+                .ConfigureAwait(false);
+        }
+
+        return [.. members.Select(TeamsMapper.MapChatMember)];
     }
 
     public async Task<IReadOnlyList<MessageSummary>> ListChatMessagesAsync(

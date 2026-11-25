@@ -63,6 +63,11 @@ public sealed class TeamsToolsTests
         chats.Should().ContainSingle(c => c.Id == "chat-1");
         chats[0].Members.Should().Contain(m => m.DisplayName == "Bob" && m.Email == "bob@contoso.com");
 
+        var members = ToolResults.Ok<List<ChatMemberInfo>>(
+            await tools.teams_list_chat_members("chat-1"));
+        members.Select(m => m.DisplayName).Should().Contain("Bob");
+        members[0].Email.Should().Be("alice@contoso.com");
+
         var messages = ToolResults.Ok<List<MessageSummary>>(
             await tools.teams_list_chat_messages("chat-1"));
         messages.Should().ContainSingle(m => m.Id == "cm-1");
@@ -121,6 +126,7 @@ public sealed class TeamsToolsTests
         ToolResults.Fail(await tools.teams_read_channel_message("t-eng", "c-general", "nope"))
             .Should().Contain("[channel-message-not-found]");
         ToolResults.Fail(await tools.teams_list_chat_messages("no-chat")).Should().Contain("[chat-not-found]");
+        ToolResults.Fail(await tools.teams_list_chat_members("no-chat")).Should().Contain("[chat-not-found]");
         ToolResults.Fail(await tools.teams_read_chat_message("chat-1", "  ")).Should().Contain("[invalid-request]");
         ToolResults.Fail(await tools.teams_read_meeting_transcript("meeting-1", "nope"))
             .Should().Contain("[meeting-transcript-not-found]");

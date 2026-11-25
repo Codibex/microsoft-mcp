@@ -17,6 +17,11 @@ public interface IGraphTeamsService
     Task<MessageDetail> ReadChannelMessageAsync(
         string teamId, string channelId, string messageId, CancellationToken ct = default);
     Task<IReadOnlyList<ChatInfo>> ListChatsAsync(int top = 25, CancellationToken ct = default);
+    /// <summary>Members of one chat (displayName/email/userId/roles).
+    /// Chat.ReadBasic is enough; needed for group chats beyond the
+    /// 25-member $expand=members cap of teams_list_chats.</summary>
+    Task<IReadOnlyList<ChatMemberInfo>> ListChatMembersAsync(
+        string chatId, CancellationToken ct = default);
     Task<IReadOnlyList<MessageSummary>> ListChatMessagesAsync(
         string chatId, int top = 25, CancellationToken ct = default);
     Task<MessageDetail> ReadChatMessageAsync(
