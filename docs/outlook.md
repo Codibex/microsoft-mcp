@@ -9,7 +9,7 @@ always reversible (trash, no hard delete).
 
 | Account | Mode | Config | Status |
 |---|---|---|---|
-| Work (org tenant) | Delegated | `TenantId` = tenant GUID | Implemented, live test pending (only tested with a mailbox-less account so far) |
+| Work (org tenant) | Delegated | `TenantId` = tenant GUID | ✅ Live-verified |
 | Personal (`outlook.com` etc.) | Delegated | `TenantId` = `consumers` for a personal-only app, or `common` for an org + personal app; token v2 | ✅ Live-verified (real mails read) |
 | Service / foreign mailboxes | App-Only | + `UserIdOrUpn`, `ClientSecret`, admin consent | Implemented, untested |
 
