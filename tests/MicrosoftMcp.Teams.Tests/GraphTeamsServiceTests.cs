@@ -202,6 +202,51 @@ public sealed class GraphTeamsServiceTests
     }
 
     [Fact]
+    public async Task ListChatMembers_enforces_the_500_member_cap_within_a_page_and_stops()
+    {
+        // Two 300-member pages both advertising a continuation: the second page
+        // must be truncated to the remaining 200 members and no 3rd page fetched.
+        var handler = new SequenceHandler(
+            MemberPage(0, count: 300),
+            MemberPage(1, count: 300));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var members = await service.ListChatMembersAsync("chat-1");
+
+        members.Should().HaveCount(500);
+        members[0].DisplayName.Should().Be("Member 0-0");
+        members[^1].DisplayName.Should().Be("Member 1-199");
+        handler.Requests.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ListChatMembers_stops_at_the_page_cap_on_empty_continuations()
+    {
+        // Repeating empty pages with a non-empty @odata.nextLink must consume
+        // the page budget instead of looping forever.
+        var handler = new SequenceHandler(
+            Enumerable.Range(0, 20).Select(i => MemberPage(i, count: 0)).ToArray());
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var members = await service.ListChatMembersAsync("chat-1");
+
+        members.Should().BeEmpty();
+        handler.Requests.Should().HaveCount(20);
+    }
+
+    [Fact]
     public async Task ReadOnly_message_and_chat_reads_use_supported_paths_and_queries()
     {
         var handler = new SequenceHandler(
@@ -345,6 +390,30 @@ public sealed class GraphTeamsServiceTests
         {
             payload["@odata.nextLink"] =
                 $"https://graph.microsoft.com/v1.0/me/chats?$skiptoken=p{page + 1}";
+        }
+
+        return Response(JsonSerializer.Serialize(payload));
+    }
+
+    /// <summary>A chat-members page with <paramref name="count"/> items and an optional @odata.nextLink.</summary>
+    private static HttpResponseMessage MemberPage(int page, int count, bool more = true)
+    {
+        var value = Enumerable.Range(0, count)
+            .Select(n => new Dictionary<string, object?>
+            {
+                ["@odata.type"] = "#microsoft.graph.aadUserConversationMember",
+                ["id"] = $"m-{page}-{n}",
+                ["displayName"] = $"Member {page}-{n}",
+                ["email"] = $"member-{page}-{n}@contoso.com",
+                ["userId"] = $"u-{page}-{n}",
+                ["roles"] = Array.Empty<string>()
+            })
+            .ToArray();
+        var payload = new Dictionary<string, object?> { ["value"] = value };
+        if (more)
+        {
+            payload["@odata.nextLink"] =
+                $"https://graph.microsoft.com/v1.0/me/chats/chat-1/members?$skiptoken=p{page + 1}";
         }
 
         return Response(JsonSerializer.Serialize(payload));

@@ -26,6 +26,11 @@ public sealed class GraphTeamsService : IGraphTeamsService
     /// MaxScannedChats; group chats stay far below this).</summary>
     private const int MaxChatMembers = 500;
 
+    /// <summary>Page cap for teams_list_chat_members so empty or pathological
+    /// continuation pages cannot loop forever even if MaxChatMembers is never
+    /// reached.</summary>
+    private const int MaxChatMemberPages = 20;
+
     public GraphTeamsService(
         GraphServiceClient client,
         IOptions<GraphAuthOptions> options)
@@ -209,7 +214,7 @@ public sealed class GraphTeamsService : IGraphTeamsService
 
     /// <summary>Members of one chat. The endpoint documents no OData query
     /// parameters, so only Graph's continuation link (if any) is followed,
-    /// bounded by MaxChatMembers.</summary>
+    /// bounded by MaxChatMembers and MaxChatMemberPages.</summary>
     public async Task<IReadOnlyList<ChatMemberInfo>> ListChatMembersAsync(
         string chatId, CancellationToken ct = default)
     {
@@ -218,10 +223,25 @@ public sealed class GraphTeamsService : IGraphTeamsService
         var members = new List<ConversationMember>();
         var page = await _client.Me.Chats[id].Members
             .GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        int pages = 0;
         while (page is not null)
         {
-            members.AddRange(page.Value ?? []);
+            pages++;
+            if (page.Value is { Count: > 0 } items)
+            {
+                int remaining = MaxChatMembers - members.Count;
+                if (items.Count <= remaining)
+                {
+                    members.AddRange(items);
+                }
+                else
+                {
+                    members.AddRange(items.Take(remaining));
+                }
+            }
+
             if (members.Count >= MaxChatMembers
+                || pages >= MaxChatMemberPages
                 || string.IsNullOrWhiteSpace(page.OdataNextLink))
             {
                 break;
