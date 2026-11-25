@@ -136,9 +136,23 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
                 : throw GraphServiceException.TeamsMessageNotFound(messageId, "fake"));
     }
 
-    public Task<IReadOnlyList<ChatInfo>> ListChatsAsync(int top = 25, CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<ChatInfo>>(
-            [.. _chats.Values.Take(Math.Clamp(top, 1, 50))]);
+    public Task<IReadOnlyList<ChatInfo>> ListChatsAsync(
+        int top = 25,
+        int skip = 0,
+        string? chatType = null,
+        string? orderBy = null,
+        CancellationToken ct = default)
+    {
+        IEnumerable<ChatInfo> query = _chats.Values;
+        if (!string.IsNullOrWhiteSpace(chatType))
+        {
+            query = query.Where(c => string.Equals(c.ChatType, chatType.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        query = query.OrderByDescending(c => c.LastUpdated ?? DateTimeOffset.MinValue);
+        return Task.FromResult<IReadOnlyList<ChatInfo>>(
+            [.. query.Skip(Math.Max(skip, 0)).Take(Math.Clamp(top, 1, 50))]);
+    }
 
     public Task<IReadOnlyList<ChatMemberInfo>> ListChatMembersAsync(
         string chatId, CancellationToken ct = default)

@@ -81,11 +81,14 @@ public sealed class TeamsTools(IGraphTeamsService teams, ILogger<TeamsTools> log
         CancellationToken ct = default) =>
         InvokeAsync("teams_read_channel_message", () => teams.ReadChannelMessageAsync(teamId, channelId, messageId, ct));
 
-    [McpServerTool, Description("List recent chats (1:1 and group), newest activity first, including the participants' names and emails. Read-only.")]
+    [McpServerTool, Description("List recent chats (1:1, group, meeting) with participants' names and emails. Supports paging (skip), chatType filtering, and ordering. Read-only.")]
     public Task<CallToolResult> teams_list_chats(
         [Description("Max chats 1-50")] int top = 25,
+        [Description("Number of chats to skip for paging (default 0)")] int skip = 0,
+        [Description("Optional chat type filter: 'oneOnOne', 'group', or 'meeting'")] string? chatType = null,
+        [Description("Sort order: 'lastMessage' (default, newest message first) or 'lastUpdated' (chat metadata updated desc)")] string? orderBy = null,
         CancellationToken ct = default) =>
-        InvokeAsync("teams_list_chats", () => teams.ListChatsAsync(top, ct), "chat");
+        InvokeAsync("teams_list_chats", () => teams.ListChatsAsync(top, skip, chatType, orderBy, ct), "chat");
 
     [McpServerTool, Description("List the members of a chat: display name, email, user id and roles. Read-only.")]
     public Task<CallToolResult> teams_list_chat_members(
