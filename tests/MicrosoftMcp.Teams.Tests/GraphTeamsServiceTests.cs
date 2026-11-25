@@ -169,6 +169,39 @@ public sealed class GraphTeamsServiceTests
     }
 
     [Fact]
+    public async Task ListChatMembers_maps_identity_and_follows_the_continuation()
+    {
+        var handler = new SequenceHandler(
+            Response("""
+                {"value":[{"@odata.type":"#microsoft.graph.aadUserConversationMember","id":"m-1","displayName":"Bob","email":"bob@contoso.com","userId":"u-bob","roles":[]}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/chats/chat-1/members?$skiptoken=next"}
+                """),
+            Response("""
+                {"value":[{"@odata.type":"#microsoft.graph.aadUserConversationMember","id":"m-2","displayName":"Carol","email":"carol@contoso.com","userId":"u-carol","roles":["guest"]}]}
+                """));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var members = await service.ListChatMembersAsync("chat-1");
+
+        members.Select(m => m.DisplayName).Should().Equal("Bob", "Carol");
+        members[0].Email.Should().Be("bob@contoso.com");
+        members[0].UserId.Should().Be("u-bob");
+        members[0].Roles.Should().BeEmpty();
+        members[1].Roles.Should().Equal("guest");
+        handler.Requests.Should().HaveCount(2);
+        Uri.UnescapeDataString(handler.Requests[0].RequestUri!.AbsolutePath)
+            .Should().Be("/v1.0/me/chats/chat-1/members");
+        // The endpoint documents no OData query parameters.
+        handler.Requests[0].RequestUri!.Query.Should().BeEmpty();
+        handler.Requests[1].RequestUri!.Query.Should().Contain("$skiptoken=next");
+    }
+
+    [Fact]
     public async Task ReadOnly_message_and_chat_reads_use_supported_paths_and_queries()
     {
         var handler = new SequenceHandler(

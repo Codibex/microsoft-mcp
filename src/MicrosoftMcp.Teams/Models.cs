@@ -38,7 +38,8 @@ public sealed record ChatInfo(
 public sealed record ChatMemberInfo(
     string? DisplayName,
     string? Email,
-    string? UserId);
+    string? UserId,
+    IReadOnlyList<string>? Roles = null);
 
 public sealed record MeetingTranscriptInfo(
     string Id,

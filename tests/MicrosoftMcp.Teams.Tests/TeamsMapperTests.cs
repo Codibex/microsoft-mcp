@@ -31,7 +31,7 @@ public sealed class TeamsMapperTests
                     Email = "bob@contoso.com",
                     UserId = "u-bob"
                 },
-                new ConversationMember { DisplayName = "Guest" }
+                new ConversationMember { DisplayName = "Guest", Roles = ["guest"] }
             ]
         });
 
@@ -41,6 +41,7 @@ public sealed class TeamsMapperTests
         info.Members[0].UserId.Should().Be("u-bob");
         info.Members[1].DisplayName.Should().Be("Guest");
         info.Members[1].Email.Should().BeNull();
+        info.Members[1].Roles.Should().Equal("guest");
 
         TeamsMapper.MapChat(new Chat()).Members.Should().BeEmpty();
     }

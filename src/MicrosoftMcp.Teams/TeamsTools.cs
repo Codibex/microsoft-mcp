@@ -87,6 +87,12 @@ public sealed class TeamsTools(IGraphTeamsService teams, ILogger<TeamsTools> log
         CancellationToken ct = default) =>
         InvokeAsync("teams_list_chats", () => teams.ListChatsAsync(top, ct), "chat");
 
+    [McpServerTool, Description("List the members of a chat: display name, email, user id and roles. Read-only.")]
+    public Task<CallToolResult> teams_list_chat_members(
+        [Description("Chat id from teams_list_chats")] string chatId,
+        CancellationToken ct = default) =>
+        InvokeAsync("teams_list_chat_members", () => teams.ListChatMembersAsync(chatId, ct), "chat");
+
     [McpServerTool, Description("List messages of a chat.")]
     public Task<CallToolResult> teams_list_chat_messages(
         [Description("Chat id from teams_list_chats")] string chatId,

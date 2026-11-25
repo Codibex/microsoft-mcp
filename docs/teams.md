@@ -82,7 +82,7 @@ fails fast on missing values with a `Next:` hint.
 
 For production use take the published binary (or a release asset).
 
-## 6. Tools (13)
+## 6. Tools (14)
 
 - `teams_list_teams` – joined teams with id and name
 - `teams_list_channels` – channels of a team
@@ -98,6 +98,9 @@ For production use take the published binary (or a release asset).
   with the participants' names and emails (paged through Graph, scan cap
   500 chats; members come from `$expand=members`, which Graph caps at 25
   members per chat)
+- `teams_list_chat_members` – members of one chat (display name, email,
+  user id, roles); `Chat.ReadBasic` is enough and it covers group chats
+  beyond the 25-member expand cap above
 - `teams_list_chat_messages` – messages of a chat
 - `teams_read_chat_message` – full chat message
 - `teams_list_meeting_transcripts` – transcripts of a scheduled online meeting
