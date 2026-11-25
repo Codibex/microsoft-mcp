@@ -1,7 +1,7 @@
 # MicrosoftMcp
 
 Local MCP servers (Stdio) for Microsoft 365 via Microsoft Graph.
-.NET 10 / C# 14, central package management (`Directory.Packages.props`).
+.NET 11 / C# 15, central package management (`Directory.Packages.props`).
 
 | Server | Binary | Guide | Status |
 |---|---|---|---|

@@ -26,7 +26,7 @@ always reversible (trash, no hard delete).
 
 ## 1. Prerequisites (both recipes)
 
-- .NET 10 SDK (`dotnet --version` → 10.x)
+- .NET 11 SDK (`dotnet --version` → 11.x)
 - Microsoft 365 mailbox
 
 ## 2. Recipe A: Delegated (own mailbox, 2 values)

@@ -4,7 +4,6 @@
     <ProjectReference Include="..\MicrosoftMcp.Common\MicrosoftMcp.Common.csproj" />
     <PackageReference Include="Microsoft.Graph" />
     <PackageReference Include="Microsoft.Kiota.Abstractions" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="ModelContextProtocol" />
   </ItemGroup>
 

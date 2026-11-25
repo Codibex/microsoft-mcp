@@ -20,7 +20,7 @@ library. Read, create and move only – **no delete**.
 
 ## 1. Prerequisites
 
-- .NET 10 SDK (`dotnet --version` → 10.x)
+- .NET 11 SDK (`dotnet --version` → 11.x)
 - Microsoft 365 SharePoint access
 - An Entra app registration (can be the same one as for Outlook/Teams)
 

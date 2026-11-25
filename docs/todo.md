@@ -13,7 +13,7 @@ editable, syncs to the phone.
 
 ## 1. Prerequisites
 
-- .NET 10 SDK (`dotnet --version` → 10.x)
+- .NET 11 SDK (`dotnet --version` → 11.x)
 - A Microsoft 365 / Microsoft account with To Do
 
 ## 2. Entra setup (one time)

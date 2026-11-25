@@ -5,7 +5,6 @@
     <PackageReference Include="Microsoft.Graph" />
     <PackageReference Include="System.IO.Abstractions" />
     <PackageReference Include="Microsoft.Kiota.Abstractions" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="ModelContextProtocol" />
   </ItemGroup>
 

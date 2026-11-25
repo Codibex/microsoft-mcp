@@ -8,7 +8,7 @@ operation is exposed.
 
 ## 1. Prerequisites
 
-- .NET 10 SDK (`dotnet --version` → 10.x)
+- .NET 11 SDK (`dotnet --version` → 11.x)
 - Microsoft 365 mailbox with a calendar
 
 ## 2. Entra setup (one time)
