@@ -14,6 +14,10 @@ public sealed class GraphTeamsService : IGraphTeamsService
     private readonly GraphServiceClient _client;
     private readonly string _userIdOrUpn;
 
+    /// <summary>Page size sent to the chat listing request; the scan budget
+    /// below is expressed in chats and divided by it.</summary>
+    private const int ChatPageSize = 50;
+
     /// <summary>Scan cap so one call cannot page a pathological chat list
     /// forever (same pattern as GraphTodoService.MaxScannedTasks).</summary>
     private const int MaxScannedChats = 500;
@@ -150,11 +154,18 @@ public sealed class GraphTeamsService : IGraphTeamsService
         // GraphTodoService.ListTasksAsync).
         var chats = new List<Chat>();
         var page = await GetChatsPageAsync(ct).ConfigureAwait(false);
-        while (page is not null && chats.Count < MaxScannedChats)
+        int pages = 0;
+        while (page is not null)
         {
-            IReadOnlyList<Chat> raw = page.Value ?? [];
-            chats.AddRange(raw);
-            if (raw.Count == 0 || string.IsNullOrWhiteSpace(page.OdataNextLink))
+            pages++;
+            chats.AddRange(page.Value ?? []);
+            // Stop *before* the next request: no continuation left, or the
+            // budget for MaxScannedChats chats is spent – never fetch a page
+            // whose result would be discarded. An empty page that still
+            // carries a continuation is followed (the page budget bounds it,
+            // so an empty-page stream cannot loop forever).
+            if (string.IsNullOrWhiteSpace(page.OdataNextLink)
+                || pages * ChatPageSize >= MaxScannedChats)
             {
                 break;
             }
@@ -181,13 +192,13 @@ public sealed class GraphTeamsService : IGraphTeamsService
         {
             return await _client.Me.Chats.GetAsync(c =>
             {
-                c.QueryParameters.Top = 50;
+                c.QueryParameters.Top = ChatPageSize;
                 c.QueryParameters.Expand = ["members"];
             }, ct).ConfigureAwait(false);
         }
         catch (ApiException ex) when (ex.ResponseStatusCode == 400)
         {
-            return await _client.Me.Chats.GetAsync(c => c.QueryParameters.Top = 50, ct)
+            return await _client.Me.Chats.GetAsync(c => c.QueryParameters.Top = ChatPageSize, ct)
                 .ConfigureAwait(false);
         }
     }

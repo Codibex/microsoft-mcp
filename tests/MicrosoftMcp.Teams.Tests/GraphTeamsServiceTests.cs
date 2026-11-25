@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using AwesomeAssertions;
 using Microsoft.Extensions.Options;
 using Microsoft.Graph;
@@ -120,6 +121,51 @@ public sealed class GraphTeamsServiceTests
         handler.Requests.Should().HaveCount(2);
         Uri.UnescapeDataString(handler.Requests[0].RequestUri!.Query).Should().Contain("$expand=members");
         Uri.UnescapeDataString(handler.Requests[1].RequestUri!.Query).Should().NotContain("$expand");
+    }
+
+    [Fact]
+    public async Task ListChats_stops_at_the_scan_cap_without_fetching_a_discarded_page()
+    {
+        // 10 pages × $top=50 = the 500-chat budget; every page advertises a
+        // continuation, so an 11th request would be fetched and thrown away.
+        var handler = new SequenceHandler(
+            Enumerable.Range(0, 10).Select(i => ChatPage(i)).ToArray());
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var chats = await service.ListChatsAsync();
+
+        chats.Should().HaveCount(25); // default top, taken from the newest page
+        handler.Requests.Should().HaveCount(10); // budget spent: no 11th request
+    }
+
+    [Fact]
+    public async Task ListChats_follows_an_empty_page_that_still_carries_a_continuation()
+    {
+        var handler = new SequenceHandler(
+            Response("""
+                {"value":[],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/chats?$skiptoken=next"}
+                """),
+            Response("""
+                {"value":[{"id":"chat-1","chatType":"oneOnOne","lastUpdatedDateTime":"2026-11-25T09:00:00.000Z"}]}
+                """));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var chats = await service.ListChatsAsync();
+
+        chats.Should().ContainSingle(chat => chat.Id == "chat-1");
+        handler.Requests.Should().HaveCount(2);
     }
 
     [Fact]
@@ -249,6 +295,27 @@ public sealed class GraphTeamsServiceTests
     {
         Content = new StringContent(json, Encoding.UTF8, "application/json")
     };
+
+    /// <summary>A full $top=50 chat page with an optional @odata.nextLink.</summary>
+    private static HttpResponseMessage ChatPage(int page, bool more = true)
+    {
+        var value = Enumerable.Range(0, 50)
+            .Select(n => new
+            {
+                id = $"chat-{page}-{n}",
+                chatType = "oneOnOne",
+                lastUpdatedDateTime = $"2026-01-{page + 1:D2}T00:00:00.000Z"
+            })
+            .ToArray();
+        var payload = new Dictionary<string, object?> { ["value"] = value };
+        if (more)
+        {
+            payload["@odata.nextLink"] =
+                $"https://graph.microsoft.com/v1.0/me/chats?$skiptoken=p{page + 1}";
+        }
+
+        return Response(JsonSerializer.Serialize(payload));
+    }
 
     private sealed class RecordingHandler : HttpMessageHandler
     {
