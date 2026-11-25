@@ -26,6 +26,11 @@ public interface IGraphTeamsService
         string chatId, int top = 25, CancellationToken ct = default);
     Task<MessageDetail> ReadChatMessageAsync(
         string chatId, string messageId, CancellationToken ct = default);
+    /// <summary>Search Teams messages across chats and channels via Microsoft
+    /// Search (POST /v1.0/search/query with entityTypes: ["chatMessage"]).
+    /// Work/school delegated accounts only.</summary>
+    Task<MessageSearchResult> SearchMessagesAsync(
+        string query, int top = 25, CancellationToken ct = default);
     Task<IReadOnlyList<MeetingTranscriptInfo>> ListMeetingTranscriptsAsync(
         string meetingId, int top = 25, CancellationToken ct = default);
     Task<MeetingTranscriptDetail> ReadMeetingTranscriptAsync(

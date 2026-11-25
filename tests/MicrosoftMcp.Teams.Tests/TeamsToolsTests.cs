@@ -132,6 +132,23 @@ public sealed class TeamsToolsTests
             .Should().Contain("[meeting-transcript-not-found]");
         ToolResults.Fail(await tools.teams_read_meeting_insight("meeting-1", "nope"))
             .Should().Contain("[meeting-insight-not-found]");
+        ToolResults.Fail(await tools.teams_search_messages("   "))
+            .Should().Contain("[invalid-request]");
+    }
+
+    [Fact]
+    public async Task Search_messages_returns_chat_and_channel_hits_with_fake()
+    {
+        var tools = Create(new FakeGraphTeamsService());
+
+        var chatSearch = ToolResults.Ok<MessageSearchResult>(
+            await tools.teams_search_messages("Frage"));
+        chatSearch.Hits.Should().ContainSingle(h => h.MessageId == "cm-1" && h.ChatId == "chat-1");
+
+        var channelSearch = ToolResults.Ok<MessageSearchResult>(
+            await tools.teams_search_messages("Willkommen"));
+        channelSearch.Hits.Should().ContainSingle(h =>
+            h.MessageId == "m-hello" && h.TeamId == "t-eng" && h.ChannelId == "c-general");
     }
 
     [Fact]

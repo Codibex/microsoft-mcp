@@ -102,6 +102,129 @@ internal static partial class TeamsMapper
         ReadActionItems(insight),
         ReadMentions(insight));
 
+    internal static MessageSearchResult MapSearchResult(JsonElement root)
+    {
+        if (!root.TryGetProperty("value", out var values) || values.ValueKind != JsonValueKind.Array)
+        {
+            return new MessageSearchResult([], 0, false);
+        }
+
+        var hits = new List<MessageSearchHit>();
+        int total = 0;
+        bool moreResultsAvailable = false;
+
+        foreach (JsonElement response in values.EnumerateArray())
+        {
+            if (!response.TryGetProperty("hitsContainers", out var containers)
+                || containers.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (JsonElement container in containers.EnumerateArray())
+            {
+                if (container.TryGetProperty("total", out var totalEl) && totalEl.TryGetInt32(out int t))
+                {
+                    total += t;
+                }
+
+                if (container.TryGetProperty("moreResultsAvailable", out var moreEl)
+                    && moreEl.ValueKind == JsonValueKind.True)
+                {
+                    moreResultsAvailable = true;
+                }
+
+                if (!container.TryGetProperty("hits", out var hitsEl) || hitsEl.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (JsonElement hit in hitsEl.EnumerateArray())
+                {
+                    hits.Add(MapSearchHit(hit));
+                }
+            }
+        }
+
+        return new MessageSearchResult(hits, total, moreResultsAvailable);
+    }
+
+    internal static MessageSearchHit MapSearchHit(JsonElement hit)
+    {
+        bool hasResource = hit.TryGetProperty("resource", out var resource)
+            && resource.ValueKind == JsonValueKind.Object;
+
+        string messageId = (hasResource ? StringProperty(resource, "id") : null)
+            ?? StringProperty(hit, "hitId")
+            ?? string.Empty;
+
+        string? chatId = hasResource ? NonEmpty(StringProperty(resource, "chatId")) : null;
+        string? teamId = null;
+        string? channelId = null;
+        if (hasResource
+            && resource.TryGetProperty("channelIdentity", out var channelIdentity)
+            && channelIdentity.ValueKind == JsonValueKind.Object)
+        {
+            teamId = NonEmpty(StringProperty(channelIdentity, "teamId"));
+            channelId = NonEmpty(StringProperty(channelIdentity, "channelId"));
+        }
+
+        (string? from, string? fromAddress) = hasResource ? ReadSearchSender(resource) : (null, null);
+        DateTimeOffset? created = hasResource
+            ? DateProperty(resource, "createdDateTime") ?? DateProperty(resource, "lastModifiedDateTime")
+            : null;
+        string? summary = Truncate(StripHtml(StringProperty(hit, "summary")), 500);
+        string? webUrl = hasResource
+            ? NonEmpty(StringProperty(resource, "webUrl")) ?? NonEmpty(StringProperty(resource, "webLink"))
+            : null;
+
+        return new MessageSearchHit(
+            messageId,
+            chatId,
+            teamId,
+            channelId,
+            from,
+            fromAddress,
+            created,
+            summary,
+            webUrl);
+    }
+
+    private static (string? Name, string? Address) ReadSearchSender(JsonElement resource)
+    {
+        if (!resource.TryGetProperty("from", out var from) || from.ValueKind != JsonValueKind.Object)
+        {
+            return (null, null);
+        }
+
+        // Microsoft Search returns resource.from.emailAddress.{name, address}
+        // instead of the standard chatMessageFromIdentitySet.user shape.
+        if (from.TryGetProperty("emailAddress", out var emailAddress)
+            && emailAddress.ValueKind == JsonValueKind.Object)
+        {
+            return (
+                NonEmpty(StringProperty(emailAddress, "name")),
+                NonEmpty(StringProperty(emailAddress, "address")));
+        }
+
+        foreach (string identity in new[] { "user", "application", "device" })
+        {
+            if (from.TryGetProperty(identity, out var value) && value.ValueKind == JsonValueKind.Object)
+            {
+                string? displayName = NonEmpty(StringProperty(value, "displayName"));
+                if (displayName is not null)
+                {
+                    return (displayName, null);
+                }
+            }
+        }
+
+        return (null, null);
+    }
+
+    private static string? NonEmpty(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
+
     internal static string? SenderName(ChatMessage m) =>
         m.From?.User?.DisplayName
         ?? m.From?.Application?.DisplayName

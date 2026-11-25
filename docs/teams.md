@@ -82,7 +82,7 @@ fails fast on missing values with a `Next:` hint.
 
 For production use take the published binary (or a release asset).
 
-## 6. Tools (14)
+## 6. Tools (15)
 
 - `teams_list_teams` – joined teams with id and name
 - `teams_list_channels` – channels of a team
@@ -103,6 +103,13 @@ For production use take the published binary (or a release asset).
   beyond the 25-member expand cap above
 - `teams_list_chat_messages` – messages of a chat
 - `teams_read_chat_message` – full chat message
+- `teams_search_messages` – search across chats and channel messages via
+  Microsoft Search (`POST /v1.0/search/query`, `entityTypes: ["chatMessage"]`);
+  supports KQL (e.g. `from:alice@contoso.com`), returns `chatId` + `messageId`
+  (for `teams_read_chat_message`) or `teamId` + `channelId` + `messageId`
+  (for `teams_read_channel_message` on channel root messages; for channel
+  reply hits, use `webUrl` when available). Work/school accounts only; runs
+  against the search index (not strictly real-time)
 - `teams_list_meeting_transcripts` – transcripts of a scheduled online meeting
 - `teams_read_meeting_transcript` – VTT content of a transcript
 - `teams_list_meeting_insights` – AI insight metadata for a completed meeting
