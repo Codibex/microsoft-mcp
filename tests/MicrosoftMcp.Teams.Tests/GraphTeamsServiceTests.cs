@@ -182,6 +182,44 @@ public sealed class GraphTeamsServiceTests
         var handler = new SequenceHandler(
             BadRequest(), // expand=members,lastMessagePreview + orderby
             BadRequest(), // expand=lastMessagePreview + orderby
+            Response("""
+                {"value":[{"id":"chat-meta-edit","chatType":"oneOnOne","lastUpdatedDateTime":"2026-11-25T12:00:00.000Z","lastMessagePreview":{"createdDateTime":"2026-01-15T09:00:00.000Z"}}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/chats?$skiptoken=next"}
+                """),
+            Response("""
+                {"value":[{"id":"chat-recent-msg","chatType":"oneOnOne","lastUpdatedDateTime":"2025-01-01T00:00:00.000Z","lastMessagePreview":{"createdDateTime":"2026-11-24T18:00:00.000Z"}}]}
+                """));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var chats = await service.ListChatsAsync();
+
+        // Client-side fallback matches server ordering: sort by lastMessagePreview.createdDateTime
+        // when present rather than letting a newer metadata lastUpdatedDateTime outrank a fresher message.
+        chats.Select(chat => chat.Id).Should().Equal("chat-recent-msg", "chat-meta-edit");
+        handler.Requests.Should().HaveCount(4);
+        Uri.UnescapeDataString(handler.Requests[2].RequestUri!.Query).Should().NotContain("$orderby");
+        Uri.UnescapeDataString(handler.Requests[2].RequestUri!.Query).Should().Contain("$expand=members,lastMessagePreview");
+    }
+
+    [Fact]
+    public async Task ListChats_falls_back_to_plain_listing_when_all_query_options_are_rejected()
+    {
+        static HttpResponseMessage BadRequest() => new(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent(
+                """{"error":{"code":"Request_BadRequest","message":"query option not supported"}}""",
+                Encoding.UTF8,
+                "application/json")
+        };
+
+        var handler = new SequenceHandler(
+            BadRequest(), // expand=members,lastMessagePreview + orderby
+            BadRequest(), // expand=lastMessagePreview + orderby
             BadRequest(), // expand=members,lastMessagePreview
             BadRequest(), // expand=members
             Response("""
@@ -200,7 +238,7 @@ public sealed class GraphTeamsServiceTests
 
         var chats = await service.ListChatsAsync();
 
-        // Client-side fallback sorts across pages so the fresher chat on page 2 wins.
+        // When lastMessagePreview is unavailable, fall back to lastUpdatedDateTime across pages.
         chats.Select(chat => chat.Id).Should().Equal("chat-new", "chat-old");
         chats[0].Members.Should().BeEmpty();
         handler.Requests.Should().HaveCount(6);

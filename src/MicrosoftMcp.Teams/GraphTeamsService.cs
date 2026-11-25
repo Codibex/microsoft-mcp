@@ -206,7 +206,9 @@ public sealed class GraphTeamsService : IGraphTeamsService
         IEnumerable<Chat> ordered = serverOrdered
             ? filtered
             : orderByLastMessage
-                ? filtered.OrderByDescending(c => TeamsMapper.LatestActivity(c) ?? DateTimeOffset.MinValue)
+                ? filtered.OrderByDescending(c => c.LastMessagePreview?.CreatedDateTime
+                    ?? c.LastUpdatedDateTime
+                    ?? DateTimeOffset.MinValue)
                 : filtered.OrderByDescending(c => c.LastUpdatedDateTime ?? DateTimeOffset.MinValue);
 
         return [.. ordered
