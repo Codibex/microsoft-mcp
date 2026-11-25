@@ -25,11 +25,20 @@ public sealed record ChannelFilesFolderInfo(
     string? SiteId,
     string? WebUrl);
 
+/// <summary>Chat listing entry. Members are the chat's participants
+/// (from $expand=members), so a 1:1 chat names its counterparty without
+/// reading messages; empty when the expand was unavailable.</summary>
 public sealed record ChatInfo(
     string Id,
     string? Topic,
     string? ChatType,
-    DateTimeOffset? LastUpdated);
+    DateTimeOffset? LastUpdated,
+    IReadOnlyList<ChatMemberInfo>? Members = null);
+
+public sealed record ChatMemberInfo(
+    string? DisplayName,
+    string? Email,
+    string? UserId);
 
 public sealed record MeetingTranscriptInfo(
     string Id,

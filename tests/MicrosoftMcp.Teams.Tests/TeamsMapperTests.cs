@@ -16,6 +16,36 @@ public sealed class TeamsMapperTests
     }
 
     [Fact]
+    public void MapChat_maps_members_and_stays_null_safe()
+    {
+        var info = TeamsMapper.MapChat(new Chat
+        {
+            Id = "chat-1",
+            ChatType = ChatType.OneOnOne,
+            LastUpdatedDateTime = DateTimeOffset.UtcNow,
+            Members =
+            [
+                new AadUserConversationMember
+                {
+                    DisplayName = "Bob",
+                    Email = "bob@contoso.com",
+                    UserId = "u-bob"
+                },
+                new ConversationMember { DisplayName = "Guest" }
+            ]
+        });
+
+        info.Members.Should().HaveCount(2);
+        info.Members![0].DisplayName.Should().Be("Bob");
+        info.Members[0].Email.Should().Be("bob@contoso.com");
+        info.Members[0].UserId.Should().Be("u-bob");
+        info.Members[1].DisplayName.Should().Be("Guest");
+        info.Members[1].Email.Should().BeNull();
+
+        TeamsMapper.MapChat(new Chat()).Members.Should().BeEmpty();
+    }
+
+    [Fact]
     public void MapSummary_strips_html_for_preview()
     {
         var summary = TeamsMapper.MapSummary(new ChatMessage

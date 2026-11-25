@@ -60,6 +60,69 @@ public sealed class GraphTeamsServiceTests
     }
 
     [Fact]
+    public async Task ListChats_follows_paging_expands_members_and_sorts_by_last_activity()
+    {
+        var handler = new SequenceHandler(
+            Response("""
+                {"value":[{"id":"chat-old","chatType":"oneOnOne","lastUpdatedDateTime":"2025-01-01T00:00:00.000Z"}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/chats?$skiptoken=next"}
+                """),
+            Response("""
+                {"value":[{"id":"chat-new","chatType":"oneOnOne","lastUpdatedDateTime":"2026-11-25T09:00:00.000Z","members":[{"@odata.type":"#microsoft.graph.aadUserConversationMember","id":"m-1","displayName":"Bob","email":"bob@contoso.com","userId":"u-bob"}]}]}
+                """));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var chats = await service.ListChatsAsync();
+
+        // Graph pages in an unspecified order: the fresher chat from the
+        // second page must win over the older one from the first page.
+        chats.Select(chat => chat.Id).Should().Equal("chat-new", "chat-old");
+        chats[0].Members.Should().ContainSingle(m =>
+            m.DisplayName == "Bob" && m.Email == "bob@contoso.com" && m.UserId == "u-bob");
+        chats[1].Members.Should().BeEmpty();
+        handler.Requests.Should().HaveCount(2);
+        Uri.UnescapeDataString(handler.Requests[0].RequestUri!.Query).Should().Contain("$top=50");
+        Uri.UnescapeDataString(handler.Requests[0].RequestUri!.Query).Should().Contain("$expand=members");
+        handler.Requests[1].RequestUri!.Query.Should().Contain("$skiptoken=next");
+    }
+
+    [Fact]
+    public async Task ListChats_falls_back_to_plain_listing_when_members_expand_is_rejected()
+    {
+        var handler = new SequenceHandler(
+            new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent(
+                    """{"error":{"code":"Request_BadRequest","message":"expand is not supported"}}""",
+                    Encoding.UTF8,
+                    "application/json")
+            },
+            Response("""
+                {"value":[{"id":"chat-1","chatType":"oneOnOne","lastUpdatedDateTime":"2026-11-25T09:00:00.000Z"}]}
+                """));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var chats = await service.ListChatsAsync();
+
+        chats.Should().ContainSingle(chat => chat.Id == "chat-1");
+        chats[0].Members.Should().BeEmpty();
+        handler.Requests.Should().HaveCount(2);
+        Uri.UnescapeDataString(handler.Requests[0].RequestUri!.Query).Should().Contain("$expand=members");
+        Uri.UnescapeDataString(handler.Requests[1].RequestUri!.Query).Should().NotContain("$expand");
+    }
+
+    [Fact]
     public async Task ReadOnly_message_and_chat_reads_use_supported_paths_and_queries()
     {
         var handler = new SequenceHandler(

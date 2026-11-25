@@ -38,7 +38,12 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
         _teams["t-eng"] = new TeamInfo("t-eng", "Engineering", null, "private", false);
         _channels["c-general"] = ("t-eng", new ChannelInfo("c-general", "General", null, "standard"));
         _channels["c-random"] = ("t-eng", new ChannelInfo("c-random", "Random", null, "standard"));
-        _chats["chat-1"] = new ChatInfo("chat-1", null, "oneOnOne", DateTimeOffset.UtcNow);
+        _chats["chat-1"] = new ChatInfo(
+            "chat-1", null, "oneOnOne", DateTimeOffset.UtcNow,
+            [
+                new ChatMemberInfo("Alice", "alice@contoso.com", "u-alice"),
+                new ChatMemberInfo("Bob", "bob@contoso.com", "u-bob")
+            ]);
 
         Add(new StoredMessage { Id = "m-hello", OwnerId = "c-general", Subject = "Hallo", Body = "<p>Willkommen!</p>" });
         Add(new StoredMessage { Id = "m-r1", OwnerId = "c-general", ParentId = "m-hello", Subject = "Re: Hallo", Body = "Danke!" });

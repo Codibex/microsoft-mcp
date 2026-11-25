@@ -25,7 +25,15 @@ internal static partial class TeamsMapper
         c.Id ?? string.Empty,
         c.Topic,
         c.ChatType?.ToString(),
-        c.LastUpdatedDateTime);
+        c.LastUpdatedDateTime,
+        [.. (c.Members ?? []).Select(MapChatMember)]);
+
+    /// <summary>email/userId live on the aad subtype; the base type only
+    /// carries the display name (guest/external members).</summary>
+    internal static ChatMemberInfo MapChatMember(ConversationMember m) =>
+        m is AadUserConversationMember aad
+            ? new ChatMemberInfo(m.DisplayName, aad.Email, aad.UserId)
+            : new ChatMemberInfo(m.DisplayName, null, null);
 
     internal static MessageSummary MapSummary(ChatMessage m) => new(
         m.Id ?? string.Empty,

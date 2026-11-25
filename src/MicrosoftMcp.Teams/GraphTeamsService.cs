@@ -14,6 +14,10 @@ public sealed class GraphTeamsService : IGraphTeamsService
     private readonly GraphServiceClient _client;
     private readonly string _userIdOrUpn;
 
+    /// <summary>Scan cap so one call cannot page a pathological chat list
+    /// forever (same pattern as GraphTodoService.MaxScannedTasks).</summary>
+    private const int MaxScannedChats = 500;
+
     public GraphTeamsService(
         GraphServiceClient client,
         IOptions<GraphAuthOptions> options)
@@ -139,11 +143,53 @@ public sealed class GraphTeamsService : IGraphTeamsService
     public async Task<IReadOnlyList<ChatInfo>> ListChatsAsync(int top = 25, CancellationToken ct = default)
     {
         int take = Math.Clamp(top, 1, 50);
-        var page = await _client.Me.Chats.GetAsync(c =>
+        // Graph hands out chats in an unspecified order and offers no
+        // lastUpdatedDateTime sort, so every page is scanned before the
+        // client-side ordering: stopping at `take` could drop a recently
+        // active chat sitting behind @odata.nextLink (same reasoning as
+        // GraphTodoService.ListTasksAsync).
+        var chats = new List<Chat>();
+        var page = await GetChatsPageAsync(ct).ConfigureAwait(false);
+        while (page is not null && chats.Count < MaxScannedChats)
         {
-            c.QueryParameters.Top = take;
-        }, ct).ConfigureAwait(false);
-        return [.. (page?.Value ?? []).Select(TeamsMapper.MapChat)];
+            IReadOnlyList<Chat> raw = page.Value ?? [];
+            chats.AddRange(raw);
+            if (raw.Count == 0 || string.IsNullOrWhiteSpace(page.OdataNextLink))
+            {
+                break;
+            }
+
+            page = await _client.Me.Chats
+                .WithUrl(page.OdataNextLink)
+                .GetAsync(cancellationToken: ct)
+                .ConfigureAwait(false);
+        }
+
+        return [.. chats
+            .OrderByDescending(c => c.LastUpdatedDateTime ?? DateTimeOffset.MinValue)
+            .Take(take)
+            .Select(TeamsMapper.MapChat)];
+    }
+
+    /// <summary>First page with $expand=members so the listing names the
+    /// participants without one extra request per chat. A tenant that rejects
+    /// the expand (HTTP 400) falls back to the plain listing instead of
+    /// failing the whole tool.</summary>
+    private async Task<ChatCollectionResponse?> GetChatsPageAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await _client.Me.Chats.GetAsync(c =>
+            {
+                c.QueryParameters.Top = 50;
+                c.QueryParameters.Expand = ["members"];
+            }, ct).ConfigureAwait(false);
+        }
+        catch (ApiException ex) when (ex.ResponseStatusCode == 400)
+        {
+            return await _client.Me.Chats.GetAsync(c => c.QueryParameters.Top = 50, ct)
+                .ConfigureAwait(false);
+        }
     }
 
     public async Task<IReadOnlyList<MessageSummary>> ListChatMessagesAsync(

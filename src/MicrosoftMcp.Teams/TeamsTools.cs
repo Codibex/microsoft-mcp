@@ -81,7 +81,7 @@ public sealed class TeamsTools(IGraphTeamsService teams, ILogger<TeamsTools> log
         CancellationToken ct = default) =>
         InvokeAsync("teams_read_channel_message", () => teams.ReadChannelMessageAsync(teamId, channelId, messageId, ct));
 
-    [McpServerTool, Description("List recent chats (1:1 and group). Read-only.")]
+    [McpServerTool, Description("List recent chats (1:1 and group), newest activity first, including the participants' names and emails. Read-only.")]
     public Task<CallToolResult> teams_list_chats(
         [Description("Max chats 1-50")] int top = 25,
         CancellationToken ct = default) =>

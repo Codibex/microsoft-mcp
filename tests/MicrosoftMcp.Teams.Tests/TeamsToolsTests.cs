@@ -61,6 +61,7 @@ public sealed class TeamsToolsTests
 
         var chats = ToolResults.Ok<List<ChatInfo>>(await tools.teams_list_chats());
         chats.Should().ContainSingle(c => c.Id == "chat-1");
+        chats[0].Members.Should().Contain(m => m.DisplayName == "Bob" && m.Email == "bob@contoso.com");
 
         var messages = ToolResults.Ok<List<MessageSummary>>(
             await tools.teams_list_chat_messages("chat-1"));
