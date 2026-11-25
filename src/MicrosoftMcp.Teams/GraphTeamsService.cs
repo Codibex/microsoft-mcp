@@ -154,27 +154,40 @@ public sealed class GraphTeamsService : IGraphTeamsService
             : TeamsMapper.MapDetail(msg);
     }
 
-    public async Task<IReadOnlyList<ChatInfo>> ListChatsAsync(int top = 25, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ChatInfo>> ListChatsAsync(
+        int top = 25,
+        int skip = 0,
+        string? chatType = null,
+        string? orderBy = null,
+        CancellationToken ct = default)
     {
         int take = Math.Clamp(top, 1, 50);
-        // Graph hands out chats in an unspecified order and offers no
-        // lastUpdatedDateTime sort, so every page is scanned before the
-        // client-side ordering: stopping at `take` could drop a recently
-        // active chat sitting behind @odata.nextLink (same reasoning as
-        // GraphTodoService.ListTasksAsync).
+        int offset = Math.Clamp(skip, 0, MaxScannedChats - 1);
+        string? normalizedType = NormalizeChatType(chatType);
+        bool orderByLastMessage = ParseChatOrderBy(orderBy);
+
+        // Request server-side ordering by lastMessagePreview/createdDateTime desc
+        // (and optional $filter=chatType eq '...') so recently active chats
+        // arrive on page 1 even in mailboxes with >500 chats. When the tenant
+        // rejects $orderby/$filter, or when 'lastUpdated' is requested, we scan
+        // up to MaxScannedChats and filter/sort locally.
         var chats = new List<Chat>();
-        var page = await GetChatsPageAsync(ct).ConfigureAwait(false);
+        (var page, bool serverOrdered, bool serverFiltered) =
+            await GetChatsPageAsync(normalizedType, orderByLastMessage, ct).ConfigureAwait(false);
+        int targetCount = offset + take;
         int pages = 0;
         while (page is not null)
         {
             pages++;
             chats.AddRange(page.Value ?? []);
-            // Stop *before* the next request: no continuation left, or the
-            // budget for MaxScannedChats chats is spent – never fetch a page
-            // whose result would be discarded. An empty page that still
-            // carries a continuation is followed (the page budget bounds it,
-            // so an empty-page stream cannot loop forever).
+            // Stop *before* the next request: no continuation left, server-ordered
+            // + server-filtered results already cover offset + take, or the budget
+            // for MaxScannedChats chats is spent – never fetch a page whose result
+            // would be discarded. An empty page that still carries a continuation
+            // is followed (the page budget bounds it, so an empty-page stream
+            // cannot loop forever).
             if (string.IsNullOrWhiteSpace(page.OdataNextLink)
+                || (serverOrdered && serverFiltered && chats.Count >= targetCount)
                 || pages * ChatPageSize >= MaxScannedChats)
             {
                 break;
@@ -186,31 +199,123 @@ public sealed class GraphTeamsService : IGraphTeamsService
                 .ConfigureAwait(false);
         }
 
-        return [.. chats
-            .OrderByDescending(c => c.LastUpdatedDateTime ?? DateTimeOffset.MinValue)
+        IEnumerable<Chat> filtered = normalizedType is not null && !serverFiltered
+            ? chats.Where(c => string.Equals(c.ChatType?.ToString(), normalizedType, StringComparison.OrdinalIgnoreCase))
+            : chats;
+
+        IEnumerable<Chat> ordered = serverOrdered
+            ? filtered
+            : orderByLastMessage
+                ? filtered.OrderByDescending(c => TeamsMapper.LatestActivity(c) ?? DateTimeOffset.MinValue)
+                : filtered.OrderByDescending(c => c.LastUpdatedDateTime ?? DateTimeOffset.MinValue);
+
+        return [.. ordered
+            .Skip(offset)
             .Take(take)
             .Select(TeamsMapper.MapChat)];
     }
 
-    /// <summary>First page with $expand=members so the listing names the
-    /// participants without one extra request per chat. A tenant that rejects
-    /// the expand (HTTP 400) falls back to the plain listing instead of
-    /// failing the whole tool.</summary>
-    private async Task<ChatCollectionResponse?> GetChatsPageAsync(CancellationToken ct)
+    private static string? NormalizeChatType(string? chatType)
     {
-        try
+        if (string.IsNullOrWhiteSpace(chatType))
         {
-            return await _client.Me.Chats.GetAsync(c =>
+            return null;
+        }
+
+        return chatType.Trim().ToLowerInvariant() switch
+        {
+            "oneonone" => "oneOnOne",
+            "group" => "group",
+            "meeting" => "meeting",
+            _ => throw GraphServiceException.InvalidRequest(
+                $"Unsupported chatType '{chatType}'.",
+                "use 'oneOnOne', 'group', or 'meeting', or omit chatType")
+        };
+    }
+
+    /// <summary>Returns true for 'lastMessage' (default), false for 'lastUpdated'.</summary>
+    private static bool ParseChatOrderBy(string? orderBy)
+    {
+        if (string.IsNullOrWhiteSpace(orderBy))
+        {
+            return true;
+        }
+
+        return orderBy.Trim().ToLowerInvariant() switch
+        {
+            "lastmessage" => true,
+            "lastupdated" => false,
+            _ => throw GraphServiceException.InvalidRequest(
+                $"Unsupported orderBy '{orderBy}'.",
+                "use 'lastMessage' or 'lastUpdated', or omit orderBy")
+        };
+    }
+
+    /// <summary>First page with server-side newest-message ordering, optional
+    /// chatType filter and $expand=members,lastMessagePreview. Falls back on
+    /// HTTP 400 so tenants that reject an expand, $filter or $orderby still get
+    /// a working listing.</summary>
+    private async Task<(ChatCollectionResponse? Page, bool ServerOrdered, bool ServerFiltered)> GetChatsPageAsync(
+        string? chatType, bool orderByLastMessage, CancellationToken ct)
+    {
+        string? filter = chatType is null ? null : $"chatType eq '{chatType}'";
+        string[]? serverOrder = orderByLastMessage ? ["lastMessagePreview/createdDateTime desc"] : null;
+
+        var attempts = new List<(string[]? Expand, string[]? Orderby, string? Filter, bool ServerOrdered, bool ServerFiltered)>();
+        if (serverOrder is not null)
+        {
+            if (filter is not null)
             {
-                c.QueryParameters.Top = ChatPageSize;
-                c.QueryParameters.Expand = ["members"];
-            }, ct).ConfigureAwait(false);
+                attempts.Add((["members", "lastMessagePreview"], serverOrder, filter, true, true));
+                attempts.Add((["lastMessagePreview"], serverOrder, filter, true, true));
+            }
+
+            attempts.Add((["members", "lastMessagePreview"], serverOrder, null, true, false));
+            attempts.Add((["lastMessagePreview"], serverOrder, null, true, false));
         }
-        catch (ApiException ex) when (ex.ResponseStatusCode == 400)
+
+        if (filter is not null)
         {
-            return await _client.Me.Chats.GetAsync(c => c.QueryParameters.Top = ChatPageSize, ct)
-                .ConfigureAwait(false);
+            attempts.Add((["members", "lastMessagePreview"], null, filter, false, true));
+            attempts.Add((["members"], null, filter, false, true));
         }
+
+        attempts.Add((["members", "lastMessagePreview"], null, null, false, false));
+        attempts.Add((["members"], null, null, false, false));
+        attempts.Add((null, null, null, false, false));
+
+        for (int i = 0; i < attempts.Count; i++)
+        {
+            var (expand, orderby, currentFilter, serverOrdered, serverFiltered) = attempts[i];
+            try
+            {
+                var page = await _client.Me.Chats.GetAsync(c =>
+                {
+                    c.QueryParameters.Top = ChatPageSize;
+                    if (expand is not null)
+                    {
+                        c.QueryParameters.Expand = expand;
+                    }
+
+                    if (orderby is not null)
+                    {
+                        c.QueryParameters.Orderby = orderby;
+                    }
+
+                    if (currentFilter is not null)
+                    {
+                        c.QueryParameters.Filter = currentFilter;
+                    }
+                }, ct).ConfigureAwait(false);
+                return (page, serverOrdered, serverFiltered || chatType is null);
+            }
+            catch (ApiException ex) when (ex.ResponseStatusCode == 400 && i < attempts.Count - 1)
+            {
+                // Try the next less demanding query shape.
+            }
+        }
+
+        return (null, false, chatType is null);
     }
 
     /// <summary>Members of one chat. The endpoint documents no OData query

@@ -25,8 +25,28 @@ internal static partial class TeamsMapper
         c.Id ?? string.Empty,
         c.Topic,
         c.ChatType?.ToString(),
-        c.LastUpdatedDateTime,
+        LatestActivity(c),
         [.. (c.Members ?? []).Select(MapChatMember)]);
+
+    /// <summary>Chat.LastUpdatedDateTime tracks metadata edits and often stays
+    /// on the creation date for 1:1 chats; prefer the newer of lastMessagePreview
+    /// and lastUpdatedDateTime so callers see actual message activity.</summary>
+    internal static DateTimeOffset? LatestActivity(Chat c)
+    {
+        var msg = c.LastMessagePreview?.CreatedDateTime;
+        var upd = c.LastUpdatedDateTime;
+        if (msg is null)
+        {
+            return upd;
+        }
+
+        if (upd is null)
+        {
+            return msg;
+        }
+
+        return msg > upd ? msg : upd;
+    }
 
     /// <summary>email/userId live on the aad subtype; displayName and roles
     /// live on the base conversationMember type (present for guest/external

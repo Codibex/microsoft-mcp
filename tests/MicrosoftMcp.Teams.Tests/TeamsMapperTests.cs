@@ -43,6 +43,15 @@ public sealed class TeamsMapperTests
         info.Members[1].Email.Should().BeNull();
         info.Members[1].Roles.Should().Equal("guest");
 
+        var msgTime = new DateTimeOffset(2026, 11, 25, 12, 0, 0, TimeSpan.Zero);
+        var withPreview = TeamsMapper.MapChat(new Chat
+        {
+            Id = "chat-2",
+            LastUpdatedDateTime = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            LastMessagePreview = new ChatMessageInfo { CreatedDateTime = msgTime }
+        });
+        withPreview.LastUpdated.Should().Be(msgTime);
+
         TeamsMapper.MapChat(new Chat()).Members.Should().BeEmpty();
     }
 

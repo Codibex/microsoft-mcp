@@ -94,10 +94,14 @@ For production use take the published binary (or a release asset).
 - `teams_list_message_replies` – thread replies to a channel message
 - `teams_read_channel_message` – full message (HTML content truncated at
   8000 chars, reactions, mentions)
-- `teams_list_chats` – recent 1:1 and group chats, newest activity first,
-  with the participants' names and emails (paged through Graph, scan cap
-  500 chats; members come from `$expand=members`, which Graph caps at 25
-  members per chat)
+- `teams_list_chats` – recent 1:1, group, and meeting chats with participants'
+  names and emails. Supports optional `skip` for paging, `chatType`
+  (`oneOnOne`, `group`, `meeting`), and `orderBy` (`lastMessage` default, or
+  `lastUpdated`). Uses server-side `$orderby=lastMessagePreview/createdDateTime desc`
+  (and `$filter=chatType eq '...'` when set) with `$expand=members,lastMessagePreview`,
+  following `@odata.nextLink` up to `skip + top` (scan cap 500 chats); falls
+  back gracefully if a tenant rejects query options. Graph caps `$expand=members`
+  at 25 members per chat.
 - `teams_list_chat_members` – members of one chat (display name, email,
   user id, roles); `Chat.ReadBasic` is enough and it covers group chats
   beyond the 25-member expand cap above
