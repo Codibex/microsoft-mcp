@@ -375,6 +375,131 @@ public sealed class GraphTeamsServiceTests
     };
 
     /// <summary>A full $top=50 chat page with an optional @odata.nextLink.</summary>
+    [Fact]
+    public async Task SearchMessages_posts_chatMessage_query_and_maps_chat_and_channel_hits()
+    {
+        var handler = new SequenceHandler(
+            Response("""
+                {
+                  "value": [
+                    {
+                      "hitsContainers": [
+                        {
+                          "hits": [
+                            {
+                              "hitId": "hit-chat",
+                              "rank": 1,
+                              "summary": "Let's discuss <c0>budget</c0> &amp; timeline",
+                              "resource": {
+                                "@odata.type": "microsoft.graph.chatMessage",
+                                "id": "1657782060227",
+                                "createdDateTime": "2026-11-20T09:00:00Z",
+                                "chatId": "19:chat-abc@thread.v2",
+                                "channelIdentity": {},
+                                "from": {
+                                  "emailAddress": {
+                                    "name": "Alice Example",
+                                    "address": "alice@contoso.com"
+                                  }
+                                },
+                                "webLink": "https://teams.microsoft.com/l/message/chat-abc/1657782060227"
+                              }
+                            },
+                            {
+                              "hitId": "hit-channel",
+                              "rank": 2,
+                              "summary": "Channel <c0>budget</c0> update",
+                              "resource": {
+                                "@odata.type": "microsoft.graph.chatMessage",
+                                "id": "1657782099999",
+                                "createdDateTime": "2026-11-21T10:30:00Z",
+                                "channelIdentity": {
+                                  "teamId": "team-1",
+                                  "channelId": "channel-1"
+                                },
+                                "from": {
+                                  "user": {
+                                    "displayName": "Bob"
+                                  }
+                                }
+                              }
+                            }
+                          ],
+                          "total": 42,
+                          "moreResultsAvailable": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var result = await service.SearchMessagesAsync("  budget  ", top: 100);
+
+        handler.Requests.Should().ContainSingle();
+        handler.Requests[0].Method.Should().Be(HttpMethod.Post);
+        handler.Requests[0].RequestUri!.AbsolutePath.Should().Be("/v1.0/search/query");
+
+        using var sent = JsonDocument.Parse(handler.RequestBodies[0]);
+        var req = sent.RootElement.GetProperty("requests")[0];
+        req.GetProperty("entityTypes")[0].GetString().Should().Be("chatMessage");
+        req.GetProperty("query").GetProperty("queryString").GetString().Should().Be("budget");
+        req.GetProperty("from").GetInt32().Should().Be(0);
+        req.GetProperty("size").GetInt32().Should().Be(50);
+
+        result.Total.Should().Be(42);
+        result.MoreResultsAvailable.Should().BeTrue();
+        result.Hits.Should().HaveCount(2);
+
+        var chatHit = result.Hits[0];
+        chatHit.MessageId.Should().Be("1657782060227");
+        chatHit.ChatId.Should().Be("19:chat-abc@thread.v2");
+        chatHit.TeamId.Should().BeNull();
+        chatHit.ChannelId.Should().BeNull();
+        chatHit.From.Should().Be("Alice Example");
+        chatHit.FromAddress.Should().Be("alice@contoso.com");
+        chatHit.Summary.Should().Be("Let's discuss  budget  & timeline");
+        chatHit.WebUrl.Should().Be("https://teams.microsoft.com/l/message/chat-abc/1657782060227");
+
+        var channelHit = result.Hits[1];
+        channelHit.MessageId.Should().Be("1657782099999");
+        channelHit.ChatId.Should().BeNull();
+        channelHit.TeamId.Should().Be("team-1");
+        channelHit.ChannelId.Should().Be("channel-1");
+        channelHit.From.Should().Be("Bob");
+        channelHit.FromAddress.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SearchMessages_handles_empty_hits_and_rejects_blank_query()
+    {
+        var handler = new SequenceHandler(
+            Response("""{"value":[{"hitsContainers":[{"total":0,"moreResultsAvailable":false}]}]}"""));
+        using var httpClient = new HttpClient(handler);
+        var requestAdapter = new HttpClientRequestAdapter(
+            Substitute.For<Microsoft.Kiota.Abstractions.Authentication.IAuthenticationProvider>(),
+            httpClient: httpClient);
+        var service = new GraphTeamsService(
+            new GraphServiceClient(requestAdapter),
+            Options.Create(new GraphAuthOptions()));
+
+        var empty = await service.SearchMessagesAsync("nothing-matches");
+        empty.Hits.Should().BeEmpty();
+        empty.Total.Should().Be(0);
+        empty.MoreResultsAvailable.Should().BeFalse();
+
+        var act = () => service.SearchMessagesAsync("   ");
+        var ex = await Assert.ThrowsAsync<GraphServiceException>(act);
+        ex.Code.Should().Be("invalid-request");
+    }
+
     private static HttpResponseMessage ChatPage(int page, bool more = true)
     {
         var value = Enumerable.Range(0, 50)

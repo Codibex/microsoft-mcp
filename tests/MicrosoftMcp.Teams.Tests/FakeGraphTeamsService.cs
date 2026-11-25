@@ -176,6 +176,37 @@ internal sealed class FakeGraphTeamsService : IGraphTeamsService
                 : throw GraphServiceException.TeamsMessageNotFound(messageId, "fake"));
     }
 
+    public Task<MessageSearchResult> SearchMessagesAsync(
+        string query, int top = 25, CancellationToken ct = default)
+    {
+        Require(query, "query", "provide a search term or KQL query (e.g. 'budget' or 'from:alice@contoso.com')");
+        string term = query.Trim();
+        int take = Math.Clamp(top, 1, 50);
+        var matching = _messages.Values
+            .Where(m => m.Subject.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || m.Body.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || m.From.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var hits = matching
+            .Take(take)
+            .Select(m =>
+            {
+                bool isChannel = _channels.TryGetValue(m.OwnerId, out var ch);
+                return new MessageSearchHit(
+                    m.Id,
+                    isChannel ? null : m.OwnerId,
+                    isChannel ? ch.TeamId : null,
+                    isChannel ? ch.Channel.Id : null,
+                    m.From,
+                    null,
+                    DateTimeOffset.UtcNow,
+                    TeamsMapper.StripHtml(m.Body),
+                    null);
+            })
+            .ToList();
+        return Task.FromResult(new MessageSearchResult(hits, matching.Count, matching.Count > take));
+    }
+
     public Task<IReadOnlyList<MeetingTranscriptInfo>> ListMeetingTranscriptsAsync(
         string meetingId, int top = 25, CancellationToken ct = default)
     {

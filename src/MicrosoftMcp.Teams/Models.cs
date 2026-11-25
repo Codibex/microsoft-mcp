@@ -123,3 +123,24 @@ public sealed record MessageDetail(
     int AttachmentCount,
     string? ReplyToId,
     string? WebUrl);
+
+/// <summary>One Teams message hit from Microsoft Search (chat or channel).
+/// ChatId + MessageId plug into teams_read_chat_message; TeamId/ChannelId +
+/// MessageId plug into teams_read_channel_message for channel root messages
+/// (channel reply hits cannot be opened via the root-message endpoint — use
+/// WebUrl when available).</summary>
+public sealed record MessageSearchHit(
+    string MessageId,
+    string? ChatId,
+    string? TeamId,
+    string? ChannelId,
+    string? From,
+    string? FromAddress,
+    DateTimeOffset? Created,
+    string? Summary,
+    string? WebUrl);
+
+public sealed record MessageSearchResult(
+    IReadOnlyList<MessageSearchHit> Hits,
+    int Total,
+    bool MoreResultsAvailable);

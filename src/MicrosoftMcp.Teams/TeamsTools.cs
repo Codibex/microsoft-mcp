@@ -107,6 +107,13 @@ public sealed class TeamsTools(IGraphTeamsService teams, ILogger<TeamsTools> log
         CancellationToken ct = default) =>
         InvokeAsync("teams_read_chat_message", () => teams.ReadChatMessageAsync(chatId, messageId, ct));
 
+    [McpServerTool, Description("Search Teams messages across chats and channels via Microsoft Search (KQL supported, e.g. 'budget' or 'from:alice@contoso.com'). Work/school accounts only. Read-only.")]
+    public Task<CallToolResult> teams_search_messages(
+        [Description("Search query or KQL expression")] string query,
+        [Description("Max results 1-50")] int top = 25,
+        CancellationToken ct = default) =>
+        InvokeAsync("teams_search_messages", () => teams.SearchMessagesAsync(query, top, ct));
+
     [McpServerTool, Description("List transcripts of a scheduled online meeting. Read-only, available after transcription.")]
     public Task<CallToolResult> teams_list_meeting_transcripts(
         [Description("Online meeting id from Microsoft Graph")] string meetingId,

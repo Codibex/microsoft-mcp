@@ -4,6 +4,7 @@ using Microsoft.Graph.Models;
 using Microsoft.Kiota.Abstractions;
 using Microsoft.Kiota.Abstractions.Serialization;
 using MicrosoftMcp.Common;
+using System.Text;
 using System.Text.Json;
 
 namespace MicrosoftMcp.Teams;
@@ -280,6 +281,28 @@ public sealed class GraphTeamsService : IGraphTeamsService
             : TeamsMapper.MapDetail(msg);
     }
 
+    public async Task<MessageSearchResult> SearchMessagesAsync(
+        string query, int top = 25, CancellationToken ct = default)
+    {
+        RequireId(query, "query", "provide a search term or KQL query (e.g. 'budget' or 'from:alice@contoso.com')");
+        int size = Math.Clamp(top, 1, 50);
+        string payload = JsonSerializer.Serialize(new
+        {
+            requests = new[]
+            {
+                new
+                {
+                    entityTypes = new[] { "chatMessage" },
+                    query = new { queryString = query.Trim() },
+                    from = 0,
+                    size
+                }
+            }
+        });
+        using JsonDocument document = await PostJsonAsync("/search/query", payload, ct).ConfigureAwait(false);
+        return TeamsMapper.MapSearchResult(document.RootElement);
+    }
+
     public async Task<IReadOnlyList<MeetingTranscriptInfo>> ListMeetingTranscriptsAsync(
         string meetingId, int top = 25, CancellationToken ct = default)
     {
@@ -417,6 +440,35 @@ public sealed class GraphTeamsService : IGraphTeamsService
         if (stream is null)
         {
             throw GraphServiceException.GraphError(200, null, "Graph returned an empty AI insights response.");
+        }
+
+        return await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
+    }
+
+    private async Task<JsonDocument> PostJsonAsync(string path, string jsonBody, CancellationToken ct)
+    {
+        var adapter = _client.RequestAdapter
+            ?? throw GraphServiceException.GraphError(0, null, "Graph request adapter is unavailable.");
+        string baseUrl = adapter.BaseUrl?.TrimEnd('/')
+            ?? throw GraphServiceException.GraphError(0, null, "Graph request adapter has no base URL.");
+        var request = new RequestInformation
+        {
+            HttpMethod = Method.POST,
+            UrlTemplate = "{+baseurl}" + path,
+            PathParameters = new Dictionary<string, object>
+            {
+                ["baseurl"] = baseUrl
+            }
+        };
+        request.Headers.Add("Accept", "application/json");
+        request.SetStreamContent(new MemoryStream(Encoding.UTF8.GetBytes(jsonBody)), "application/json");
+        using Stream? stream = await adapter.SendPrimitiveAsync<Stream>(
+            request,
+            new Dictionary<string, ParsableFactory<IParsable>>(),
+            ct).ConfigureAwait(false);
+        if (stream is null)
+        {
+            throw GraphServiceException.GraphError(200, null, "Graph returned an empty search response.");
         }
 
         return await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
