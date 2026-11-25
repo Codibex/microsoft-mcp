@@ -94,7 +94,10 @@ For production use take the published binary (or a release asset).
 - `teams_list_message_replies` – thread replies to a channel message
 - `teams_read_channel_message` – full message (HTML content truncated at
   8000 chars, reactions, mentions)
-- `teams_list_chats` – recent 1:1 and group chats
+- `teams_list_chats` – recent 1:1 and group chats, newest activity first,
+  with the participants' names and emails (paged through Graph, scan cap
+  500 chats; members come from `$expand=members`, which Graph caps at 25
+  members per chat)
 - `teams_list_chat_messages` – messages of a chat
 - `teams_read_chat_message` – full chat message
 - `teams_list_meeting_transcripts` – transcripts of a scheduled online meeting
