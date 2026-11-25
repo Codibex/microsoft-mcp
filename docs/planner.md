@@ -12,7 +12,7 @@ details (description, checklist, assignees) behind a task.
 
 ## 1. Prerequisites
 
-- .NET 10 SDK (`dotnet --version` → 10.x)
+- .NET 11 SDK (`dotnet --version` → 11.x)
 - Microsoft 365 Planner access (work/school account)
 
 ## 2. Entra setup (one time)

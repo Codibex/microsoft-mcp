@@ -7,7 +7,7 @@ read-only; no write operations are exposed.
 
 ## 1. Prerequisites
 
-- .NET 10 SDK (`dotnet --version` → 10.x)
+- .NET 11 SDK (`dotnet --version` → 11.x)
 - Microsoft Teams membership
 
 ## 2. Entra setup (one time)
